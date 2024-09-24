@@ -414,7 +414,7 @@ function initLibrary()
       p_build = Ref{Int32}(0)
       ccall(getversionnumbers, Cint, (Ref{Cint},Ref{Cint},Ref{Cint}), p_major, p_minor, p_build)
       if p_major[] < XPVERSION_MAJOR || (p_major[] == XPVERSION_MAJOR && p_minor[] < XPVERSION_MINOR)
-        throw(XPRSexception(string("Cannot use API ", XPVERSION_MAJOR, ".", XPVERSION_MINOR, ".", XPVERSION_BUILD, " with library ", p_major[], ".", p_minor[], ".", p_build[])))
+        throw(XPRSexception(string("Cannot use API ", XPVERSION_MAJOR, ".", XPVERSION_MINOR, ".", XPVERSION_BUILD, " with library ", p_major[], ".", p_minor[], ".", p_build[])), nothing)
       end
       # TODO: Close library if any of the above cannot be found
     end
@@ -769,7 +769,7 @@ function XPRS_bo_create(prob::XPRSprob, isoriginal::Bool)::XPRSbranchobject
   handle_ref = Ref{Ptr{Cvoid}}(0)
   retcode = ccall(getFunctionAddress("XPRS_bo_create"), Cint, (Ptr{Ptr{Cvoid}}, Ptr{Cvoid}, Cint), handle_ref, prob.handle, Int32(isoriginal ? 1 : 0))
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   bo = nothing
   try
@@ -25105,7 +25105,7 @@ function XPRSaddcblplog(prob::XPRSprob, cb::Function, priority::Number)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(3)
@@ -25120,7 +25120,7 @@ function XPRSremovecbslplog(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -25165,7 +25165,7 @@ function XPRSaddcbmiplog(prob::XPRSprob, cb::Function, priority::Number)::Nothin
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(4)
@@ -25180,7 +25180,7 @@ function XPRSremovecbsmiplog(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -25225,7 +25225,7 @@ function XPRSaddcbcutlog(prob::XPRSprob, cb::Function, priority::Number)::Nothin
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(5)
@@ -25240,7 +25240,7 @@ function XPRSremovecbscutlog(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -25285,7 +25285,7 @@ function XPRSaddcbbarlog(prob::XPRSprob, cb::Function, priority::Number)::Nothin
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(6)
@@ -25300,7 +25300,7 @@ function XPRSremovecbsbarlog(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -25345,7 +25345,7 @@ function XPRSaddcbcutmgr(prob::XPRSprob, cb::Function, priority::Number)::Nothin
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(7)
@@ -25360,7 +25360,7 @@ function XPRSremovecbscutmgr(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -25408,7 +25408,7 @@ function XPRSaddcbchgnode(prob::XPRSprob, cb::Function, priority::Number)::Nothi
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(8)
@@ -25423,7 +25423,7 @@ function XPRSremovecbschgnode(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -25471,7 +25471,7 @@ function XPRSaddcboptnode(prob::XPRSprob, cb::Function, priority::Number)::Nothi
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(9)
@@ -25486,7 +25486,7 @@ function XPRSremovecbsoptnode(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -25534,7 +25534,7 @@ function XPRSaddcbprenode(prob::XPRSprob, cb::Function, priority::Number)::Nothi
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(10)
@@ -25549,7 +25549,7 @@ function XPRSremovecbsprenode(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -25593,7 +25593,7 @@ function XPRSaddcbinfnode(prob::XPRSprob, cb::Function, priority::Number)::Nothi
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(11)
@@ -25608,7 +25608,7 @@ function XPRSremovecbsinfnode(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -25653,7 +25653,7 @@ function XPRSaddcbnodecutoff(prob::XPRSprob, cb::Function, priority::Number)::No
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(12)
@@ -25668,7 +25668,7 @@ function XPRSremovecbsnodecutoff(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -25712,7 +25712,7 @@ function XPRSaddcbintsol(prob::XPRSprob, cb::Function, priority::Number)::Nothin
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(13)
@@ -25727,7 +25727,7 @@ function XPRSremovecbsintsol(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -25780,7 +25780,7 @@ function XPRSaddcbpreintsol(prob::XPRSprob, cb::Function, priority::Number)::Not
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(14)
@@ -25795,7 +25795,7 @@ function XPRSremovecbspreintsol(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -25851,7 +25851,7 @@ function XPRSaddcbchgbranch(prob::XPRSprob, cb::Function, priority::Number)::Not
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(15)
@@ -25866,7 +25866,7 @@ function XPRSremovecbschgbranch(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -25914,7 +25914,7 @@ function XPRSaddcbmessage(prob::XPRSprob, cb::Function, priority::Number)::Nothi
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(16)
@@ -25929,7 +25929,7 @@ function XPRSremovecbsmessage(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -25976,7 +25976,7 @@ function XPRSaddcbmipthread(prob::XPRSprob, cb::Function, priority::Number)::Not
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(17)
@@ -25991,7 +25991,7 @@ function XPRSremovecbsmipthread(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -26035,7 +26035,7 @@ function XPRSaddcbdestroymt(prob::XPRSprob, cb::Function, priority::Number)::Not
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(18)
@@ -26050,7 +26050,7 @@ function XPRSremovecbsdestroymt(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -26098,7 +26098,7 @@ function XPRSaddcbbariteration(prob::XPRSprob, cb::Function, priority::Number)::
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(19)
@@ -26113,7 +26113,7 @@ function XPRSremovecbsbariteration(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -26157,7 +26157,7 @@ function XPRSaddcbpresolve(prob::XPRSprob, cb::Function, priority::Number)::Noth
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(20)
@@ -26172,7 +26172,7 @@ function XPRSremovecbspresolve(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -26219,7 +26219,7 @@ function XPRSaddcbnewnode(prob::XPRSprob, cb::Function, priority::Number)::Nothi
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(21)
@@ -26234,7 +26234,7 @@ function XPRSremovecbsnewnode(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -26287,7 +26287,7 @@ function XPRSaddcbchgbranchobject(prob::XPRSprob, cb::Function, priority::Number
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(22)
@@ -26302,7 +26302,7 @@ function XPRSremovecbschgbranchobject(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -26362,7 +26362,7 @@ function XPRSaddcbgapnotify(prob::XPRSprob, cb::Function, priority::Number)::Not
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(23)
@@ -26377,7 +26377,7 @@ function XPRSremovecbsgapnotify(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -26424,7 +26424,7 @@ function XPRSaddcbusersolnotify(prob::XPRSprob, cb::Function, priority::Number):
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(24)
@@ -26439,7 +26439,7 @@ function XPRSremovecbsusersolnotify(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -26483,7 +26483,7 @@ function XPRSaddcbnodelpsolved(prob::XPRSprob, cb::Function, priority::Number)::
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(25)
@@ -26498,7 +26498,7 @@ function XPRSremovecbsnodelpsolved(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -26542,7 +26542,7 @@ function XPRSaddcbcomputerestart(prob::XPRSprob, cb::Function, priority::Number)
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(26)
@@ -26557,7 +26557,7 @@ function XPRSremovecbscomputerestart(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -26600,7 +26600,7 @@ function XPRSaddcbstrongbranchsolve(prob::XPRSprob, cb::Function, priority::Numb
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(27)
@@ -26615,7 +26615,7 @@ function XPRSremovecbsstrongbranchsolve(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -26657,7 +26657,7 @@ function XPRSaddcbbeforesolve(prob::XPRSprob, cb::Function, priority::Number)::N
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(28)
@@ -26672,7 +26672,7 @@ function XPRSremovecbsbeforesolve(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -26716,7 +26716,7 @@ function XPRSaddcbbeforeobjective(prob::XPRSprob, cb::Function, priority::Number
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(29)
@@ -26731,7 +26731,7 @@ function XPRSremovecbsbeforeobjective(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -26775,7 +26775,7 @@ function XPRSaddcbafterobjective(prob::XPRSprob, cb::Function, priority::Number)
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(30)
@@ -26790,7 +26790,7 @@ function XPRSremovecbsafterobjective(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -26835,7 +26835,7 @@ function XPRSaddcbchecktime(prob::XPRSprob, cb::Function, priority::Number)::Not
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(31)
@@ -26850,7 +26850,7 @@ function XPRSremovecbschecktime(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -26893,7 +26893,7 @@ function XPRSaddcbslpcascadeend(prob::XPRSprob, cb::Function, priority::Number):
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(32)
@@ -26908,7 +26908,7 @@ function XPRSremovecbsslpcascadeend(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -26951,7 +26951,7 @@ function XPRSaddcbslpcascadestart(prob::XPRSprob, cb::Function, priority::Number
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(33)
@@ -26966,7 +26966,7 @@ function XPRSremovecbsslpcascadestart(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -27009,7 +27009,7 @@ function XPRSaddcbslpcascadevar(prob::XPRSprob, cb::Function, priority::Number):
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(34)
@@ -27024,7 +27024,7 @@ function XPRSremovecbsslpcascadevar(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -27067,7 +27067,7 @@ function XPRSaddcbslpcascadevarfail(prob::XPRSprob, cb::Function, priority::Numb
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(35)
@@ -27082,7 +27082,7 @@ function XPRSremovecbsslpcascadevarfail(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -27125,7 +27125,7 @@ function XPRSaddcbslpconstruct(prob::XPRSprob, cb::Function, priority::Number)::
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(36)
@@ -27140,7 +27140,7 @@ function XPRSremovecbsslpconstruct(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -27183,7 +27183,7 @@ function XPRSaddcbslpintsol(prob::XPRSprob, cb::Function, priority::Number)::Not
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(37)
@@ -27198,7 +27198,7 @@ function XPRSremovecbsslpintsol(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -27241,7 +27241,7 @@ function XPRSaddcbslpiterend(prob::XPRSprob, cb::Function, priority::Number)::No
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(38)
@@ -27256,7 +27256,7 @@ function XPRSremovecbsslpiterend(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -27299,7 +27299,7 @@ function XPRSaddcbslpiterstart(prob::XPRSprob, cb::Function, priority::Number)::
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(39)
@@ -27314,7 +27314,7 @@ function XPRSremovecbsslpiterstart(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -27357,7 +27357,7 @@ function XPRSaddcbslpitervar(prob::XPRSprob, cb::Function, priority::Number)::No
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(40)
@@ -27372,7 +27372,7 @@ function XPRSremovecbsslpitervar(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -27418,7 +27418,7 @@ function XPRSaddcbslpdrcol(prob::XPRSprob, cb::Function, priority::Number)::Noth
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(41)
@@ -27433,7 +27433,7 @@ function XPRSremovecbsslpdrcol(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -27481,7 +27481,7 @@ function XPRSaddcbmsjobstart(prob::XPRSprob, cb::Function, priority::Number)::No
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(42)
@@ -27496,7 +27496,7 @@ function XPRSremovecbsmsjobstart(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -27544,7 +27544,7 @@ function XPRSaddcbmsjobend(prob::XPRSprob, cb::Function, priority::Number)::Noth
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(43)
@@ -27559,7 +27559,7 @@ function XPRSremovecbsmsjobend(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -27604,7 +27604,7 @@ function XPRSaddcbmswinner(prob::XPRSprob, cb::Function, priority::Number)::Noth
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(44)
@@ -27619,7 +27619,7 @@ function XPRSremovecbsmswinner(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -27662,7 +27662,7 @@ function XPRSaddcbnlpcoefevalerror(prob::XPRSprob, cb::Function, priority::Numbe
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(45)
@@ -27677,7 +27677,7 @@ function XPRSremovecbsnlpcoefevalerror(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
@@ -27723,7 +27723,7 @@ function XPRSaddcbslppreupdatelinearization(prob::XPRSprob, cb::Function, priori
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Any, Cint), prob.handle, wrapper, jcbnode, Int32(priority))
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   jcbnode.closure = cb
   jcbnode.callback = Int32(46)
@@ -27738,7 +27738,7 @@ function XPRSremovecbsslppreupdatelinearization(prob::XPRSprob)::Nothing
   retcode = ccall(f, Cint, (Ptr{Cvoid}, Ptr{Cvoid}, Ptr{Cvoid}), prob.handle, C_NULL, C_NULL)
   consumeCallbackException(prob)
   if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob)))
+    throw(XPRSexception(XPRSgetlasterror(prob)), nothing)
   end
   nothing
 end
