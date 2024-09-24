@@ -186,7 +186,7 @@
 #       same "printed page" as the copyright notice for easier
 #       identification within third-party archives.
 #
-#    Copyright 2023 Fair Isaac Corporation
+#    Copyright 2024 Fair Isaac Corporation
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -201,6 +201,8 @@
 #    limitations under the License.
 using XpressAPI
 
+# Note: To run this example, a global solver license is required.
+
 #=
 Minimize
   obj: x + y
@@ -214,6 +216,9 @@ y <= 5
 =#
 
 XPRScreateprob("") do prob
+  if XPRSfeaturequery("Global") != 1
+    error("A global solver license is required")
+  end
   XPRSaddcbmessage(prob, (p, m, l, t) -> if l > 0 println(": ", m); end, 0)
   obj = [1.0 for i in 0:1]
   lb = [0.0 for i in 0:1]
@@ -222,5 +227,7 @@ XPRScreateprob("") do prob
   XPRSaddrows(prob, 1, 0, ['G'], [4.0], [0.0], Int32[], Int32[], Float64[])
   XPRSaddqmatrix(prob, 0, 2, [0, 1], [0, 1], [2.0, 1.0])
   XPRSwriteprob(prob, "trivialnonconvexqcp.lp", "l")
-  states = XPRSoptimize(prob, "x")
+  solvestatus, solstatus = XPRSoptimize(prob, "x")
+  @assert solvestatus == XPRS_SOLVESTATUS_COMPLETED
+  @assert (solstatus == XPRS_SOLSTATUS_OPTIMAL) || (solstatus == XPRS_SOLSTATUS_FEASIBLE)
 end

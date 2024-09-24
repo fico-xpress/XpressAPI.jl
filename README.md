@@ -11,20 +11,63 @@ consequence, the module provides a Julia function/method wrapper for every
 C function.
 
 The goal of this module is *not* to provide a full-fledged Julia API or even
-a modeling API. This things can be built on top of this module.
+a modeling API. These things can be built on top of this module.
 
 A minimal code example for using this module is here:
 ```
 using XpressAPI
 
 XPRScreateprob("") do prob
-  XPRSaddcbmessage(prob, (p, m, l, t) -> if l > 0 println(": ", m); end, 0)
+  XPRSaddcbmessage(prob, (p, m, l, t) -> if t > 0 println(l > 0 ? "" : m); end, 0)
   XPRSreadprob(prob, "afiro.mps", "")
   XPRSlpoptimize(prob, "")
   println(XPRSgetdblattrib(prob, XPRS_LPOBJVAL))
 end
 
 ```
+
+## Installation
+
+XpressAPI does not provide Xpress binaries, a proper Xpress installion is needed to use this package.
+Please visit https://community.fico.com/s/optimization for further details.
+Ensure that the `XPRESSDIR` license variable is set to the install location by
+checking the output of:
+```julia
+julia> ENV["XPRESSDIR"]
+```
+
+Then, install this package using:
+```julia
+import Pkg
+Pkg.add("https://github.com/fico-xpress/XpressAPI.jl.git")
+```
+
+## License handling
+
+Before any Xpress function can be used, a license must be acquired. There
+are several ways to acquire a license. The most common way probably is to
+acquire a license along with the creation of a problem:
+```
+XPRScreateprob("") do prob
+  ...
+end
+```
+If `XPRScreateprob` is passed a string, then it calls `XPRSinit` with that
+string in order to acquire a license. That license is automatically released
+when the problem is destroyed.
+
+You can call `XPRScreateprob` with an argument of `nothing` to prevent the
+function from calling `XPRSinit`.
+
+A license can also be explicitly initialized by calling `XPRSinit`:
+```
+XPRSinit("") do lic
+  ...
+end
+```
+This is useful in case you need to create many problems (otherwise calling
+`XPRSinit` for every problem may incur some overhead) or if you want to
+explicitly control the lifetime of the license.
 
 ## Function mapping
 
@@ -45,6 +88,27 @@ have no wrappers. Instead there is a `close()` function for the respective
 objects. That function is also setup as the object's finalizer, so usually you
 should not need to bother with that `close()` function.
 
+A number of functions fill an array and return that filled array. These
+functions allow passing either an array to be filled or the special value
+`XPRS_ALLOC`. In case `XPRS_ALLOC` is passed, the function will allocate the
+array for you. For example, you can call `XPRSgetrhs` in two ways:
+- With an explicitly allocated array:
+```
+rhs = Vector{Float64}(undef, 5)
+rhs = XPRSgetrhs(prob, rhs, 0, 4)
+```
+- Have the function allocate the appropriate array for you:
+```
+rhs = XPRSgetrhs(prob, XPRS_ALLOC, 0, 4)
+```
+
+## Array indices
+
+Entities in the Xpress API are numbered starting from 0. For example, columns
+in a model are numbered from 0 to number of columns - 1.
+On the other hand, Julia arrays start with an index of 1, don't be confused
+by that.
+
 ## Callbacks
 
 Callback functions can be any callable objects (top-level functions, local
@@ -57,7 +121,7 @@ return values.
 
 If a callback raises an exception then the following happens:
 - The exception is captured.
-- The solution process is interrupted via `XPRSinterrupt(XPRS_STOP_GLOBALERROR)`.
+- The solution process is interrupted via `XPRSinterrupt(XPRS_STOP_GENERICERROR)`.
 - Once the optimizing C function returns to Julia, the exception that was
   captured before is thrown (wrapped into a new `XPRSexception` instance).
 

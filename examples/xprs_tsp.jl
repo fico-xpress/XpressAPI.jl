@@ -186,7 +186,7 @@
 #       same "printed page" as the copyright notice for easier
 #       identification within third-party archives.
 #
-#    Copyright 2023 Fair Isaac Corporation
+#    Copyright 2024 Fair Isaac Corporation
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -215,7 +215,7 @@ Demonstrates:
 The example also illustrates how array indices in Julia are 1-based while
 row and column indices in Xpress are 0-based.
 
-(c) 2022 Fair Isaac Corporation
+(c) 2022-2024 Fair Isaac Corporation
 """
 
 """Number of cities to visit.
@@ -379,12 +379,13 @@ function AddSubtourEliminationConstraints(prob, useDelayedRows)
   end
 end
 
-"""Callback function used for catching (heuristic) solutions that contain
+"""Callback function used for catching solutions that contain
    invalid subtours.
 
 This callback is invoked before an integer solution is accepted. It gives
-us a chance to reject the solution by return true as first return value.
-value.
+us a chance to reject the solution by returning true as first return value.
+In case solType is 0 (zero), we can even add cuts that cut off infeasible
+solutions.
 """
 function cbPreIntSol(prob, solType, cutoff)
   reject = false
@@ -405,104 +406,80 @@ function cbPreIntSol(prob, solType, cutoff)
     numCities += 1
     i = nextCity[i]
   end
+  reject = false
   if numCities < NUM_CITIES
-    # We don't have a full tour so reject the solution.
-    # This should only happen for heuristic solutions - otherwise we
-    # somehow missed a subtour elimination constraint.
+    # The tour given by the current solution does not pass through
+    # all the nodes and is thus infeasible.
+    # If soltype is non-zero then we reject by setting reject=true.
+    # If instead soltype is zero then the solution came from an
+    # integral node. In this case we can reject by adding a cut
+    # that cuts off that solution. Note that we must NOT set
+    # rejecttTrue in that case because that would result in just
+    # dropping the node, no matter whether we add cuts or not.
     println("Reject infeasible solution.")
-    reject = true
+	if solType != 0
+	  reject = true
+	else
+      # The solution came from an integral node. We can add subtour elimination
+	  # contraints to cut off this solution.
+      cutIdx = Vector{Int32}(undef, NUM_CITIES * NUM_CITIES)
+      cutCoef = Vector{Float64}(undef, NUM_CITIES * NUM_CITIES)
+      colind = Vector{Int32}(undef, NUM_CITIES * NUM_CITIES)
+      rowcoef = Vector{Float64}(undef, NUM_CITIES * NUM_CITIES)
+
+      # Create a subtour elimination cut for each subtour.
+      for k in 1:NUM_CITIES
+        # Skip subtours we have already checked.
+        if nextCity[k] == -1
+          continue
+		end
+
+        # Identify which cities are part of the subtour.
+        isTour = zeros(Bool, NUM_CITIES)
+        numCities = 0
+        j = k
+        while true
+          i = nextCity[j]
+          isTour[j] = true
+          numCities += 1
+          nextCity[j] = -1
+          j = i
+          nextCity[j] >= 0 || break
+        end
+
+        # Create a subtour elimination cut.
+        numCoef = 0
+        for i in 1:NUM_CITIES
+          if !isTour[i]
+            continue
+          end
+          for j in 1:NUM_CITIES
+            if isTour[j]
+              continue
+            end
+            numCoef += 1
+            cutCoef[numCoef] = 1.0
+            cutIdx[numCoef] = (i-1)*NUM_CITIES + (j-1)
+          end
+        end
+
+        # Before adding the cut, we must translate it to the presolved model.
+        # If this translation fails then we cannot continue. The translation
+        # can only fail if we have presolve operations enabled that should be
+        # disabled in case of dynamically separated constraints. */
+        coefs, _, _, rhs, status = XPRSpresolverow(prob, 'G', numCoef, cutIdx, cutCoef, 1.0,
+                                      NUM_CITIES*NUM_CITIES, colind, rowcoef)
+        if status != 0
+          error("Possible presolve operation prevented the proper translation of a subtour constraint, with status $(status)")
+        end
+        XPRSaddcuts(prob, 1, [1], ['G'], [rhs], [0, coefs], colind, rowcoef)
+      end
+    end
   else
     println("Accept solution:")
     PrintSolution(mipSol)
   end
   return reject, nothing # return nothing as `cutoff` to keep Xpress's cutoff
-end
-
-"""Callback function for separating violated subtour elimination constraints.
-
-This callback is invoked whenever the LP relaxation at a node was solved
-to optimality. This gives us a chance to separate and inject constraints
-that were omitted from the initial problem formulation.
-"""
-function cbOptNode(prob)
-  infeas = false
-
-  cutIdx = Vector{Int32}(undef, NUM_CITIES * NUM_CITIES)
-  cutCoef = Vector{Float64}(undef, NUM_CITIES * NUM_CITIES)
-  colind = Vector{Int32}(undef, NUM_CITIES * NUM_CITIES)
-  rowcoef = Vector{Float64}(undef, NUM_CITIES * NUM_CITIES)
-
-  # Check if the local node solution is integer feasible.
-  if XPRSgetintattrib(prob, XPRS_MIPINFEAS) > 0
-    # There are still fractionals in the solution, so we don't have to
-    # do anything yet
-    return true
-  end
-
-  # Get the current binary solution and translate it into subtours.
-  mipSol, _, _, _ = XPRSgetlpsol(prob, XPRS_ALLOC, nothing, nothing, nothing)
-  nextCity = repeat([-1], NUM_CITIES)
-  for i in 1:NUM_CITIES
-    for j in 1:NUM_CITIES
-      if mipSol[1 + (i-1) * NUM_CITIES + (j-1)] > 0.5
-        nextCity[i] = j
-      end
-    end
-  end
-
-  # Create a subtour elimination cut for each subtour.
-  for k in 1:NUM_CITIES
-    # Skip subtours we have already checked.
-    if nextCity[k] == -1
-      continue
-    end
-
-    # Identify which cities are part of the subtour.
-    isTour = zeros(Bool, NUM_CITIES)
-    numCities = 0
-    j = k
-    while true
-      i = nextCity[j]
-      isTour[j] = true
-      numCities += 1
-      nextCity[j] = -1
-      j = i
-      nextCity[j] >= 0 || break
-    end
-
-    if numCities == NUM_CITIES
-      # We have a full tour, i.e., the current solution is feasible and
-      # we don't have to inject any cuts
-      break
-    end
-
-    # Create a subtour elimination cut.
-    numCoef = 0
-    for i in 1:NUM_CITIES
-      if !isTour[i]
-        continue
-      end
-      for j in 1:NUM_CITIES
-        if isTour[j]
-          continue
-        end
-        numCoef += 1
-        cutCoef[numCoef] = 1.0
-        cutIdx[numCoef] = (i-1)*NUM_CITIES + (j-1)
-      end
-    end
-
-    # Before adding the cut, we must translate it to the presolved model.
-    # If this translation fails then we cannot continue. The translation
-    # can only fail if we have presolve operations enabled that should be
-    # disabled in case of dynamically separated constraints. */
-    coefs, _, _, rhs, status = XPRSpresolverow(prob, 'G', numCoef, cutIdx, cutCoef, 1.0,
-                                  NUM_CITIES*NUM_CITIES, colind, rowcoef)
-    if status != 0
-      error("Possible presolve operation prevented the proper translation of a subtour constraint, with status $(status)")
-    end
-    XPRSaddcuts(prob, 1, [1], ['G'], [rhs], [0, coefs], colind, rowcoef)
-  end
 end
 
 """Print the current MIP solution."""
@@ -546,13 +523,10 @@ XPRScreateprob("") do prob
     # We are going to create our subtour elimination constraints dynamically
     # during the solve, so ...
     # ... disable any presolve operations that conflict with not having the
-    #     entire problem definition present ... */
+    #     entire problem definition present ...
     XPRSsetintcontrol(prob, XPRS_MIPDUALREDUCTIONS, 0)
-    # ... add a callback for filtering invalid heuristic solutions ...
+    # ... add a callback for filtering invalid solutions.
     XPRSaddcbpreintsol(prob, cbPreIntSol, 0)
-    # ... and add a callback for separating violated subtour elimination
-    #     constraints.
-    XPRSaddcboptnode(prob, cbOptNode, 0)
   end
 
   XPRSwriteprob(prob, "tsp.lp", "l")
@@ -578,4 +552,7 @@ XPRScreateprob("") do prob
   else
     println("Unexpected solution status $(mipstatus).")
   end
+
+  # Check that list solution found is optimal
+  @assert XPRSgetintattrib(prob, XPRS_MIPSTATUS) == XPRS_MIP_OPTIMAL
 end

@@ -186,7 +186,7 @@
 #       same "printed page" as the copyright notice for easier
 #       identification within third-party archives.
 #
-#    Copyright 2023 Fair Isaac Corporation
+#    Copyright 2024 Fair Isaac Corporation
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -227,49 +227,49 @@ XPRScreateprob("") do prob
     }
 }
 """)
-P = keys(data["plants"])
-M = keys(data["markets"])
-#create variables and objective
-distance(p::String, m::String) = data["distances"]["$(p) => $(m)"]
-obj = vec([distance(p,m) for m in M, p in P])
-lb = [0.0 for i in 0:5]
-ub = [Inf for i in 0:5]
-XPRSaddcols(prob, 6, 0, obj, [0, 0], Int32[], Float64[], lb, ub)
-#add variable names
-ind = 0
-for p in P, m in M
-	XPRSaddnames(prob, 2, ["Transport" * p * "=>" * m], ind, ind)
-	ind = ind + 1
-end
-#create supply constraints
-ind = 0
-for p in P
-	rowtype = ['L' for m in M]
-	rhs = [data["plants"][p]["capacity"]]
-	colind = [ind*length(M) + m for m in 0:length(M)-1]
-	coefs = [1.0 for m in M]
-	XPRSaddrows(prob, 1, length(M), rowtype, rhs, Float64[], [0], colind, coefs)
-	ind = ind+1
-end
-#create demand constraints
-ind = 0
-for m in M
-	rowtype = ['G' for m in M]
-	rhs = [data["markets"][m]["demand"]]
-	colind = [p*length(M) + ind for p in 0:length(P)-1]
-	coefs = [1.0 for p in P]
-	XPRSaddrows(prob, 1, length(P), rowtype, rhs, Float64[], [0], colind, coefs)
-	ind = ind+1
-end
-XPRSwriteprob(prob, "xprs_test2.lp", "l");
+  P = keys(data["plants"])
+  M = keys(data["markets"])
+  #create variables and objective
+  distance(p::String, m::String) = data["distances"]["$(p) => $(m)"]
+  obj = vec([distance(p,m) for m in M, p in P])
+  lb = [0.0 for i in 0:5]
+  ub = [Inf for i in 0:5]
+  XPRSaddcols(prob, 6, 0, obj, [0, 0], Int32[], Float64[], lb, ub)
+  #add variable names
+  ind = 0
+  for p in P, m in M
+	  XPRSaddnames(prob, 2, ["Transport" * p * "=>" * m], ind, ind)
+	  ind = ind + 1
+  end
+  #create supply constraints
+  ind = 0
+  for p in P
+	  rowtype = ['L' for m in M]
+	  rhs = [data["plants"][p]["capacity"]]
+	  colind = [ind*length(M) + m for m in 0:length(M)-1]
+	  coefs = [1.0 for m in M]
+	  XPRSaddrows(prob, 1, length(M), rowtype, rhs, Float64[], [0], colind, coefs)
+	  ind = ind+1
+  end
+  #create demand constraints
+  ind = 0
+  for m in M
+	  rowtype = ['G' for m in M]
+	  rhs = [data["markets"][m]["demand"]]
+	  colind = [p*length(M) + ind for p in 0:length(P)-1]
+	  coefs = [1.0 for p in P]
+	  XPRSaddrows(prob, 1, length(P), rowtype, rhs, Float64[], [0], colind, coefs)
+	  ind = ind+1
+  end
+  XPRSwriteprob(prob, "xprs_test2.lp", "l");
 
-XPRSlpoptimize(prob, "")
-ind = 0
-for p in P, m in M
-	solval = [42.0]
-	nullreturn = [-1.0]
-	solval = XPRSgetlpsolval(prob, ind, 0)
-	println("Transport" * p * "=>" * m * ": " * string(solval[1]))
-	ind = ind + 1
-end
+  solvestatus, solstatus = XPRSoptimize(prob, "")
+  @assert solvestatus == XPRS_SOLVESTATUS_COMPLETED
+  @assert (solstatus == XPRS_SOLSTATUS_OPTIMAL) || (solstatus == XPRS_SOLSTATUS_FEASIBLE)
+  ind = 0
+  for p in P, m in M
+	  solval = XPRSgetlpsolval(prob, ind, 0)
+	  println("Transport" * p * "=>" * m * ": " * string(solval[1]))
+	  ind = ind + 1
+  end
 end

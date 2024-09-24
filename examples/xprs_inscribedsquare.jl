@@ -186,7 +186,7 @@
 #       same "printed page" as the copyright notice for easier
 #       identification within third-party archives.
 #
-#    Copyright 2023 Fair Isaac Corporation
+#    Copyright 2024 Fair Isaac Corporation
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -201,6 +201,8 @@
 #    limitations under the License.
 using XpressAPI
 
+# Note: To run this example, a global solver license is required.
+
 #=
 The inscribed square problem, also known as the square peg problem or the Toeplitz' conjecture, is an unsolved question in geometry: Does every plane simple closed curve contain all four vertices of some square?
 This is true if the curve is convex or piecewise smooth and in other special cases.
@@ -210,6 +212,11 @@ Model was contributed to MINLPlib by Benjamin Müller and Felipe Serrano
 =#
 
 XPRScreateprob("") do prob
+
+if XPRSfeaturequery("Global") != 1
+  error("A global solver license is required")
+end
+
 XPRSaddcbmessage(prob, (p, m, l, t) -> if l > 0 println(": ", m); end, 0)
 
 # add variables
@@ -243,24 +250,24 @@ XPRSnlpsetinitval(prob, 9, initvalind, initval)
 
 #solve problem to local optimality
 XPRSsetintcontrol(prob, XPRS_NLPPRESOLVE, 0)
-states = XPRSoptimize(prob, "")
-@assert states[1] == XPRS_SOLVESTATUS_COMPLETED
-@assert (states[2] == XPRS_SOLSTATUS_OPTIMAL) || (states[2] == Int(XPRS_SOLSTATUS_FEASIBLE))
+solvestatus, solstatus = XPRSoptimize(prob, "")
+@assert solvestatus == XPRS_SOLVESTATUS_COMPLETED
+@assert (solstatus == XPRS_SOLSTATUS_OPTIMAL) || (solstatus == XPRS_SOLSTATUS_FEASIBLE)
 
 #read solution
 objval = XPRSgetdblattrib(prob, XPRS_NLPOBJVAL)
-_, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, 5)
+_, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, 8)
 println(objval)
 println(sol[1])
 println("local solution: objvar: $(sol[1]), t1: $(sol[2]), t2: $(sol[3]), t3: $(sol[4]), t4: $(sol[5]), x1: $(sol[6]) y1: $(sol[7]), len: $(sol[8]), height: $(sol[9])")
 
 #solve problem to global optimality
 states = XPRSoptimize(prob, "x")
-@assert states[1] == XPRS_SOLVESTATUS_COMPLETED
-@assert (states[2] == XPRS_SOLSTATUS_OPTIMAL) || (states[2] == XPRS_SOLSTATUS_FEASIBLE)
+@assert solvestatus == XPRS_SOLVESTATUS_COMPLETED
+@assert (solstatus == XPRS_SOLSTATUS_OPTIMAL) || (solstatus == XPRS_SOLSTATUS_FEASIBLE)
 
 #read solution
 objval = XPRSgetdblattrib(prob, XPRS_NLPOBJVAL)
-_, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, 5)
+_, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, 8)
 println("global solution: objvar: $(sol[1]), t1: $(sol[2]) t2: $(sol[3]), t3: $(sol[4]), t4: $(sol[5]), x1: $(sol[6]), y1: $(sol[7]), len: $(sol[8]), height: $(sol[9])")
 end

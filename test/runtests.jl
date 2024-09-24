@@ -186,7 +186,7 @@
 #       same "printed page" as the copyright notice for easier
 #       identification within third-party archives.
 #
-#    Copyright 2023 Fair Isaac Corporation
+#    Copyright 2024 Fair Isaac Corporation
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -202,7 +202,8 @@
 import JSON
 using Random
 using XpressAPI
-function xprs_cannery()
+using Test, TestReports
+@testset "xprs_cannery" begin
   println("Run test xprs_cannery")
   
   # This is the cannery example from the JUMP tutorial
@@ -230,56 +231,58 @@ function xprs_cannery()
       }
   }
   """)
-  P = keys(data["plants"])
-  M = keys(data["markets"])
-  #create variables and objective
-  distance(p::String, m::String) = data["distances"]["$(p) => $(m)"]
-  obj = vec([distance(p,m) for m in M, p in P])
-  lb = [0.0 for i in 0:5]
-  ub = [Inf for i in 0:5]
-  XPRSaddcols(prob, 6, 0, obj, [0, 0], Int32[], Float64[], lb, ub)
-  #add variable names
-  ind = 0
-  for p in P, m in M
-  	XPRSaddnames(prob, 2, ["Transport" * p * "=>" * m], ind, ind)
-  	ind = ind + 1
-  end
-  #create supply constraints
-  ind = 0
-  for p in P
-  	rowtype = ['L' for m in M]
-  	rhs = [data["plants"][p]["capacity"]]
-  	colind = [ind*length(M) + m for m in 0:length(M)-1]
-  	coefs = [1.0 for m in M]
-  	XPRSaddrows(prob, 1, length(M), rowtype, rhs, Float64[], [0], colind, coefs)
-  	ind = ind+1
-  end
-  #create demand constraints
-  ind = 0
-  for m in M
-  	rowtype = ['G' for m in M]
-  	rhs = [data["markets"][m]["demand"]]
-  	colind = [p*length(M) + ind for p in 0:length(P)-1]
-  	coefs = [1.0 for p in P]
-  	XPRSaddrows(prob, 1, length(P), rowtype, rhs, Float64[], [0], colind, coefs)
-  	ind = ind+1
-  end
-  XPRSwriteprob(prob, "xprs_test2.lp", "l");
+    P = keys(data["plants"])
+    M = keys(data["markets"])
+    #create variables and objective
+    distance(p::String, m::String) = data["distances"]["$(p) => $(m)"]
+    obj = vec([distance(p,m) for m in M, p in P])
+    lb = [0.0 for i in 0:5]
+    ub = [Inf for i in 0:5]
+    XPRSaddcols(prob, 6, 0, obj, [0, 0], Int32[], Float64[], lb, ub)
+    #add variable names
+    ind = 0
+    for p in P, m in M
+  	  XPRSaddnames(prob, 2, ["Transport" * p * "=>" * m], ind, ind)
+  	  ind = ind + 1
+    end
+    #create supply constraints
+    ind = 0
+    for p in P
+  	  rowtype = ['L' for m in M]
+  	  rhs = [data["plants"][p]["capacity"]]
+  	  colind = [ind*length(M) + m for m in 0:length(M)-1]
+  	  coefs = [1.0 for m in M]
+  	  XPRSaddrows(prob, 1, length(M), rowtype, rhs, Float64[], [0], colind, coefs)
+  	  ind = ind+1
+    end
+    #create demand constraints
+    ind = 0
+    for m in M
+  	  rowtype = ['G' for m in M]
+  	  rhs = [data["markets"][m]["demand"]]
+  	  colind = [p*length(M) + ind for p in 0:length(P)-1]
+  	  coefs = [1.0 for p in P]
+  	  XPRSaddrows(prob, 1, length(P), rowtype, rhs, Float64[], [0], colind, coefs)
+  	  ind = ind+1
+    end
+    XPRSwriteprob(prob, "xprs_test2.lp", "l");
   
-  XPRSlpoptimize(prob, "")
-  ind = 0
-  for p in P, m in M
-  	solval = [42.0]
-  	nullreturn = [-1.0]
-  	solval = XPRSgetlpsolval(prob, ind, 0)
-  	println("Transport" * p * "=>" * m * ": " * string(solval[1]))
-  	ind = ind + 1
-  end
+    solvestatus, solstatus = XPRSoptimize(prob, "")
+    @test solvestatus == XPRS_SOLVESTATUS_COMPLETED
+    @test (solstatus == XPRS_SOLSTATUS_OPTIMAL) || (solstatus == XPRS_SOLSTATUS_FEASIBLE)
+    ind = 0
+    for p in P, m in M
+  	  solval = XPRSgetlpsolval(prob, ind, 0)
+  	  println("Transport" * p * "=>" * m * ": " * string(solval[1]))
+  	  ind = ind + 1
+    end
   end
 
 end
-function xprs_inscribedsquare()
+@testset "xprs_inscribedsquare" begin
   println("Run test xprs_inscribedsquare")
+  
+  # Note: To run this example, a global solver license is required.
   
   #=
   The inscribed square problem, also known as the square peg problem or the Toeplitz' conjecture, is an unsolved question in geometry: Does every plane simple closed curve contain all four vertices of some square?
@@ -290,6 +293,11 @@ function xprs_inscribedsquare()
   =#
   
   XPRScreateprob("") do prob
+  
+  if XPRSfeaturequery("Global") != 1
+    error("A global solver license is required")
+  end
+  
   XPRSaddcbmessage(prob, (p, m, l, t) -> if l > 0 println(": ", m); end, 0)
   
   # add variables
@@ -323,29 +331,29 @@ function xprs_inscribedsquare()
   
   #solve problem to local optimality
   XPRSsetintcontrol(prob, XPRS_NLPPRESOLVE, 0)
-  states = XPRSoptimize(prob, "")
-  @assert states[1] == XPRS_SOLVESTATUS_COMPLETED
-  @assert (states[2] == XPRS_SOLSTATUS_OPTIMAL) || (states[2] == Int(XPRS_SOLSTATUS_FEASIBLE))
+  solvestatus, solstatus = XPRSoptimize(prob, "")
+  @test solvestatus == XPRS_SOLVESTATUS_COMPLETED
+  @test (solstatus == XPRS_SOLSTATUS_OPTIMAL) || (solstatus == XPRS_SOLSTATUS_FEASIBLE)
   
   #read solution
   objval = XPRSgetdblattrib(prob, XPRS_NLPOBJVAL)
-  _, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, 5)
+  _, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, 8)
   println(objval)
   println(sol[1])
   println("local solution: objvar: $(sol[1]), t1: $(sol[2]), t2: $(sol[3]), t3: $(sol[4]), t4: $(sol[5]), x1: $(sol[6]) y1: $(sol[7]), len: $(sol[8]), height: $(sol[9])")
   
   #solve problem to global optimality
   states = XPRSoptimize(prob, "x")
-  @assert states[1] == XPRS_SOLVESTATUS_COMPLETED
-  @assert (states[2] == XPRS_SOLSTATUS_OPTIMAL) || (states[2] == XPRS_SOLSTATUS_FEASIBLE)
+  @test solvestatus == XPRS_SOLVESTATUS_COMPLETED
+  @test (solstatus == XPRS_SOLSTATUS_OPTIMAL) || (solstatus == XPRS_SOLSTATUS_FEASIBLE)
   
   #read solution
   objval = XPRSgetdblattrib(prob, XPRS_NLPOBJVAL)
-  _, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, 5)
+  _, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, 8)
   println("global solution: objvar: $(sol[1]), t1: $(sol[2]) t2: $(sol[3]), t3: $(sol[4]), t4: $(sol[5]), x1: $(sol[6]), y1: $(sol[7]), len: $(sol[8]), height: $(sol[9])")
   end
 end
-function xprs_markshare()
+@testset "xprs_markshare" begin
   println("Run test xprs_markshare")
   """Illustrate how to use branching callback with Xpress.
   
@@ -358,6 +366,7 @@ function xprs_markshare()
   """
   
   XPRScreateprob("") do prob
+    solvestatus, solstatus = Nothing, Nothing
     XPRSaddcbmessage(prob, (p, m, l, t) -> if l > 0 println(": ", m); end, 0)
     XPRSaddrows(prob, 6, 0,
                 [ 'E', 'E', 'E', 'E', 'E', 'E' ],       # rowtype
@@ -494,7 +503,7 @@ function xprs_markshare()
       x, _, _, _ = XPRSgetlpsol(p, XPRS_ALLOC, nothing, nothing, nothing)
       # Go through the binary variables and find the most fractional one
       maxfrac = 0.0
-      maxvar = -1
+     maxvar = -1
       for i in 12:61
         r = abs(x[i+1] - round(x[i+1]))
         if r > maxfrac
@@ -513,12 +522,15 @@ function xprs_markshare()
         return b
       end
     end, 0)
-    XPRSoptimize(prob, "")
+    solvestatus, solstatus = XPRSoptimize(prob, "")
+    @test solvestatus != XPRS_SOLVESTATUS_COMPLETED
+    @test (solstatus != XPRS_SOLSTATUS_OPTIMAL) || (solstatus != XPRS_SOLSTATUS_FEASIBLE)
   end
-
 end
-function xprs_nonconvexqcp()
+@testset "xprs_nonconvexqcp" begin
   println("Run test xprs_nonconvexqcp")
+  
+  # Note: To run this example, a global solver license is required.
   
   #=
   Minimize
@@ -533,6 +545,9 @@ function xprs_nonconvexqcp()
   =#
   
   XPRScreateprob("") do prob
+    if XPRSfeaturequery("Global") != 1
+      error("A global solver license is required")
+    end
     XPRSaddcbmessage(prob, (p, m, l, t) -> if l > 0 println(": ", m); end, 0)
     obj = [1.0 for i in 0:1]
     lb = [0.0 for i in 0:1]
@@ -541,56 +556,13 @@ function xprs_nonconvexqcp()
     XPRSaddrows(prob, 1, 0, ['G'], [4.0], [0.0], Int32[], Int32[], Float64[])
     XPRSaddqmatrix(prob, 0, 2, [0, 1], [0, 1], [2.0, 1.0])
     XPRSwriteprob(prob, "trivialnonconvexqcp.lp", "l")
-    states = XPRSoptimize(prob, "x")
-  end
-end
-function xprs_readprob()
-  println("Run test xprs_readprob")
-  
-  XPRScreateprob("") do prob
-    XPRSaddcbmessage(prob, (p, m, l, t) -> if l > 0 println(": ", m); end, 0)
-    XPRSreadprob(prob, "afiro.mps", "")
-    XPRSlpoptimize(prob, "")
-  
-    obj1 = XPRSgetdblattrib(prob, XPRS_LPOBJVAL)
-    println(obj1)
-  
-    # Clear the objective, solve again
-    cols = XPRSgetintattrib(prob, XPRS_COLS)
-    rows = XPRSgetintattrib(prob, XPRS_ROWS)
-    origobj = XPRSgetobj(prob, XPRS_ALLOC, 0, cols - 1)
-    println(origobj)
-    newobj = Vector{Float64}(undef, cols)
-    ind = Vector{Int32}(undef, cols)
-    for i in 0:cols-1
-      newobj[i+1] = 0.0
-      ind[i+1] = i
-    end
-    XPRSchgobj(prob, cols, ind, newobj)
-    XPRSlpoptimize(prob, "")
-    obj2 = XPRSgetdblattrib(prob, XPRS_LPOBJVAL)
-    println(obj2)
-  
-    # Restore original objective, solve again
-    XPRSchgobj(prob, cols, ind, origobj)
-    XPRSlpoptimize(prob, "")
-    obj3 = XPRSgetdblattrib(prob, XPRS_LPOBJVAL)
-    println(obj3)
-  
-    solstat, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, cols - 1)
-  
-    println("Objectives:")
-    println("  ", obj1)
-    println("  ", obj2)
-    println("  ", obj3)
-    rownames = XPRSgetnamelist(prob, 1, 0, rows - 1)
-    println(rownames)
-    colnames = XPRSgetnamelist(prob, 2, 0, cols - 1)
-    println(colnames)
+    solvestatus, solstatus = XPRSoptimize(prob, "x")
+    @test solvestatus == XPRS_SOLVESTATUS_COMPLETED
+    @test (solstatus == XPRS_SOLSTATUS_OPTIMAL) || (solstatus == XPRS_SOLSTATUS_FEASIBLE)
   end
 
 end
-function xprs_tsp()
+@testset "xprs_tsp" begin
   println("Run test xprs_tsp")
   """
   # Travelling Salesman Problem
@@ -606,7 +578,7 @@ function xprs_tsp()
   The example also illustrates how array indices in Julia are 1-based while
   row and column indices in Xpress are 0-based.
   
-  (c) 2022 Fair Isaac Corporation
+  (c) 2022-2024 Fair Isaac Corporation
   """
   
   """Number of cities to visit.
@@ -770,12 +742,13 @@ function xprs_tsp()
     end
   end
   
-  """Callback function used for catching (heuristic) solutions that contain
+  """Callback function used for catching solutions that contain
      invalid subtours.
   
   This callback is invoked before an integer solution is accepted. It gives
-  us a chance to reject the solution by return true as first return value.
-  value.
+  us a chance to reject the solution by returning true as first return value.
+  In case solType is 0 (zero), we can even add cuts that cut off infeasible
+  solutions.
   """
   function cbPreIntSol(prob, solType, cutoff)
     reject = false
@@ -796,104 +769,80 @@ function xprs_tsp()
       numCities += 1
       i = nextCity[i]
     end
+    reject = false
     if numCities < NUM_CITIES
-      # We don't have a full tour so reject the solution.
-      # This should only happen for heuristic solutions - otherwise we
-      # somehow missed a subtour elimination constraint.
+      # The tour given by the current solution does not pass through
+      # all the nodes and is thus infeasible.
+      # If soltype is non-zero then we reject by setting reject=true.
+      # If instead soltype is zero then the solution came from an
+      # integral node. In this case we can reject by adding a cut
+      # that cuts off that solution. Note that we must NOT set
+      # rejecttTrue in that case because that would result in just
+      # dropping the node, no matter whether we add cuts or not.
       println("Reject infeasible solution.")
-      reject = true
+  	if solType != 0
+  	  reject = true
+  	else
+        # The solution came from an integral node. We can add subtour elimination
+  	  # contraints to cut off this solution.
+        cutIdx = Vector{Int32}(undef, NUM_CITIES * NUM_CITIES)
+        cutCoef = Vector{Float64}(undef, NUM_CITIES * NUM_CITIES)
+        colind = Vector{Int32}(undef, NUM_CITIES * NUM_CITIES)
+        rowcoef = Vector{Float64}(undef, NUM_CITIES * NUM_CITIES)
+  
+        # Create a subtour elimination cut for each subtour.
+        for k in 1:NUM_CITIES
+          # Skip subtours we have already checked.
+          if nextCity[k] == -1
+            continue
+  		end
+  
+          # Identify which cities are part of the subtour.
+          isTour = zeros(Bool, NUM_CITIES)
+          numCities = 0
+          j = k
+          while true
+            i = nextCity[j]
+            isTour[j] = true
+            numCities += 1
+            nextCity[j] = -1
+            j = i
+            nextCity[j] >= 0 || break
+          end
+  
+          # Create a subtour elimination cut.
+          numCoef = 0
+          for i in 1:NUM_CITIES
+            if !isTour[i]
+              continue
+            end
+            for j in 1:NUM_CITIES
+              if isTour[j]
+                continue
+              end
+              numCoef += 1
+              cutCoef[numCoef] = 1.0
+              cutIdx[numCoef] = (i-1)*NUM_CITIES + (j-1)
+            end
+          end
+  
+          # Before adding the cut, we must translate it to the presolved model.
+          # If this translation fails then we cannot continue. The translation
+          # can only fail if we have presolve operations enabled that should be
+          # disabled in case of dynamically separated constraints. */
+          coefs, _, _, rhs, status = XPRSpresolverow(prob, 'G', numCoef, cutIdx, cutCoef, 1.0,
+                                        NUM_CITIES*NUM_CITIES, colind, rowcoef)
+          if status != 0
+            error("Possible presolve operation prevented the proper translation of a subtour constraint, with status $(status)")
+          end
+          XPRSaddcuts(prob, 1, [1], ['G'], [rhs], [0, coefs], colind, rowcoef)
+        end
+      end
     else
       println("Accept solution:")
       PrintSolution(mipSol)
     end
     return reject, nothing # return nothing as `cutoff` to keep Xpress's cutoff
-  end
-  
-  """Callback function for separating violated subtour elimination constraints.
-  
-  This callback is invoked whenever the LP relaxation at a node was solved
-  to optimality. This gives us a chance to separate and inject constraints
-  that were omitted from the initial problem formulation.
-  """
-  function cbOptNode(prob)
-    infeas = false
-  
-    cutIdx = Vector{Int32}(undef, NUM_CITIES * NUM_CITIES)
-    cutCoef = Vector{Float64}(undef, NUM_CITIES * NUM_CITIES)
-    colind = Vector{Int32}(undef, NUM_CITIES * NUM_CITIES)
-    rowcoef = Vector{Float64}(undef, NUM_CITIES * NUM_CITIES)
-  
-    # Check if the local node solution is integer feasible.
-    if XPRSgetintattrib(prob, XPRS_MIPINFEAS) > 0
-      # There are still fractionals in the solution, so we don't have to
-      # do anything yet
-      return true
-    end
-  
-    # Get the current binary solution and translate it into subtours.
-    mipSol, _, _, _ = XPRSgetlpsol(prob, XPRS_ALLOC, nothing, nothing, nothing)
-    nextCity = repeat([-1], NUM_CITIES)
-    for i in 1:NUM_CITIES
-      for j in 1:NUM_CITIES
-        if mipSol[1 + (i-1) * NUM_CITIES + (j-1)] > 0.5
-          nextCity[i] = j
-        end
-      end
-    end
-  
-    # Create a subtour elimination cut for each subtour.
-    for k in 1:NUM_CITIES
-      # Skip subtours we have already checked.
-      if nextCity[k] == -1
-        continue
-      end
-  
-      # Identify which cities are part of the subtour.
-      isTour = zeros(Bool, NUM_CITIES)
-      numCities = 0
-      j = k
-      while true
-        i = nextCity[j]
-        isTour[j] = true
-        numCities += 1
-        nextCity[j] = -1
-        j = i
-        nextCity[j] >= 0 || break
-      end
-  
-      if numCities == NUM_CITIES
-        # We have a full tour, i.e., the current solution is feasible and
-        # we don't have to inject any cuts
-        break
-      end
-  
-      # Create a subtour elimination cut.
-      numCoef = 0
-      for i in 1:NUM_CITIES
-        if !isTour[i]
-          continue
-        end
-        for j in 1:NUM_CITIES
-          if isTour[j]
-            continue
-          end
-          numCoef += 1
-          cutCoef[numCoef] = 1.0
-          cutIdx[numCoef] = (i-1)*NUM_CITIES + (j-1)
-        end
-      end
-  
-      # Before adding the cut, we must translate it to the presolved model.
-      # If this translation fails then we cannot continue. The translation
-      # can only fail if we have presolve operations enabled that should be
-      # disabled in case of dynamically separated constraints. */
-      coefs, _, _, rhs, status = XPRSpresolverow(prob, 'G', numCoef, cutIdx, cutCoef, 1.0,
-                                    NUM_CITIES*NUM_CITIES, colind, rowcoef)
-      if status != 0
-        error("Possible presolve operation prevented the proper translation of a subtour constraint, with status $(status)")
-      end
-      XPRSaddcuts(prob, 1, [1], ['G'], [rhs], [0, coefs], colind, rowcoef)
-    end
   end
   
   """Print the current MIP solution."""
@@ -937,13 +886,10 @@ function xprs_tsp()
       # We are going to create our subtour elimination constraints dynamically
       # during the solve, so ...
       # ... disable any presolve operations that conflict with not having the
-      #     entire problem definition present ... */
+      #     entire problem definition present ...
       XPRSsetintcontrol(prob, XPRS_MIPDUALREDUCTIONS, 0)
-      # ... add a callback for filtering invalid heuristic solutions ...
+      # ... add a callback for filtering invalid solutions.
       XPRSaddcbpreintsol(prob, cbPreIntSol, 0)
-      # ... and add a callback for separating violated subtour elimination
-      #     constraints.
-      XPRSaddcboptnode(prob, cbOptNode, 0)
     end
   
     XPRSwriteprob(prob, "tsp.lp", "l")
@@ -969,13 +915,10 @@ function xprs_tsp()
     else
       println("Unexpected solution status $(mipstatus).")
     end
+  
+    # Check that list solution found is optimal
+    @test XPRSgetintattrib(prob, XPRS_MIPSTATUS) == XPRS_MIP_OPTIMAL
   end
 
 end
 
-xprs_cannery()
-xprs_inscribedsquare()
-xprs_markshare()
-xprs_nonconvexqcp()
-xprs_readprob()
-xprs_tsp()

@@ -186,7 +186,7 @@
 #       same "printed page" as the copyright notice for easier
 #       identification within third-party archives.
 #
-#    Copyright 2023 Fair Isaac Corporation
+#    Copyright 2024 Fair Isaac Corporation
 #
 #    Licensed under the Apache License, Version 2.0 (the "License");
 #    you may not use this file except in compliance with the License.
@@ -211,6 +211,7 @@ and branch on that.
 """
 
 XPRScreateprob("") do prob
+  solvestatus, solstatus = Nothing, Nothing
   XPRSaddcbmessage(prob, (p, m, l, t) -> if l > 0 println(": ", m); end, 0)
   XPRSaddrows(prob, 6, 0,
               [ 'E', 'E', 'E', 'E', 'E', 'E' ],       # rowtype
@@ -347,7 +348,7 @@ XPRScreateprob("") do prob
     x, _, _, _ = XPRSgetlpsol(p, XPRS_ALLOC, nothing, nothing, nothing)
     # Go through the binary variables and find the most fractional one
     maxfrac = 0.0
-    maxvar = -1
+   maxvar = -1
     for i in 12:61
       r = abs(x[i+1] - round(x[i+1]))
       if r > maxfrac
@@ -366,5 +367,7 @@ XPRScreateprob("") do prob
       return b
     end
   end, 0)
-  XPRSoptimize(prob, "")
+  solvestatus, solstatus = XPRSoptimize(prob, "")
+  @assert solvestatus != XPRS_SOLVESTATUS_COMPLETED
+  @assert (solstatus != XPRS_SOLSTATUS_OPTIMAL) || (solstatus != XPRS_SOLSTATUS_FEASIBLE)
 end
