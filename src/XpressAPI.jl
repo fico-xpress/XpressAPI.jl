@@ -414,7 +414,7 @@ function initLibrary()
       p_build = Ref{Int32}(0)
       ccall(getversionnumbers, Cint, (Ref{Cint},Ref{Cint},Ref{Cint}), p_major, p_minor, p_build)
       if p_major[] < XPVERSION_MAJOR || (p_major[] == XPVERSION_MAJOR && p_minor[] < XPVERSION_MINOR)
-        throw(XPRSexception(string("Cannot use API ", XPVERSION_MAJOR, ".", XPVERSION_MINOR, ".", XPVERSION_BUILD, " with library ", p_major[], ".", p_minor[], ".", p_build[])), nothing)
+        throw(XPRSexception(string("Cannot use API ", XPVERSION_MAJOR, ".", XPVERSION_MINOR, ".", XPVERSION_BUILD, " with library ", p_major[], ".", p_minor[], ".", p_build[]), nothing))
       end
       # TODO: Close library if any of the above cannot be found
     end
