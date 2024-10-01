@@ -1,22 +1,20 @@
-# XpressAPI - A package for low-level access to the Xpress C API
+# XpressAPI - A package for low-level access to FICO® Xpress Solver C API
 
-This package provides access to the Xpress C functions from Julia.
-While (in theory) any C function can be directly accessed from Julia, this is
-sometimes cumbersome and errorprone since for every call you have to know and
-specify the exact prototype of the C function, have to jump through some hoops
-for handling output arguments, have to perform error checking, etc.
-
-The goal of this package is to simplify this as much as possible. As a
-consequence, the package provides a Julia function/method wrapper for every
-C function.
+This package provides access from Julia to Xpress Solver C functions. While (in theory) 
+any C function can be directly accessed from Julia, this is sometimes cumbersome and error-prone 
+since for every call you must know and specify the exact prototype of the C function. 
+Consequently, this package provides a Julia function wrapper for every C function.
 
 The goal of this package is *not* to provide a full-fledged Julia API or even
 a modeling API. These things can be built on top of this package.
 
 ## Installation
 
-XpressAPI does not provide Xpress binaries, a proper Xpress installion is needed to use this package.
-Please visit https://community.fico.com/s/optimization for further details.
+XpressAPI does not provide Xpress Solver binaries. If you do not have any recent installation 
+of FICO Xpress, download the free [Xpress Community Edition] (https://www.fico.com/en/fico-xpress-community-license) after creating a user account. By 
+downloading, you agree to the Community License terms of the [Xpress Shrinkwrap License Agreement](https://community.fico.com/s/contentdocument/06980000002h0i5AAA). 
+See the [licensing options overview](https://community.fico.com/s/fico-xpress-optimization-licensing-optio) for additional details and information about obtaining a paid license.
+
 Ensure that the `XPRESSDIR` license variable is set to the install location by
 checking the output of:
 ```julia
