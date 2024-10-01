@@ -1,30 +1,17 @@
-# XpressAPI - A module for low-level access to the Xpress C API
+# XpressAPI - A package for low-level access to the Xpress C API
 
-This package/module provides access to the Xpress C functions from Julia.
+This package provides access to the Xpress C functions from Julia.
 While (in theory) any C function can be directly accessed from Julia, this is
 sometimes cumbersome and errorprone since for every call you have to know and
 specify the exact prototype of the C function, have to jump through some hoops
 for handling output arguments, have to perform error checking, etc.
 
-The goal of this module is to simplify this as much as possible. As a
-consequence, the module provides a Julia function/method wrapper for every
+The goal of this package is to simplify this as much as possible. As a
+consequence, the package provides a Julia function/method wrapper for every
 C function.
 
-The goal of this module is *not* to provide a full-fledged Julia API or even
-a modeling API. These things can be built on top of this module.
-
-A minimal code example for using this module is here:
-```
-using XpressAPI
-
-XPRScreateprob("") do prob
-  XPRSaddcbmessage(prob, (p, m, l, t) -> if t > 0 println(l > 0 ? "" : m); end, 0)
-  XPRSreadprob(prob, "afiro.mps", "")
-  XPRSlpoptimize(prob, "")
-  println(XPRSgetdblattrib(prob, XPRS_LPOBJVAL))
-end
-
-```
+The goal of this package is *not* to provide a full-fledged Julia API or even
+a modeling API. These things can be built on top of this package.
 
 ## Installation
 
@@ -39,12 +26,24 @@ julia> ENV["XPRESSDIR"]
 Then, install this package using:
 ```julia
 import Pkg
-Pkg.add("https://github.com/fico-xpress/XpressAPI.jl.git")
+Pkg.add("XpressAPI")
+```
+A minimal code example for using this package:
+```
+using XpressAPI
+
+XPRScreateprob("") do prob
+  XPRSaddcbmessage(prob, (p, m, l, t) -> if t > 0 println(l > 0 ? "" : m); end, 0)
+  XPRSreadprob(prob, "afiro.mps", "")
+  XPRSlpoptimize(prob, "")
+  println(XPRSgetdblattrib(prob, XPRS_LPOBJVAL))
+end
+
 ```
 
 ## License handling
 
-Before any Xpress function can be used, a license must be acquired. There
+Before any Xpress function can be used, a license must be initialized. There
 are several ways to acquire a license. The most common way probably is to
 acquire a license along with the creation of a problem:
 ```
@@ -71,13 +70,13 @@ explicitly control the lifetime of the license.
 
 ## Function mapping
 
-As stated above, this module provides a Julia wrapper for (almost) every
+As stated above, this package provides a Julia wrapper for (almost) every
 function in the Xpress solver's C API.
 
 Most of the parameters are mapped 1:1 between Julia and C. However, there are
 a few exceptions:
 - The integer error code returned by every library function is checked in the
-  module and translated into an `XPRSexception` in case it is non-zero.
+  package and translated into an `XPRSexception` in case it is non-zero.
 - Output parameters are translated into (multiple) return values.
 - In case a function that operates on an `XPRSprob` has no output parameters,
   it returns the `XPRSprob` that was passed to it. This allows these functions
@@ -128,7 +127,7 @@ If a callback raises an exception then the following happens:
 ## Error handling
 
 Errors from calling the low-level C functions are translated into exceptions.
-The exception that is thrown by the functions in this module is `XPRSexception`.
+The exception that is thrown by the functions in this package is `XPRSexception`.
 Note that not only library errors may trigger this exception. Another typical
 situation in which this exception may be raised is when buffers are detected to
 be not long enough.
