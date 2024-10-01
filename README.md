@@ -27,7 +27,7 @@ import Pkg
 Pkg.add("XpressAPI")
 ```
 A minimal code example for using this package:
-```
+```julia
 using XpressAPI
 
 XPRScreateprob("") do prob
@@ -44,7 +44,7 @@ end
 Before any Xpress function can be used, a license must be initialized. There
 are several ways to acquire a license. The most common way probably is to
 acquire a license along with the creation of a problem:
-```
+```julia
 XPRScreateprob("") do prob
   ...
 end
@@ -57,7 +57,7 @@ You can call `XPRScreateprob` with an argument of `nothing` to prevent the
 function from calling `XPRSinit`.
 
 A license can also be explicitly initialized by calling `XPRSinit`:
-```
+```julia
 XPRSinit("") do lic
   ...
 end
@@ -90,12 +90,12 @@ functions allow passing either an array to be filled or the special value
 `XPRS_ALLOC`. In case `XPRS_ALLOC` is passed, the function will allocate the
 array for you. For example, you can call `XPRSgetrhs` in two ways:
 - With an explicitly allocated array:
-```
+```julia
 rhs = Vector{Float64}(undef, 5)
 rhs = XPRSgetrhs(prob, rhs, 0, 4)
 ```
 - Have the function allocate the appropriate array for you:
-```
+```julia
 rhs = XPRSgetrhs(prob, XPRS_ALLOC, 0, 4)
 ```
 
