@@ -11,7 +11,7 @@ a modeling API. These things can be built on top of this package.
 ## Installation
 
 XpressAPI does not provide Xpress Solver binaries. If you do not have any recent installation 
-of FICO Xpress, download the free [Xpress Community Edition] (https://www.fico.com/en/fico-xpress-community-license) after creating a user account. By 
+of FICO Xpress, download the free [Xpress Community Edition](https://www.fico.com/en/fico-xpress-community-license) after creating a user account. By 
 downloading, you agree to the Community License terms of the [Xpress Shrinkwrap License Agreement](https://community.fico.com/s/contentdocument/06980000002h0i5AAA). 
 See the [licensing options overview](https://community.fico.com/s/fico-xpress-optimization-licensing-optio) for additional details and information about obtaining a paid license.
 
