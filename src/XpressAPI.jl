@@ -993,7 +993,7 @@ export XPVERSION_MINOR
 global const XPVERSION_BUILD = Int32(1)
 export XPVERSION_BUILD
 """ `XPVERSION_FULL` - Full version number of Xpress optimizer library."""
-global const XPVERSION_FULL = Int32(440199)
+global const XPVERSION_FULL = Int32(440101)
 export XPVERSION_FULL
 global const XPRS_DEL_COLON = Int32(2)
 export XPRS_DEL_COLON
