@@ -1,6 +1,6 @@
 name = "XpressAPI"
 uuid = "750d0954-2060-462e-b2dd-f6609bca40df"
-version = "44.01.99"
+version = "44.01.01"
 authors = ["FICO"]
 
 [deps]
