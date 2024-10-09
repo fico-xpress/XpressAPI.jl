@@ -1,208 +1,26 @@
-#                                  Apache License
-#                            Version 2.0, January 2004
-#                         http://www.apache.org/licenses/
-#
-#    TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-#
-#    1. Definitions.
-#
-#       "License" shall mean the terms and conditions for use, reproduction,
-#       and distribution as defined by Sections 1 through 9 of this document.
-#
-#       "Licensor" shall mean the copyright owner or entity authorized by
-#       the copyright owner that is granting the License.
-#
-#       "Legal Entity" shall mean the union of the acting entity and all
-#       other entities that control, are controlled by, or are under common
-#       control with that entity. For the purposes of this definition,
-#       "control" means (i) the power, direct or indirect, to cause the
-#       direction or management of such entity, whether by contract or
-#       otherwise, or (ii) ownership of fifty percent (50%) or more of the
-#       outstanding shares, or (iii) beneficial ownership of such entity.
-#
-#       "You" (or "Your") shall mean an individual or Legal Entity
-#       exercising permissions granted by this License.
-#
-#       "Source" form shall mean the preferred form for making modifications,
-#       including but not limited to software source code, documentation
-#       source, and configuration files.
-#
-#       "Object" form shall mean any form resulting from mechanical
-#       transformation or translation of a Source form, including but
-#       not limited to compiled object code, generated documentation,
-#       and conversions to other media types.
-#
-#       "Work" shall mean the work of authorship, whether in Source or
-#       Object form, made available under the License, as indicated by a
-#       copyright notice that is included in or attached to the work
-#       (an example is provided in the Appendix below).
-#
-#       "Derivative Works" shall mean any work, whether in Source or Object
-#       form, that is based on (or derived from) the Work and for which the
-#       editorial revisions, annotations, elaborations, or other modifications
-#       represent, as a whole, an original work of authorship. For the purposes
-#       of this License, Derivative Works shall not include works that remain
-#       separable from, or merely link (or bind by name) to the interfaces of,
-#       the Work and Derivative Works thereof.
-#
-#       "Contribution" shall mean any work of authorship, including
-#       the original version of the Work and any modifications or additions
-#       to that Work or Derivative Works thereof, that is intentionally
-#       submitted to Licensor for inclusion in the Work by the copyright owner
-#       or by an individual or Legal Entity authorized to submit on behalf of
-#       the copyright owner. For the purposes of this definition, "submitted"
-#       means any form of electronic, verbal, or written communication sent
-#       to the Licensor or its representatives, including but not limited to
-#       communication on electronic mailing lists, source code control systems,
-#       and issue tracking systems that are managed by, or on behalf of, the
-#       Licensor for the purpose of discussing and improving the Work, but
-#       excluding communication that is conspicuously marked or otherwise
-#       designated in writing by the copyright owner as "Not a Contribution."
-#
-#       "Contributor" shall mean Licensor and any individual or Legal Entity
-#       on behalf of whom a Contribution has been received by Licensor and
-#       subsequently incorporated within the Work.
-#
-#    2. Grant of Copyright License. Subject to the terms and conditions of
-#       this License, each Contributor hereby grants to You a perpetual,
-#       worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-#       copyright license to reproduce, prepare Derivative Works of,
-#       publicly display, publicly perform, sublicense, and distribute the
-#       Work and such Derivative Works in Source or Object form.
-#
-#    3. Grant of Patent License. Subject to the terms and conditions of
-#       this License, each Contributor hereby grants to You a perpetual,
-#       worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-#       (except as stated in this section) patent license to make, have made,
-#       use, offer to sell, sell, import, and otherwise transfer the Work,
-#       where such license applies only to those patent claims licensable
-#       by such Contributor that are necessarily infringed by their
-#       Contribution(s) alone or by combination of their Contribution(s)
-#       with the Work to which such Contribution(s) was submitted. If You
-#       institute patent litigation against any entity (including a
-#       cross-claim or counterclaim in a lawsuit) alleging that the Work
-#       or a Contribution incorporated within the Work constitutes direct
-#       or contributory patent infringement, then any patent licenses
-#       granted to You under this License for that Work shall terminate
-#       as of the date such litigation is filed.
-#
-#    4. Redistribution. You may reproduce and distribute copies of the
-#       Work or Derivative Works thereof in any medium, with or without
-#       modifications, and in Source or Object form, provided that You
-#       meet the following conditions:
-#
-#       (a) You must give any other recipients of the Work or
-#           Derivative Works a copy of this License; and
-#
-#       (b) You must cause any modified files to carry prominent notices
-#           stating that You changed the files; and
-#
-#       (c) You must retain, in the Source form of any Derivative Works
-#           that You distribute, all copyright, patent, trademark, and
-#           attribution notices from the Source form of the Work,
-#           excluding those notices that do not pertain to any part of
-#           the Derivative Works; and
-#
-#       (d) If the Work includes a "NOTICE" text file as part of its
-#           distribution, then any Derivative Works that You distribute must
-#           include a readable copy of the attribution notices contained
-#           within such NOTICE file, excluding those notices that do not
-#           pertain to any part of the Derivative Works, in at least one
-#           of the following places: within a NOTICE text file distributed
-#           as part of the Derivative Works; within the Source form or
-#           documentation, if provided along with the Derivative Works; or,
-#           within a display generated by the Derivative Works, if and
-#           wherever such third-party notices normally appear. The contents
-#           of the NOTICE file are for informational purposes only and
-#           do not modify the License. You may add Your own attribution
-#           notices within Derivative Works that You distribute, alongside
-#           or as an addendum to the NOTICE text from the Work, provided
-#           that such additional attribution notices cannot be construed
-#           as modifying the License.
-#
-#       You may add Your own copyright statement to Your modifications and
-#       may provide additional or different license terms and conditions
-#       for use, reproduction, or distribution of Your modifications, or
-#       for any such Derivative Works as a whole, provided Your use,
-#       reproduction, and distribution of the Work otherwise complies with
-#       the conditions stated in this License.
-#
-#    5. Submission of Contributions. Unless You explicitly state otherwise,
-#       any Contribution intentionally submitted for inclusion in the Work
-#       by You to the Licensor shall be under the terms and conditions of
-#       this License, without any additional terms or conditions.
-#       Notwithstanding the above, nothing herein shall supersede or modify
-#       the terms of any separate license agreement you may have executed
-#       with Licensor regarding such Contributions.
-#
-#    6. Trademarks. This License does not grant permission to use the trade
-#       names, trademarks, service marks, or product names of the Licensor,
-#       except as required for reasonable and customary use in describing the
-#       origin of the Work and reproducing the content of the NOTICE file.
-#
-#    7. Disclaimer of Warranty. Unless required by applicable law or
-#       agreed to in writing, Licensor provides the Work (and each
-#       Contributor provides its Contributions) on an "AS IS" BASIS,
-#       WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-#       implied, including, without limitation, any warranties or conditions
-#       of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
-#       PARTICULAR PURPOSE. You are solely responsible for determining the
-#       appropriateness of using or redistributing the Work and assume any
-#       risks associated with Your exercise of permissions under this License.
-#
-#    8. Limitation of Liability. In no event and under no legal theory,
-#       whether in tort (including negligence), contract, or otherwise,
-#       unless required by applicable law (such as deliberate and grossly
-#       negligent acts) or agreed to in writing, shall any Contributor be
-#       liable to You for damages, including any direct, indirect, special,
-#       incidental, or consequential damages of any character arising as a
-#       result of this License or out of the use or inability to use the
-#       Work (including but not limited to damages for loss of goodwill,
-#       work stoppage, computer failure or malfunction, or any and all
-#       other commercial damages or losses), even if such Contributor
-#       has been advised of the possibility of such damages.
-#
-#    9. Accepting Warranty or Additional Liability. While redistributing
-#       the Work or Derivative Works thereof, You may choose to offer,
-#       and charge a fee for, acceptance of support, warranty, indemnity,
-#       or other liability obligations and/or rights consistent with this
-#       License. However, in accepting such obligations, You may act only
-#       on Your own behalf and on Your sole responsibility, not on behalf
-#       of any other Contributor, and only if You agree to indemnify,
-#       defend, and hold each Contributor harmless for any liability
-#       incurred by, or claims asserted against, such Contributor by reason
-#       of your accepting any such warranty or additional liability.
-#
-#    END OF TERMS AND CONDITIONS
-#
-#    APPENDIX: How to apply the Apache License to your work.
-#
-#       To apply the Apache License to your work, attach the following
-#       boilerplate notice, with the fields enclosed by brackets "[]"
-#       replaced with your own identifying information. (Don't include
-#       the brackets!)  The text should be enclosed in the appropriate
-#       comment syntax for the file format. We also recommend that a
-#       file or class name and description of purpose be included on the
-#       same "printed page" as the copyright notice for easier
-#       identification within third-party archives.
-#
-#    Copyright 2023 Fair Isaac Corporation
-#
-#    Licensed under the Apache License, Version 2.0 (the "License");
-#    you may not use this file except in compliance with the License.
-#    You may obtain a copy of the License at
-#
-#        http://www.apache.org/licenses/LICENSE-2.0
-#
-#    Unless required by applicable law or agreed to in writing, software
-#    distributed under the License is distributed on an "AS IS" BASIS,
-#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#    See the License for the specific language governing permissions and
-#    limitations under the License.
+# ############################################################################
+# #
+# #  (c) Copyright 2024 Fair Isaac Corporation
+# #
+# #    Licensed under the Apache License, Version 2.0 (the "License");
+# #    you may not use this file except in compliance with the License.
+# #    You may obtain a copy of the License at
+# #
+# #      
+# http://www.apache.org/licenses/LICENSE-2.0
+# #
+# #    Unless required by applicable law or agreed to in writing, software
+# #    distributed under the License is distributed on an "AS IS" BASIS,
+# #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# #    See the License for the specific language governing permissions and
+# #    limitations under the License.
+# #
+# ############################################################################
 import JSON
 using Random
 using XpressAPI
-function xprs_cannery()
+using Test, TestReports
+@testset "xprs_cannery" begin
   println("Run test xprs_cannery")
   
   # This is the cannery example from the JUMP tutorial
@@ -230,56 +48,58 @@ function xprs_cannery()
       }
   }
   """)
-  P = keys(data["plants"])
-  M = keys(data["markets"])
-  #create variables and objective
-  distance(p::String, m::String) = data["distances"]["$(p) => $(m)"]
-  obj = vec([distance(p,m) for m in M, p in P])
-  lb = [0.0 for i in 0:5]
-  ub = [Inf for i in 0:5]
-  XPRSaddcols(prob, 6, 0, obj, [0, 0], Int32[], Float64[], lb, ub)
-  #add variable names
-  ind = 0
-  for p in P, m in M
-  	XPRSaddnames(prob, 2, ["Transport" * p * "=>" * m], ind, ind)
-  	ind = ind + 1
-  end
-  #create supply constraints
-  ind = 0
-  for p in P
-  	rowtype = ['L' for m in M]
-  	rhs = [data["plants"][p]["capacity"]]
-  	colind = [ind*length(M) + m for m in 0:length(M)-1]
-  	coefs = [1.0 for m in M]
-  	XPRSaddrows(prob, 1, length(M), rowtype, rhs, Float64[], [0], colind, coefs)
-  	ind = ind+1
-  end
-  #create demand constraints
-  ind = 0
-  for m in M
-  	rowtype = ['G' for m in M]
-  	rhs = [data["markets"][m]["demand"]]
-  	colind = [p*length(M) + ind for p in 0:length(P)-1]
-  	coefs = [1.0 for p in P]
-  	XPRSaddrows(prob, 1, length(P), rowtype, rhs, Float64[], [0], colind, coefs)
-  	ind = ind+1
-  end
-  XPRSwriteprob(prob, "xprs_test2.lp", "l");
+    P = keys(data["plants"])
+    M = keys(data["markets"])
+    #create variables and objective
+    distance(p::String, m::String) = data["distances"]["$(p) => $(m)"]
+    obj = vec([distance(p,m) for m in M, p in P])
+    lb = [0.0 for i in 0:5]
+    ub = [Inf for i in 0:5]
+    XPRSaddcols(prob, 6, 0, obj, [0, 0], Int32[], Float64[], lb, ub)
+    #add variable names
+    ind = 0
+    for p in P, m in M
+  	  XPRSaddnames(prob, 2, ["Transport" * p * "=>" * m], ind, ind)
+  	  ind = ind + 1
+    end
+    #create supply constraints
+    ind = 0
+    for p in P
+  	  rowtype = ['L' for m in M]
+  	  rhs = [data["plants"][p]["capacity"]]
+  	  colind = [ind*length(M) + m for m in 0:length(M)-1]
+  	  coefs = [1.0 for m in M]
+  	  XPRSaddrows(prob, 1, length(M), rowtype, rhs, Float64[], [0], colind, coefs)
+  	  ind = ind+1
+    end
+    #create demand constraints
+    ind = 0
+    for m in M
+  	  rowtype = ['G' for m in M]
+  	  rhs = [data["markets"][m]["demand"]]
+  	  colind = [p*length(M) + ind for p in 0:length(P)-1]
+  	  coefs = [1.0 for p in P]
+  	  XPRSaddrows(prob, 1, length(P), rowtype, rhs, Float64[], [0], colind, coefs)
+  	  ind = ind+1
+    end
+    XPRSwriteprob(prob, "xprs_test2.lp", "l");
   
-  XPRSlpoptimize(prob, "")
-  ind = 0
-  for p in P, m in M
-  	solval = [42.0]
-  	nullreturn = [-1.0]
-  	solval = XPRSgetlpsolval(prob, ind, 0)
-  	println("Transport" * p * "=>" * m * ": " * string(solval[1]))
-  	ind = ind + 1
-  end
+    solvestatus, solstatus = XPRSoptimize(prob, "")
+    @test solvestatus == XPRS_SOLVESTATUS_COMPLETED
+    @test (solstatus == XPRS_SOLSTATUS_OPTIMAL) || (solstatus == XPRS_SOLSTATUS_FEASIBLE)
+    ind = 0
+    for p in P, m in M
+  	  solval = XPRSgetlpsolval(prob, ind, 0)
+  	  println("Transport" * p * "=>" * m * ": " * string(solval[1]))
+  	  ind = ind + 1
+    end
   end
 
 end
-function xprs_inscribedsquare()
+@testset "xprs_inscribedsquare" begin
   println("Run test xprs_inscribedsquare")
+  
+  # Note: To run this example, a global solver license is required.
   
   #=
   The inscribed square problem, also known as the square peg problem or the Toeplitz' conjecture, is an unsolved question in geometry: Does every plane simple closed curve contain all four vertices of some square?
@@ -290,6 +110,11 @@ function xprs_inscribedsquare()
   =#
   
   XPRScreateprob("") do prob
+  
+  if XPRSfeaturequery("Global") != 1
+    error("A global solver license is required")
+  end
+  
   XPRSaddcbmessage(prob, (p, m, l, t) -> if l > 0 println(": ", m); end, 0)
   
   # add variables
@@ -323,29 +148,29 @@ function xprs_inscribedsquare()
   
   #solve problem to local optimality
   XPRSsetintcontrol(prob, XPRS_NLPPRESOLVE, 0)
-  states = XPRSoptimize(prob, "")
-  @assert states[1] == XPRS_SOLVESTATUS_COMPLETED
-  @assert (states[2] == XPRS_SOLSTATUS_OPTIMAL) || (states[2] == Int(XPRS_SOLSTATUS_FEASIBLE))
+  solvestatus, solstatus = XPRSoptimize(prob, "")
+  @test solvestatus == XPRS_SOLVESTATUS_COMPLETED
+  @test (solstatus == XPRS_SOLSTATUS_OPTIMAL) || (solstatus == XPRS_SOLSTATUS_FEASIBLE)
   
   #read solution
   objval = XPRSgetdblattrib(prob, XPRS_NLPOBJVAL)
-  _, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, 5)
+  _, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, 8)
   println(objval)
   println(sol[1])
   println("local solution: objvar: $(sol[1]), t1: $(sol[2]), t2: $(sol[3]), t3: $(sol[4]), t4: $(sol[5]), x1: $(sol[6]) y1: $(sol[7]), len: $(sol[8]), height: $(sol[9])")
   
   #solve problem to global optimality
   states = XPRSoptimize(prob, "x")
-  @assert states[1] == XPRS_SOLVESTATUS_COMPLETED
-  @assert (states[2] == XPRS_SOLSTATUS_OPTIMAL) || (states[2] == XPRS_SOLSTATUS_FEASIBLE)
+  @test solvestatus == XPRS_SOLVESTATUS_COMPLETED
+  @test (solstatus == XPRS_SOLSTATUS_OPTIMAL) || (solstatus == XPRS_SOLSTATUS_FEASIBLE)
   
   #read solution
   objval = XPRSgetdblattrib(prob, XPRS_NLPOBJVAL)
-  _, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, 5)
+  _, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, 8)
   println("global solution: objvar: $(sol[1]), t1: $(sol[2]) t2: $(sol[3]), t3: $(sol[4]), t4: $(sol[5]), x1: $(sol[6]), y1: $(sol[7]), len: $(sol[8]), height: $(sol[9])")
   end
 end
-function xprs_markshare()
+@testset "xprs_markshare" begin
   println("Run test xprs_markshare")
   """Illustrate how to use branching callback with Xpress.
   
@@ -358,6 +183,7 @@ function xprs_markshare()
   """
   
   XPRScreateprob("") do prob
+    solvestatus, solstatus = Nothing, Nothing
     XPRSaddcbmessage(prob, (p, m, l, t) -> if l > 0 println(": ", m); end, 0)
     XPRSaddrows(prob, 6, 0,
                 [ 'E', 'E', 'E', 'E', 'E', 'E' ],       # rowtype
@@ -494,7 +320,7 @@ function xprs_markshare()
       x, _, _, _ = XPRSgetlpsol(p, XPRS_ALLOC, nothing, nothing, nothing)
       # Go through the binary variables and find the most fractional one
       maxfrac = 0.0
-      maxvar = -1
+     maxvar = -1
       for i in 12:61
         r = abs(x[i+1] - round(x[i+1]))
         if r > maxfrac
@@ -513,12 +339,15 @@ function xprs_markshare()
         return b
       end
     end, 0)
-    XPRSoptimize(prob, "")
+    solvestatus, solstatus = XPRSoptimize(prob, "")
+    @test solvestatus != XPRS_SOLVESTATUS_COMPLETED
+    @test (solstatus != XPRS_SOLSTATUS_OPTIMAL) || (solstatus != XPRS_SOLSTATUS_FEASIBLE)
   end
-
 end
-function xprs_nonconvexqcp()
+@testset "xprs_nonconvexqcp" begin
   println("Run test xprs_nonconvexqcp")
+  
+  # Note: To run this example, a global solver license is required.
   
   #=
   Minimize
@@ -533,6 +362,9 @@ function xprs_nonconvexqcp()
   =#
   
   XPRScreateprob("") do prob
+    if XPRSfeaturequery("Global") != 1
+      error("A global solver license is required")
+    end
     XPRSaddcbmessage(prob, (p, m, l, t) -> if l > 0 println(": ", m); end, 0)
     obj = [1.0 for i in 0:1]
     lb = [0.0 for i in 0:1]
@@ -541,56 +373,13 @@ function xprs_nonconvexqcp()
     XPRSaddrows(prob, 1, 0, ['G'], [4.0], [0.0], Int32[], Int32[], Float64[])
     XPRSaddqmatrix(prob, 0, 2, [0, 1], [0, 1], [2.0, 1.0])
     XPRSwriteprob(prob, "trivialnonconvexqcp.lp", "l")
-    states = XPRSoptimize(prob, "x")
-  end
-end
-function xprs_readprob()
-  println("Run test xprs_readprob")
-  
-  XPRScreateprob("") do prob
-    XPRSaddcbmessage(prob, (p, m, l, t) -> if l > 0 println(": ", m); end, 0)
-    XPRSreadprob(prob, "afiro.mps", "")
-    XPRSlpoptimize(prob, "")
-  
-    obj1 = XPRSgetdblattrib(prob, XPRS_LPOBJVAL)
-    println(obj1)
-  
-    # Clear the objective, solve again
-    cols = XPRSgetintattrib(prob, XPRS_COLS)
-    rows = XPRSgetintattrib(prob, XPRS_ROWS)
-    origobj = XPRSgetobj(prob, XPRS_ALLOC, 0, cols - 1)
-    println(origobj)
-    newobj = Vector{Float64}(undef, cols)
-    ind = Vector{Int32}(undef, cols)
-    for i in 0:cols-1
-      newobj[i+1] = 0.0
-      ind[i+1] = i
-    end
-    XPRSchgobj(prob, cols, ind, newobj)
-    XPRSlpoptimize(prob, "")
-    obj2 = XPRSgetdblattrib(prob, XPRS_LPOBJVAL)
-    println(obj2)
-  
-    # Restore original objective, solve again
-    XPRSchgobj(prob, cols, ind, origobj)
-    XPRSlpoptimize(prob, "")
-    obj3 = XPRSgetdblattrib(prob, XPRS_LPOBJVAL)
-    println(obj3)
-  
-    solstat, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, cols - 1)
-  
-    println("Objectives:")
-    println("  ", obj1)
-    println("  ", obj2)
-    println("  ", obj3)
-    rownames = XPRSgetnamelist(prob, 1, 0, rows - 1)
-    println(rownames)
-    colnames = XPRSgetnamelist(prob, 2, 0, cols - 1)
-    println(colnames)
+    solvestatus, solstatus = XPRSoptimize(prob, "x")
+    @test solvestatus == XPRS_SOLVESTATUS_COMPLETED
+    @test (solstatus == XPRS_SOLSTATUS_OPTIMAL) || (solstatus == XPRS_SOLSTATUS_FEASIBLE)
   end
 
 end
-function xprs_tsp()
+@testset "xprs_tsp" begin
   println("Run test xprs_tsp")
   """
   # Travelling Salesman Problem
@@ -606,7 +395,7 @@ function xprs_tsp()
   The example also illustrates how array indices in Julia are 1-based while
   row and column indices in Xpress are 0-based.
   
-  (c) 2022 Fair Isaac Corporation
+  (c) 2022-2024 Fair Isaac Corporation
   """
   
   """Number of cities to visit.
@@ -770,12 +559,13 @@ function xprs_tsp()
     end
   end
   
-  """Callback function used for catching (heuristic) solutions that contain
+  """Callback function used for catching solutions that contain
      invalid subtours.
   
   This callback is invoked before an integer solution is accepted. It gives
-  us a chance to reject the solution by return true as first return value.
-  value.
+  us a chance to reject the solution by returning true as first return value.
+  In case solType is 0 (zero), we can even add cuts that cut off infeasible
+  solutions.
   """
   function cbPreIntSol(prob, solType, cutoff)
     reject = false
@@ -796,104 +586,80 @@ function xprs_tsp()
       numCities += 1
       i = nextCity[i]
     end
+    reject = false
     if numCities < NUM_CITIES
-      # We don't have a full tour so reject the solution.
-      # This should only happen for heuristic solutions - otherwise we
-      # somehow missed a subtour elimination constraint.
+      # The tour given by the current solution does not pass through
+      # all the nodes and is thus infeasible.
+      # If soltype is non-zero then we reject by setting reject=true.
+      # If instead soltype is zero then the solution came from an
+      # integral node. In this case we can reject by adding a cut
+      # that cuts off that solution. Note that we must NOT set
+      # rejecttTrue in that case because that would result in just
+      # dropping the node, no matter whether we add cuts or not.
       println("Reject infeasible solution.")
-      reject = true
+  	if solType != 0
+  	  reject = true
+  	else
+        # The solution came from an integral node. We can add subtour elimination
+  	  # contraints to cut off this solution.
+        cutIdx = Vector{Int32}(undef, NUM_CITIES * NUM_CITIES)
+        cutCoef = Vector{Float64}(undef, NUM_CITIES * NUM_CITIES)
+        colind = Vector{Int32}(undef, NUM_CITIES * NUM_CITIES)
+        rowcoef = Vector{Float64}(undef, NUM_CITIES * NUM_CITIES)
+  
+        # Create a subtour elimination cut for each subtour.
+        for k in 1:NUM_CITIES
+          # Skip subtours we have already checked.
+          if nextCity[k] == -1
+            continue
+  		end
+  
+          # Identify which cities are part of the subtour.
+          isTour = zeros(Bool, NUM_CITIES)
+          numCities = 0
+          j = k
+          while true
+            i = nextCity[j]
+            isTour[j] = true
+            numCities += 1
+            nextCity[j] = -1
+            j = i
+            nextCity[j] >= 0 || break
+          end
+  
+          # Create a subtour elimination cut.
+          numCoef = 0
+          for i in 1:NUM_CITIES
+            if !isTour[i]
+              continue
+            end
+            for j in 1:NUM_CITIES
+              if isTour[j]
+                continue
+              end
+              numCoef += 1
+              cutCoef[numCoef] = 1.0
+              cutIdx[numCoef] = (i-1)*NUM_CITIES + (j-1)
+            end
+          end
+  
+          # Before adding the cut, we must translate it to the presolved model.
+          # If this translation fails then we cannot continue. The translation
+          # can only fail if we have presolve operations enabled that should be
+          # disabled in case of dynamically separated constraints. */
+          coefs, _, _, rhs, status = XPRSpresolverow(prob, 'G', numCoef, cutIdx, cutCoef, 1.0,
+                                        NUM_CITIES*NUM_CITIES, colind, rowcoef)
+          if status != 0
+            error("Possible presolve operation prevented the proper translation of a subtour constraint, with status $(status)")
+          end
+          XPRSaddcuts(prob, 1, [1], ['G'], [rhs], [0, coefs], colind, rowcoef)
+        end
+      end
     else
       println("Accept solution:")
       PrintSolution(mipSol)
     end
     return reject, nothing # return nothing as `cutoff` to keep Xpress's cutoff
-  end
-  
-  """Callback function for separating violated subtour elimination constraints.
-  
-  This callback is invoked whenever the LP relaxation at a node was solved
-  to optimality. This gives us a chance to separate and inject constraints
-  that were omitted from the initial problem formulation.
-  """
-  function cbOptNode(prob)
-    infeas = false
-  
-    cutIdx = Vector{Int32}(undef, NUM_CITIES * NUM_CITIES)
-    cutCoef = Vector{Float64}(undef, NUM_CITIES * NUM_CITIES)
-    colind = Vector{Int32}(undef, NUM_CITIES * NUM_CITIES)
-    rowcoef = Vector{Float64}(undef, NUM_CITIES * NUM_CITIES)
-  
-    # Check if the local node solution is integer feasible.
-    if XPRSgetintattrib(prob, XPRS_MIPINFEAS) > 0
-      # There are still fractionals in the solution, so we don't have to
-      # do anything yet
-      return true
-    end
-  
-    # Get the current binary solution and translate it into subtours.
-    mipSol, _, _, _ = XPRSgetlpsol(prob, XPRS_ALLOC, nothing, nothing, nothing)
-    nextCity = repeat([-1], NUM_CITIES)
-    for i in 1:NUM_CITIES
-      for j in 1:NUM_CITIES
-        if mipSol[1 + (i-1) * NUM_CITIES + (j-1)] > 0.5
-          nextCity[i] = j
-        end
-      end
-    end
-  
-    # Create a subtour elimination cut for each subtour.
-    for k in 1:NUM_CITIES
-      # Skip subtours we have already checked.
-      if nextCity[k] == -1
-        continue
-      end
-  
-      # Identify which cities are part of the subtour.
-      isTour = zeros(Bool, NUM_CITIES)
-      numCities = 0
-      j = k
-      while true
-        i = nextCity[j]
-        isTour[j] = true
-        numCities += 1
-        nextCity[j] = -1
-        j = i
-        nextCity[j] >= 0 || break
-      end
-  
-      if numCities == NUM_CITIES
-        # We have a full tour, i.e., the current solution is feasible and
-        # we don't have to inject any cuts
-        break
-      end
-  
-      # Create a subtour elimination cut.
-      numCoef = 0
-      for i in 1:NUM_CITIES
-        if !isTour[i]
-          continue
-        end
-        for j in 1:NUM_CITIES
-          if isTour[j]
-            continue
-          end
-          numCoef += 1
-          cutCoef[numCoef] = 1.0
-          cutIdx[numCoef] = (i-1)*NUM_CITIES + (j-1)
-        end
-      end
-  
-      # Before adding the cut, we must translate it to the presolved model.
-      # If this translation fails then we cannot continue. The translation
-      # can only fail if we have presolve operations enabled that should be
-      # disabled in case of dynamically separated constraints. */
-      coefs, _, _, rhs, status = XPRSpresolverow(prob, 'G', numCoef, cutIdx, cutCoef, 1.0,
-                                    NUM_CITIES*NUM_CITIES, colind, rowcoef)
-      if status != 0
-        error("Possible presolve operation prevented the proper translation of a subtour constraint, with status $(status)")
-      end
-      XPRSaddcuts(prob, 1, [1], ['G'], [rhs], [0, coefs], colind, rowcoef)
-    end
   end
   
   """Print the current MIP solution."""
@@ -937,13 +703,10 @@ function xprs_tsp()
       # We are going to create our subtour elimination constraints dynamically
       # during the solve, so ...
       # ... disable any presolve operations that conflict with not having the
-      #     entire problem definition present ... */
+      #     entire problem definition present ...
       XPRSsetintcontrol(prob, XPRS_MIPDUALREDUCTIONS, 0)
-      # ... add a callback for filtering invalid heuristic solutions ...
+      # ... add a callback for filtering invalid solutions.
       XPRSaddcbpreintsol(prob, cbPreIntSol, 0)
-      # ... and add a callback for separating violated subtour elimination
-      #     constraints.
-      XPRSaddcboptnode(prob, cbOptNode, 0)
     end
   
     XPRSwriteprob(prob, "tsp.lp", "l")
@@ -969,13 +732,10 @@ function xprs_tsp()
     else
       println("Unexpected solution status $(mipstatus).")
     end
+  
+    # Check that list solution found is optimal
+    @test XPRSgetintattrib(prob, XPRS_MIPSTATUS) == XPRS_MIP_OPTIMAL
   end
 
 end
 
-xprs_cannery()
-xprs_inscribedsquare()
-xprs_markshare()
-xprs_nonconvexqcp()
-xprs_readprob()
-xprs_tsp()
