@@ -199,75 +199,323 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
-using XpressAPI
-
-# Note: To run this example, a global solver license is required.
-
-#=
-The inscribed square problem, also known as the square peg problem or the Toeplitz' conjecture, is an unsolved question in geometry: Does every plane simple closed curve contain all four vertices of some square?
-This is true if the curve is convex or piecewise smooth and in other special cases.
-The problem was proposed by Otto Toeplitz in 1911. See also https://en.wikipedia.org/wiki/Inscribed_square_problem
-This instance computes a maximal inscribing square for the curve (sin(t)*cos(t), sin(t)*t), t in [-π,π].
-Model was contributed to MINLPlib by Benjamin Müller and Felipe Serrano
-=#
-
-XPRScreateprob("") do prob
-
-if XPRSfeaturequery("Global") != 1
-  error("A global solver license is required")
+"""
+Given an objective function `F`, this bridge translates
+Min/Max F into:
+Min/Max C
+s.t.
+    F - C == 0
+# https://jump.dev/MathOptInterface.jl/stable/submodules/Bridges/reference/#AbstractBridge-API
+"""
+struct StrictObjectiveSlackBridge{
+    T,
+    F <: MOI.AbstractScalarFunction,
+    G <: MOI.AbstractScalarFunction,
+} <: MOI.Bridges.Objective.AbstractBridge
+    slack::MOI.VariableIndex
+    constraint::MOI.ConstraintIndex{F, MOI.EqualTo{T}}
 end
 
-XPRSaddcbmessage(prob, (p, m, l, t) -> if l > 0 println(": ", m); end, 0)
+# We only add a free slack variable
+function MOI.Bridges.added_constrained_variable_types(BT::Type{<: StrictObjectiveSlackBridge})::Vector{Tuple{Type}}
+    return [(MOI.Reals,)]
+end
 
-# add variables
-obj = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-lb = [-Inf, -π, -π, -π, -π, -Inf, -Inf, 0.0, 0.0]
-ub = [Inf, π, π, π, π, Inf, Inf, Inf, Inf]
-XPRSaddcols(prob, 9, 0, obj, [0, 0], Int32[], Float64[], lb, ub)
-XPRSaddnames(prob, 2, ["objvar", "t1", "t2", "t3", "t4", "x1", "y1", "len", "height"], 0, 8)
+# We only add a single equality constraint
+function MOI.Bridges.added_constraint_types(BT::Type{<: StrictObjectiveSlackBridge{T,F}})::Vector{Tuple{Type,Type}} where {
+    T, F <: MOI.AbstractScalarFunction
+}
+    return [(F, MOI.EqualTo{T})]
+end
 
-#add linear parts of rows
-rowtype = ['E' for i in 1:17]
-rhs = [0.0 for i in 1:9]
-rng = [0.0 for i in 1:9]
-start = [0, 1, 2, 3, 5, 7, 9, 11, 14]
-colind = [0, 5, 6, 5, 7, 6, 8, 5, 8, 6, 7, 5, 7, 8, 6, 7, 8]
-rowcoef = [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0 , -1.0, -1.0, 1.0, -1.0, -1.0, -1.0, -1.0, 1.0, -1.0, -1.0, -1.0]
-XPRSaddrows(prob, 9, 17, rowtype, rhs, rng, start, colind, rowcoef)
+function MOI.get(bridge::StrictObjectiveSlackBridge, ::MOI.NumberOfVariables)::Int64
+    return 1
+end
 
-#add formulas
-rowind = [0, 1, 2, 3, 4, 5, 6, 7, 8]
-formulastart = [0, 8, 16, 22, 30, 36, 44, 50, 58, 64]
-type = [XPRS_TOK_COL, XPRS_TOK_CON, XPRS_TOK_OP, XPRS_TOK_COL, XPRS_TOK_CON, XPRS_TOK_OP, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_COL, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_COL, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_COL, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_COL, XPRS_TOK_OP, XPRS_TOK_EOF]
-value = [7, 2, XPRS_OP_EXPONENT, 8, 2, XPRS_OP_EXPONENT, XPRS_OP_PLUS, 0.0,  0.0, 1, XPRS_IFUN_SIN, 0.0, 1, XPRS_IFUN_COS, XPRS_OP_MULTIPLY, 0.0,  0.0, 1, XPRS_IFUN_SIN, 1, XPRS_OP_MULTIPLY, 0.0,  0.0, 2, XPRS_IFUN_SIN, 0.0, 2, XPRS_IFUN_COS, XPRS_OP_MULTIPLY, 0.0,  0.0, 2, XPRS_IFUN_SIN, 2, XPRS_OP_MULTIPLY, 0.0,  0.0, 3, XPRS_IFUN_SIN, 0.0, 3, XPRS_IFUN_COS, XPRS_OP_MULTIPLY, 0.0,  0.0, 3, XPRS_IFUN_SIN, 3, XPRS_OP_MULTIPLY, 0.0,  0.0, 4, XPRS_IFUN_COS, 0.0, 4, XPRS_IFUN_SIN, XPRS_OP_MULTIPLY, 0.0,  0.0, 4, XPRS_IFUN_SIN, 4, XPRS_OP_MULTIPLY, 0.0]
-XPRSnlpaddformulas(prob, 9, rowind, formulastart, 1, type, value)
-XPRSwriteprob(prob, "inscribedsquare.lp", "l")
+function MOI.get(bridge::StrictObjectiveSlackBridge{T,F,G}, ::MOI.NumberOfConstraints{F,S})::Int64 where {
+    T, F <: MOI.AbstractScalarFunction, G <: MOI.AbstractScalarFunction, S <: MOI.EqualTo{T}
+}
+    return bridge.constraint isa MOI.ConstraintIndex{F,S} ? 1 : 0
+end
 
-#set initial values
-initvalind = [i for i in 0:8]
-initval = [0.0, -π, -π/2, 0, -π/2, 1, 1, 0, 0]
-XPRSnlpsetinitval(prob, 9, initvalind, initval)
+function MOI.get(bridge::StrictObjectiveSlackBridge, ::MOI.ListOfVariableIndices)::Vector{MOI.VariableIndex}
+    return [bridge.slack]
+end
 
-#solve problem to local optimality
-XPRSsetintcontrol(prob, XPRS_NLPPRESOLVE, 0)
-solvestatus, solstatus = XPRSoptimize(prob, "")
-@assert solvestatus == XPRS_SOLVESTATUS_COMPLETED
-@assert (solstatus == XPRS_SOLSTATUS_OPTIMAL) || (solstatus == XPRS_SOLSTATUS_FEASIBLE)
+function MOI.get(bridge::StrictObjectiveSlackBridge{T,F,G}, ::MOI.ListOfConstraintIndices{F,S})::Vector{MOI.ConstraintIndex{F,S}} where {
+    T, F <: MOI.AbstractScalarFunction, G <: MOI.AbstractScalarFunction, S <: MOI.EqualTo{T}
+}
+    if bridge.constraint isa MOI.ConstraintIndex{F,S}
+        return [bridge.constraint]
+    else
+        return MOI.ConstraintIndex{F,S}[]
+    end
+end
 
-#read solution
-objval = XPRSgetdblattrib(prob, XPRS_NLPOBJVAL)
-_, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, 8)
-println(objval)
-println(sol[1])
-println("local solution: objvar: $(sol[1]), t1: $(sol[2]), t2: $(sol[3]), t3: $(sol[4]), t4: $(sol[5]), x1: $(sol[6]) y1: $(sol[7]), len: $(sol[8]), height: $(sol[9])")
+function MOI.Bridges.Objective.concrete_bridge_type(
+    BT::Type{<: StrictObjectiveSlackBridge{T,F,G}},
+    ::Type{<: MOI.AbstractScalarFunction}
+)::Type where {
+    T, F <: MOI.AbstractScalarFunction, G <: MOI.AbstractScalarFunction
+}
+    return StrictObjectiveSlackBridge{T,F,G}
+end
 
-#solve problem to global optimality
-states = XPRSoptimize(prob, "x")
-@assert solvestatus == XPRS_SOLVESTATUS_COMPLETED
-@assert (solstatus == XPRS_SOLSTATUS_OPTIMAL) || (solstatus == XPRS_SOLSTATUS_FEASIBLE)
+# What type of new objective is created
+function MOI.Bridges.set_objective_function_type(
+    ::Type{<: StrictObjectiveSlackBridge},
+)::Type
+    return MOI.VariableIndex
+end
 
-#read solution
-objval = XPRSgetdblattrib(prob, XPRS_NLPOBJVAL)
-_, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, 8)
-println("global solution: objvar: $(sol[1]), t1: $(sol[2]) t2: $(sol[3]), t3: $(sol[4]), t4: $(sol[5]), x1: $(sol[6]), y1: $(sol[7]), len: $(sol[8]), height: $(sol[9])")
+# Tell bridged optimizer that this bridge should be used for <:ScalarFunction objectives
+# Specific overrites for Objectives Bridges
+function MOI.Bridges.Objective.supports_objective_function(
+    ::Type{<: StrictObjectiveSlackBridge},
+    ::Type{<: MOI.AbstractScalarFunction}
+)::Bool
+    return true
+end
+
+# Apply the bridge
+function MOI.Bridges.Objective.bridge_objective(
+    BT::Type{<: StrictObjectiveSlackBridge{T,F,G}},
+    model::MOI.ModelLike,
+    func::G
+)  where {
+    T, F <: MOI.AbstractScalarFunction, G <: MOI.AbstractScalarFunction
+}
+    slack = MOI.add_variable(model)
+    f = MOI.Utilities.operate(-, T, func, slack)
+    if MOI.get(model, MOI.ObjectiveSense()) == MOI.FEASIBILITY_SENSE
+        msg = "Set `MOI.ObjectiveSense` before `MOI.ObjectiveFunction` when using `MOI.Bridges.Objective.SlackBridge`."
+        throw(MOI.SetAttributeNotAllowed(MOI.ObjectiveFunction{G}(), msg))
+    end
+    # Add the new slacked constraint
+    c = MOI.add_constraint(model, f, MOI.EqualTo{T}(0.0))
+    # Add the slack to the objective
+    MOI.set(model, MOI.ObjectiveFunction{MOI.VariableIndex}(), slack)
+    return StrictObjectiveSlackBridge{T,F,G}(slack, c)
+end
+
+
+
+# Get the value of the objective for this Brigde
+# Since we set f - C == 0, the objective value for any feasible problem is C
+function MOI.get(
+    model::MOI.ModelLike,
+    attr::MOI.Bridges.ObjectiveFunctionValue{G},
+    bridge::StrictObjectiveSlackBridge{T,F,G}
+)  where {
+    T, F <: MOI.AbstractScalarFunction, G <: MOI.AbstractScalarFunction
+}
+    return MOI.get(model, MOI.Bridges.ObjectiveFunctionValue{MOI.VariableIndex}(attr.result_index))
+end
+
+
+
+
+
+
+
+const VectorFunction = Union{MOI.VectorAffineFunction, MOI.VectorQuadraticFunction, MOI.VectorNonlinearFunction}
+"""
+Given an objective function vector `[F1,...Fn]`, this bridge translates
+Min/Max [F1,...Fn] into:
+Min/Max [C1,...Cn]
+s.t.
+    F1 - C1 == 0
+    ...
+    Fn - Cn == 0
+# https://jump.dev/MathOptInterface.jl/stable/submodules/Bridges/reference/#AbstractBridge-API
+"""
+struct StrictMultiObjectiveSlackBridge{
+    T,
+    F <: VectorFunction,
+    G <: VectorFunction,
+} <: MOI.Bridges.Objective.AbstractBridge
+    slack::Vector{MOI.VariableIndex}
+    constraint::Vector{MOI.ConstraintIndex{F, MOI.EqualTo{T}}}
+end
+
+# We only add free slack variables
+function MOI.Bridges.added_constrained_variable_types(BT::Type{<: StrictMultiObjectiveSlackBridge})::Vector{Tuple{Type}}
+    return [(MOI.Reals,)]
+end
+
+# We only add equality constraints
+function MOI.Bridges.added_constraint_types(BT::Type{<: StrictMultiObjectiveSlackBridge{T,F}})::Vector{Tuple{Type,Type}} where {
+    T, F <: VectorFunction
+}
+    return [(F, MOI.EqualTo{T})]
+end
+
+function MOI.get(bridge::StrictMultiObjectiveSlackBridge, ::MOI.NumberOfVariables)::Int64
+    return length(bridge.slack)
+end
+
+function MOI.get(bridge::StrictMultiObjectiveSlackBridge{T,F,G}, ::MOI.NumberOfConstraints{F,S})::Int64 where {
+    T, F <: VectorFunction, G <: VectorFunction, S <: MOI.EqualTo{T}
+}
+    return length(bridge.constraint)
+end
+
+function MOI.get(bridge::StrictMultiObjectiveSlackBridge, ::MOI.ListOfVariableIndices)::Vector{MOI.VariableIndex}
+    return bridge.slack
+end
+
+function MOI.get(bridge::StrictMultiObjectiveSlackBridge{T,F,G}, ::MOI.ListOfConstraintIndices{F,S})::Vector{MOI.ConstraintIndex{F,S}} where {
+    T, F <: VectorFunction, G <: VectorFunction, S <: MOI.EqualTo{T}
+}
+    return bridge.constraint
+end
+
+function MOI.Bridges.Objective.concrete_bridge_type(
+    BT::Type{<: StrictMultiObjectiveSlackBridge{T,F,G}},
+    ::Type{<: VectorFunction}
+)::Type where {
+    T, F <: VectorFunction, G <: VectorFunction
+}
+    return StrictMultiObjectiveSlackBridge{T,F,G}
+end
+
+# What type of new objective is created
+function MOI.Bridges.set_objective_function_type(
+    ::Type{<: StrictMultiObjectiveSlackBridge},
+)::Type
+    return MOI.VectorOfVariables
+end
+
+# Tell bridged optimizer that this bridge should be used for <:ScalarFunction objectives
+# Specific overrites for Objectives Bridges
+function MOI.Bridges.Objective.supports_objective_function(
+    ::Type{<: StrictMultiObjectiveSlackBridge},
+    ::Type{<: VectorFunction}
+)::Bool
+    return true
+end
+
+# (Redundant) This is the exact objectife we want to avoid and bridge over
+function MOI.Bridges.Objective.supports_objective_function(
+    ::Type{<: StrictMultiObjectiveSlackBridge},
+    ::Type{<: MOI.VectorOfVariables}
+)::Bool
+    return false
+end
+
+# Apply the bridge
+function MOI.Bridges.Objective.bridge_objective(
+    BT::Type{<: StrictMultiObjectiveSlackBridge{T,F,G}},
+    model::MOI.ModelLike,
+    func::G
+)  where {
+    T, F <: VectorFunction, G <: VectorFunction
+}
+    if MOI.get(model, MOI.ObjectiveSense()) == MOI.FEASIBILITY_SENSE
+        msg = "Set `MOI.ObjectiveSense` before `MOI.ObjectiveFunction` when using `MOI.Bridges.Objective.SlackBridge`."
+        throw(MOI.SetAttributeNotAllowed(MOI.ObjectiveFunction{G}(), msg))
+    end
+
+    # Unroll the `VectorFunction` into a vector of Scarlar Functions
+    if F <: MOI.VectorNonlinearFunction
+        # VectorNonlinearFunction is already a Vector of ScalarNonlinearFunction
+        funcs = func.rows
+    else
+        funcs = collect(MOI.Utilities.eachscalar(func))
+    end
+
+    # First create the slack variables
+    slacks = MOI.add_variables(model, length(funcs))
+    # Then, add the new slacked constraint
+    constraints = map(
+        f -> MOI.add_constraint(model, f, MOI.EqualTo{T}(0.0)),
+        map(i -> MOI.Utilities.operate(-, T, funcs[i], slacks[i]), 1:length(funcs))
+    )
+    # Add the multi objective
+    MOI.set(model, MOI.ObjectiveFunction{MOI.VectorOfVariables}(), slacks)
+    return StrictMultiObjectiveSlackBridge{T,F,G}(slacks, constraints)
+end
+
+
+
+# Get the value of the objective for this Brigde
+# Since we set f - C == 0, the objective value for any feasible problem is C
+function MOI.get(
+    model::MOI.ModelLike,
+    attr::MOI.Bridges.ObjectiveFunctionValue{G},
+    bridge::StrictMultiObjectiveSlackBridge{T,F,G}
+)  where {
+    T, F <: VectorFunction, G <: VectorFunction
+}
+    return MOI.get(model, MOI.Bridges.ObjectiveFunctionValue{MOI.VectorOfVariables}(attr))
+end
+
+
+
+
+
+
+
+function MOI.get(::Optimizer, ::MOI.Bridges.ListOfNonstandardBridges{T}) where {
+    T
+}
+    use_strict_slack_bridges = true
+    if use_strict_slack_bridges
+        # Use this custom bridge to transform a non-linear objective, that Xpress doesn't support by default
+        # Into a slacked constraint
+        # Min/Max F
+        # Is translated into
+        # Min/Max C
+        # s.t.
+        #   F - C == 0
+        nl_objective_bridge = StrictObjectiveSlackBridge{T, MOI.ScalarNonlinearFunction, MOI.ScalarNonlinearFunction}
+    else
+        # Use this built-in bridge to transform a non-linear objective, that Xpress doesn't support by default
+        # Into a slacked constraint
+        # Min/Max F
+        # Is translated into
+        # Min/Max C
+        # s.t.
+        #   F - C >=/<= 0
+        # See https://jump.dev/MathOptInterface.jl/stable/submodules/Bridges/list_of_bridges/#MathOptInterface.Bridges.Objective.SlackBridge
+        nl_objective_bridge = MOI.Bridges.Objective.SlackBridge{T, MOI.ScalarNonlinearFunction, MOI.ScalarNonlinearFunction}
+    end
+
+    if use_strict_slack_bridges
+        # Use this custom bridge to transform a vector objective Min/Max [f1,...,fn] in to a set of slacked constraints and scalar MultiObjective:
+        # Min/Max [C1,...Cn]
+        # s.t.
+        #     f1 - C1 == 0
+        #     ...
+        #     fn - Cn == 0
+        # See: https://jump.dev/MathOptInterface.jl/stable/submodules/Bridges/list_of_bridges/#MathOptInterface.Bridges.Constraint.VectorSlackBridge
+        multi_objective_bridges = [
+            StrictMultiObjectiveSlackBridge{T, MOI.VectorAffineFunction{T}, MOI.VectorAffineFunction{T}},
+            StrictMultiObjectiveSlackBridge{T, MOI.VectorQuadraticFunction{T}, MOI.VectorQuadraticFunction{T}},
+            StrictMultiObjectiveSlackBridge{T, MOI.VectorNonlinearFunction, MOI.VectorNonlinearFunction}
+        ]
+    else
+        # Use this build-in bridge to transform a vector objective Min/Max [f1,...,fn] in to a set of slacked constraints and scalar MultiObjective:
+        # Min/Max [C1,...Cn]
+        # s.t.
+        #     f1 - C1 >=/<= 0
+        #     ...
+        #     fn - Cn >=/<= 0
+        # See: https://jump.dev/MathOptInterface.jl/stable/submodules/Bridges/list_of_bridges/#MathOptInterface.Bridges.Constraint.VectorSlackBridge
+        multi_objective_bridges = [
+            MOI.Bridges.Objective.VectorSlackBridge{T, MOI.VectorAffineFunction{T}, MOI.VectorAffineFunction{T}},
+            MOI.Bridges.Objective.VectorSlackBridge{T, MOI.VectorQuadraticFunction{T}, MOI.VectorQuadraticFunction{T}},
+            MOI.Bridges.Objective.VectorSlackBridge{T, MOI.VectorNonlinearFunction, MOI.VectorNonlinearFunction}
+        ]
+    end
+
+    return Type[
+        nl_objective_bridge,
+        multi_objective_bridges...,
+        MOI.Bridges.Constraint.RSOCtoNonConvexQuadBridge{T},
+        MOI.Bridges.Constraint.ExponentialConeToScalarNonlinearFunctionBridge{T, MOI.VectorAffineFunction{T}},
+        MOI.Bridges.Constraint.ExponentialConeToScalarNonlinearFunctionBridge{T, MOI.VectorOfVariables}
+        # Translates `[f1,...,fn] in Nonnegatives()` into
+        # {f1 >=0, ..., fn >= 0}
+    ]
 end
