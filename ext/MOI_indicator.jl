@@ -199,75 +199,102 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
-using XpressAPI
-
-# Note: To run this example, a global solver license is required.
-
-#=
-The inscribed square problem, also known as the square peg problem or the Toeplitz' conjecture, is an unsolved question in geometry: Does every plane simple closed curve contain all four vertices of some square?
-This is true if the curve is convex or piecewise smooth and in other special cases.
-The problem was proposed by Otto Toeplitz in 1911. See also https://en.wikipedia.org/wiki/Inscribed_square_problem
-This instance computes a maximal inscribing square for the curve (sin(t)*cos(t), sin(t)*t), t in [-π,π].
-Model was contributed to MINLPlib by Benjamin Müller and Felipe Serrano
-=#
-
-XPRScreateprob("") do prob
-
-if XPRSfeaturequery("Global") != 1
-  error("A global solver license is required")
+function MOI.supports_constraint(model::Optimizer, ::Type{F}, ::Type{S})::Bool where {
+        F <: Union{<: MOI.VectorAffineFunction,<: MOI.VectorQuadraticFunction,<: MOI.VectorNonlinearFunction},
+        # MOI.EqualTo/LessThan/GreaterThan{Bool} is required by MOI.VectorNonlinearFunction
+        P2 <: Union{Precision, Bool},
+        S2 <: Union{MOI.GreaterThan{P2}, MOI.LessThan{P2}, MOI.EqualTo{P2}},
+        S <: Union{
+            MOI.Indicator{MOI.ACTIVATE_ON_ONE,  S2},
+            MOI.Indicator{MOI.ACTIVATE_ON_ZERO, S2}
+        }
+    }
+    return true
 end
 
-XPRSaddcbmessage(prob, (p, m, l, t) -> if l > 0 println(": ", m); end, 0)
 
-# add variables
-obj = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-lb = [-Inf, -π, -π, -π, -π, -Inf, -Inf, 0.0, 0.0]
-ub = [Inf, π, π, π, π, Inf, Inf, Inf, Inf]
-XPRSaddcols(prob, 9, 0, obj, [0, 0], Int32[], Float64[], lb, ub)
-XPRSaddnames(prob, 2, ["objvar", "t1", "t2", "t3", "t4", "x1", "y1", "len", "height"], 0, 8)
+function MOI.add_constraint(model::Optimizer, func::F, set::S)::MOI.ConstraintIndex{F,S} where {
+        F <: Union{<: MOI.VectorAffineFunction,<: MOI.VectorQuadraticFunction,<: MOI.VectorNonlinearFunction},
+        # MOI.EqualTo/LessThan/GreaterThan{Bool} is required by MOI.VectorNonlinearFunction
+        P2 <: Union{Precision, Bool},
+        S2 <: Union{MOI.GreaterThan{P2}, MOI.LessThan{P2}, MOI.EqualTo{P2}},
+        S <: Union{
+            MOI.Indicator{MOI.ACTIVATE_ON_ONE,  S2},
+            MOI.Indicator{MOI.ACTIVATE_ON_ZERO, S2}
+        }
+    }
+    if F <: MOI.VectorNonlinearFunction
+        # VectorNonlinearFunction is already a Vector of ScalarNonlinearFunction
+        indicator_constraints_split = func.rows
+    else
+        indicator_constraints_split = collect(MOI.Utilities.eachscalar(func))
+    end
 
-#add linear parts of rows
-rowtype = ['E' for i in 1:17]
-rhs = [0.0 for i in 1:9]
-rng = [0.0 for i in 1:9]
-start = [0, 1, 2, 3, 5, 7, 9, 11, 14]
-colind = [0, 5, 6, 5, 7, 6, 8, 5, 8, 6, 7, 5, 7, 8, 6, 7, 8]
-rowcoef = [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0 , -1.0, -1.0, 1.0, -1.0, -1.0, -1.0, -1.0, 1.0, -1.0, -1.0, -1.0]
-XPRSaddrows(prob, 9, 17, rowtype, rhs, rng, start, colind, rowcoef)
+    indicator_variable = indicator_constraints_split[1]
+    indicator_constraints = indicator_constraints_split[2:end]
 
-#add formulas
-rowind = [0, 1, 2, 3, 4, 5, 6, 7, 8]
-formulastart = [0, 8, 16, 22, 30, 36, 44, 50, 58, 64]
-type = [XPRS_TOK_COL, XPRS_TOK_CON, XPRS_TOK_OP, XPRS_TOK_COL, XPRS_TOK_CON, XPRS_TOK_OP, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_COL, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_COL, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_COL, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_COL, XPRS_TOK_OP, XPRS_TOK_EOF]
-value = [7, 2, XPRS_OP_EXPONENT, 8, 2, XPRS_OP_EXPONENT, XPRS_OP_PLUS, 0.0,  0.0, 1, XPRS_IFUN_SIN, 0.0, 1, XPRS_IFUN_COS, XPRS_OP_MULTIPLY, 0.0,  0.0, 1, XPRS_IFUN_SIN, 1, XPRS_OP_MULTIPLY, 0.0,  0.0, 2, XPRS_IFUN_SIN, 0.0, 2, XPRS_IFUN_COS, XPRS_OP_MULTIPLY, 0.0,  0.0, 2, XPRS_IFUN_SIN, 2, XPRS_OP_MULTIPLY, 0.0,  0.0, 3, XPRS_IFUN_SIN, 0.0, 3, XPRS_IFUN_COS, XPRS_OP_MULTIPLY, 0.0,  0.0, 3, XPRS_IFUN_SIN, 3, XPRS_OP_MULTIPLY, 0.0,  0.0, 4, XPRS_IFUN_COS, 0.0, 4, XPRS_IFUN_SIN, XPRS_OP_MULTIPLY, 0.0,  0.0, 4, XPRS_IFUN_SIN, 4, XPRS_OP_MULTIPLY, 0.0]
-XPRSnlpaddformulas(prob, 9, rowind, formulastart, 1, type, value)
-XPRSwriteprob(prob, "inscribedsquare.lp", "l")
+    # a --> {x + y <= 1} get Translated to a VectorAffineFunction by JuMP
+    # Then gets transformed into
+    # [1a + 0, 1x + 1y + 0] by MOI.Utilities.eachscalar(func)
+    # We need to extract 1a + 0 (Lin function) into a VariableIndex
+    if F <: MOI.VectorAffineFunction
+        if length(indicator_variable.terms) == 1 && indicator_variable.constant == 0 && indicator_variable.terms[1].coefficient == 1.0
+            indicator_variable = indicator_variable.terms[1].variable
+        else
+            # JuMP should not let this happen
+            @error "Indicator variable in a constraint and not a variable"
+        end
+    end
+    # Same logic for quadratics
+    if F <: MOI.VectorQuadraticFunction
+        if length(indicator_variable.affine_terms) == 1 && indicator_variable.constant == 0 && indicator_variable.affine_terms[1].coefficient == 1.0
+            indicator_variable = indicator_variable.affine_terms[1].variable
+        else
+            # JuMP should not let this happen
+            @error "Indicator variable in a constraint and not a variable"
+        end
+    end
+    # Same logic for non-linear
+    if F <: MOI.VectorNonlinearFunction
+        if length(indicator_variable.args) == 1 && typeof(indicator_variable.args[1]) <: MOI.VariableIndex
+            indicator_variable = indicator_variable.args[1]
+        else
+            # JuMP should not let this happen
+            @error "Indicator variable in a constraint and not a variable"
+        end
+    end
 
-#set initial values
-initvalind = [i for i in 0:8]
-initval = [0.0, -π, -π/2, 0, -π/2, 1, 1, 0, 0]
-XPRSnlpsetinitval(prob, 9, initvalind, initval)
+    # 1 for indicator constraints with condition "`bin = 1`"; -1 for indicator constraints with condition "`bin = 0`".
+    complement = typeof(set) <: MOI.Indicator{MOI.ACTIVATE_ON_ZERO, S2} ? -1 : 1
+    if S2 <: MOI.EqualTo
+        rhs = Precision(set.set.value)
+    end
 
-#solve problem to local optimality
-XPRSsetintcontrol(prob, XPRS_NLPPRESOLVE, 0)
-solvestatus, solstatus = XPRSoptimize(prob, "")
-@assert solvestatus == XPRS_SOLVESTATUS_COMPLETED
-@assert (solstatus == XPRS_SOLSTATUS_OPTIMAL) || (solstatus == XPRS_SOLSTATUS_FEASIBLE)
+    if S2 <: MOI.GreaterThan
+        rhs = Precision(set.set.lower)
+    end
 
-#read solution
-objval = XPRSgetdblattrib(prob, XPRS_NLPOBJVAL)
-_, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, 8)
-println(objval)
-println(sol[1])
-println("local solution: objvar: $(sol[1]), t1: $(sol[2]), t2: $(sol[3]), t3: $(sol[4]), t4: $(sol[5]), x1: $(sol[6]) y1: $(sol[7]), len: $(sol[8]), height: $(sol[9])")
+    if S2 <: MOI.LessThan
+        rhs = Precision(set.set.upper)
+    end
 
-#solve problem to global optimality
-states = XPRSoptimize(prob, "x")
-@assert solvestatus == XPRS_SOLVESTATUS_COMPLETED
-@assert (solstatus == XPRS_SOLSTATUS_OPTIMAL) || (solstatus == XPRS_SOLSTATUS_FEASIBLE)
-
-#read solution
-objval = XPRSgetdblattrib(prob, XPRS_NLPOBJVAL)
-_, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, 8)
-println("global solution: objvar: $(sol[1]), t1: $(sol[2]) t2: $(sol[3]), t3: $(sol[4]), t4: $(sol[5]), x1: $(sol[6]), y1: $(sol[7]), len: $(sol[8]), height: $(sol[9])")
+    # Add the indicator constraints part as normal constraints in Xpress
+    indicator_constraints_ind = MOI.add_constraints(
+        model,
+        indicator_constraints,
+        map(i -> S2(rhs), 1:length(indicator_constraints))
+    )
+    # Get related variable constraint object
+    indicator_constraints_obj = map(i -> _XPRS_constraint_from_moi_index(model, i), indicator_constraints_ind)
+    indicator_variable_obj = _XPRS_variable_from_moi_index(model, indicator_variable)
+    # Register the newly added linear constraints as set indicators in Xpress
+    XPRSsetindicators(
+        model.inner,                                                        # prob
+        length(indicator_constraints),                                      # nrows
+        map(c -> c.xprs_index, indicator_constraints_obj),                  # rowind
+        map(i -> indicator_variable_obj.xprs_index, indicator_constraints), # colind
+        map(i -> complement, indicator_constraints)                         # complement
+    )
+    # Flag as parent constraint
+    return _XPRS_register_new_constraint_as_parent(model, func, set, indicator_constraints_ind)
 end

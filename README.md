@@ -1,4 +1,5 @@
-# XpressAPI - A package for low-level access to FICO® Xpress Solver C API
+# XpressAPI - A module for low-level access to the Xpress C API
+
 
 This package provides access from Julia to Xpress Solver C functions. While (in theory) 
 any C function can be directly accessed from Julia, this is sometimes cumbersome and error-prone 
@@ -12,7 +13,7 @@ a modeling API. These things can be built on top of this package.
 
 XpressAPI does not provide Xpress Solver binaries. If you do not have any recent installation 
 of FICO Xpress, download the free [Xpress Community Edition](https://www.fico.com/en/fico-xpress-community-license) after creating a user account. By 
-downloading, you agree to the Community License terms of the [Xpress Shrinkwrap License Agreement](https://www.fico.com/en/shrinkwrap-license-agreement-fico-xpress-optimization-suite-on-premises). 
+downloading, you agree to the Community License terms of the [Xpress Shrinkwrap License Agreement](https://community.fico.com/s/contentdocument/06980000002h0i5AAA). 
 See the [licensing options overview](https://community.fico.com/s/fico-xpress-optimization-licensing-optio) for additional details and information about obtaining a paid license.
 
 Ensure that the `XPRESSDIR` license variable is set to the install location by
@@ -26,6 +27,7 @@ Then, install this package using:
 import Pkg
 Pkg.add("XpressAPI")
 ```
+
 A minimal code example for using this package:
 ```julia
 using XpressAPI
@@ -36,7 +38,33 @@ XPRScreateprob("") do prob
   XPRSlpoptimize(prob, "")
   println(XPRSgetdblattrib(prob, XPRS_LPOBJVAL))
 end
+```
 
+### Detailed Feature List
+
+See [MOI_FEATURES.md](MOI_FEATURES.md) for a comprehensive list of:
+- Supported constraint types with examples
+- Callback usage patterns
+- Solution status codes
+- Modification operations
+- Performance considerations
+
+## Use with Xpress_jll
+
+Instead of manually installing Xpress, you can use the binaries provided by the
+[Xpress_jll.jl](https://github.com/jump-dev/Xpress_jll.jl) package.
+
+By using Xpress_jll, you agree to certain license conditions. See the
+[Xpress_jll.jl README](https://github.com/jump-dev/Xpress_jll.jl/tree/master?tab=readme-ov-file#license)
+for more details.
+
+```julia
+import Xpress_jll
+# This environment variable must be set _before_ loading Xpress.jl
+ENV["XPRESS_JL_LIBRARY"] = Xpress_jll.libxprs
+# Point to your xpauth.xpr license file
+ENV["XPAUTH_PATH"] = "/path/to/xpauth.xpr"
+using XpressAPI
 ```
 
 ## License handling
@@ -129,3 +157,238 @@ The exception that is thrown by the functions in this package is `XPRSexception`
 Note that not only library errors may trigger this exception. Another typical
 situation in which this exception may be raised is when buffers are detected to
 be not long enough.
+
+---
+# JuMP Integration
+
+XpressAPI provides a **comprehensive MathOptInterface (MOI) extension** that enables high-level optimization modeling through [JuMP](https://jump.dev). The MOI interface is an external deps of XpressAPI and loads automatically when MathOptInterface is available.
+
+### Quick Start with JuMP
+
+```julia
+using JuMP, XpressAPI
+
+model = Model(XpressAPI.Optimizer)
+set_silent(model)  # Suppress solver output
+
+@variable(model, x >= 0)
+@variable(model, y >= 0)
+@variable(model, z, Bin)  # Binary variable
+
+@constraint(model, 2x + 3y <= 10)
+@constraint(model, x^2 + y^2 <= 25)  # Quadratic constraint
+
+@objective(model, Min, x^2 + 2y^2 + x + y)
+
+optimize!(model)
+
+if termination_status(model) == OPTIMAL
+    println("x = ", value(x))
+    println("y = ", value(y))
+    println("Objective = ", objective_value(model))
+end
+```
+
+---
+## Variable Types
+
+XpressAPI supports all standard MOI variable types through `MOI.VariableIndex` constraints:
+
+### Supported Variable Types
+
+| Variable Type | MOI Set | Description |
+|--------------|---------|-------------|
+| **Continuous** | *none* | Default variable type (unbounded) |
+| **Binary** | `MOI.ZeroOne` | Binary variable ∈ {0, 1} |
+| **Integer** | `MOI.Integer` | General integer variable |
+| **Semicontinuous** | `MOI.Semicontinuous` | Variable is either 0 or in [lb, ub] |
+| **Semiinteger** | `MOI.Semiinteger` | Integer variable is either 0 or in {lb, ..., ub} |
+
+### Variable Bounds
+
+| Bound Type | MOI Set | Constraint Type |
+|-----------|---------|-----------------|
+| **Lower bound** | `MOI.GreaterThan{Float64}` | `x ≥ lb` |
+| **Upper bound** | `MOI.LessThan{Float64}` | `x ≤ ub` |
+| **Fixed value** | `MOI.EqualTo{Float64}` | `x == value` |
+| **Interval** | `MOI.Interval{Float64}` | `lb ≤ x ≤ ub` |
+
+**Note**: `MOI.Interval` constraints are reformulated as separate upper and lower bounds internally.
+
+---
+## Constraint Types
+
+### Linear Constraints
+
+#### Linear Constraints
+
+| Function | Set | Form |
+|----------|-----|------|
+| `MOI.ScalarAffineFunction{Float64}` | `MOI.LessThan{Float64}` | `aᵀx ≤ b` |
+| `MOI.ScalarAffineFunction{Float64}` | `MOI.GreaterThan{Float64}` | `aᵀx ≥ b` |
+| `MOI.ScalarAffineFunction{Float64}` | `MOI.EqualTo{Float64}` | `aᵀx == b` |
+
+### Quadratic Constraints
+
+| Function | Set | Form |
+|----------|-----|------|
+| `MOI.ScalarQuadraticFunction{Float64}` | `MOI.LessThan{Float64}` | `½xᵀQx + aᵀx ≤ b` |
+| `MOI.ScalarQuadraticFunction{Float64}` | `MOI.GreaterThan{Float64}` | `½xᵀQx + aᵀx ≥ b` |
+| `MOI.ScalarQuadraticFunction{Float64}` | `MOI.EqualTo{Float64}` | `½xᵀQx + aᵀx == b` |
+
+**Note**: Xpress supports both convex and non-convex quadratic constraints.
+
+### Nonlinear Constraints
+
+General nonlinear constraints using Xpress's native NLP solver:
+
+| Function | Set | Form |
+|----------|-----|------|
+| `MOI.ScalarNonlinearFunction` | `MOI.LessThan{Float64}` | `f(x) ≤ b` |
+| `MOI.ScalarNonlinearFunction` | `MOI.GreaterThan{Float64}` | `f(x) ≥ b` |
+| `MOI.ScalarNonlinearFunction` | `MOI.EqualTo{Float64}` | `f(x) == b` |
+
+**Supported Nonlinear Operators**:
+- Standard operators: `+`, `-`, `*`, `/`, `^`
+- Transcendental functions: `exp`, `log` (ln), `log10`, `sqrt`
+- Trigonometric: `sin`, `cos`, `tan`, `asin`, `acos`, `atan`
+- Statistical (SpecialFunctions.jl): `erf` (error function), `erfc` (complementary error function)
+- Other: `abs`, `min`, `max`
+
+**Custom User-Defined Operators**: Supports JuMP's `@operator` macro for user-defined functions with provided derivatives.
+
+### Indicator Constraints
+
+Constraints that are only active when a binary variable takes a specific value:
+
+**Supported Forms**:
+- **ACTIVATE_ON_ONE**: `z == 1 ⟹ constraint`
+- **ACTIVATE_ON_ZERO**: `z == 0 ⟹ constraint`
+
+| Function | Set | Description |
+|----------|-----|-------------|
+| `MOI.VectorAffineFunction` | `MOI.Indicator{MOI.ACTIVATE_ON_ONE, S}` | Linear indicator |
+| `MOI.VectorQuadraticFunction` | `MOI.Indicator{MOI.ACTIVATE_ON_ONE, S}` | Quadratic indicator |
+| `MOI.VectorNonlinearFunction` | `MOI.Indicator{MOI.ACTIVATE_ON_ONE, S}` | Nonlinear indicator |
+| `MOI.VectorAffineFunction` | `MOI.Indicator{MOI.ACTIVATE_ON_ZERO, S}` | Linear indicator |
+| `MOI.VectorQuadraticFunction` | `MOI.Indicator{MOI.ACTIVATE_ON_ZERO, S}` | Quadratic indicator |
+| `MOI.VectorNonlinearFunction` | `MOI.Indicator{MOI.ACTIVATE_ON_ZERO, S}` | Nonlinear indicator |
+
+Where `S` can be `MOI.LessThan`, `MOI.GreaterThan`, or `MOI.EqualTo`.
+
+### Special Ordered Sets (SOS)
+
+| Function | Set | Description |
+|----------|-----|-------------|
+| `MOI.VectorOfVariables` | `MOI.SOS1{Float64}` | At most one variable in the set can be non-zero |
+| `MOI.VectorOfVariables` | `MOI.SOS2{Float64}` | At most two consecutive variables can be non-zero |
+
+---
+## Objective Functions
+
+### Supported Objective Types
+
+| Objective Function Type | Description |
+|------------------------|-------------|
+| `MOI.VariableIndex` | Single variable objective: `min/max x` |
+| `MOI.ScalarAffineFunction{Float64}` | Linear objective: `min/max aᵀx + b` |
+| `MOI.ScalarQuadraticFunction{Float64}` | Quadratic objective: `min/max ½xᵀQx + aᵀx + b` |
+| `MOI.ScalarNonlinearFunction` | Nonlinear objective: `min/max f(x)` (via slack bridge) |
+| `MOI.VectorOfVariables` | Multi-objective: Native support for multiple objectives |
+
+### Raw Optimizer Attributes
+
+Access any Xpress control or attribute directly:
+
+```julia
+MOI.set(model, MOI.RawOptimizerAttribute("PRESOLVE"), 0)  # Disable presolve
+gap = MOI.get(model, MOI.RawOptimizerAttribute("MIPRELGAP"))  # Get MIP gap
+```
+
+**All Xpress controls and attributes** are accessible via `MOI.RawOptimizerAttribute`.
+
+---
+## Callbacks
+
+XpressAPI supports MOI callbacks for customizing the branch-and-bound process:
+
+### Supported Callbacks
+
+| Callback Type | MOI Type | Description | When Called |
+|--------------|----------|-------------|-------------|
+| **User Cuts** | `MOI.UserCutCallback` | Add cutting planes | At fractional LP solutions |
+
+---
+## Conflict Analysis (IIS)
+
+### Irreducible Inconsistent Subsystem (IIS)
+
+XpressAPI supports computing IIS for infeasible models:
+
+```julia
+using JuMP, XpressAPI
+
+model = Model(XpressAPI.Optimizer)
+@variable(model, x)
+@constraint(model, c1, x >= 1)
+@constraint(model, c2, x <= 0)
+optimize!(model)
+
+# Compute IIS
+MOI.compute_conflict!(model)
+
+# Check conflict status
+status = MOI.get(model, MOI.ConflictStatus())  # Returns MOI.CONFLICT_FOUND
+
+# Check which constraints are in IIS
+c1_status = MOI.get(model, MOI.ConstraintConflictStatus(), c1)
+# Returns MOI.IN_CONFLICT if c1 is in the IIS
+```
+
+**Conflict Status Codes**:
+- `MOI.CONFLICT_FOUND` - IIS successfully computed
+- `MOI.NO_CONFLICT_EXISTS` - Model is feasible
+- `MOI.NO_CONFLICT_FOUND` - Could not find IIS
+- `MOI.COMPUTE_CONFLICT_NOT_CALLED` - IIS computation not performed
+
+**Constraint Conflict Status**:
+- `MOI.IN_CONFLICT` - Constraint is in the IIS
+- `MOI.NOT_IN_CONFLICT` - Constraint is not in the IIS
+- `MOI.MAYBE_IN_CONFLICT` - Status unknown
+
+---
+
+## Bridges
+
+### Custom Objective Bridge
+
+XpressAPI provides a **custom objective slack bridge** (`StrictObjectiveSlackBridge`) that reformulates non-native objective types:
+
+**Transformation**:
+```
+min/max F(x)
+```
+becomes:
+```
+min/max c
+s.t. F(x) - c == 0
+```
+
+This bridge enables Xpress to solve problems with objective functions that would otherwise require reformulation.
+
+**Automatically applied for**:
+- Nonlinear objectives (`MOI.ScalarNonlinearFunction`)
+- Any other objective function type not natively supported by Xpress
+
+### MOI Bridge Support
+
+XpressAPI works seamlessly with MOI's automatic bridging system, which can transform:
+- Conic constraints → Quadratic constraints (e.g., `MOI.SecondOrderCone`)
+- Interval constraints → Separate bounds
+- And many more transformations
+
+To use bridges with XpressAPI:
+```julia
+using JuMP, XpressAPI
+model = Model(() -> MOI.Bridges.full_bridge_optimizer(XpressAPI.Optimizer(), Float64))
+```

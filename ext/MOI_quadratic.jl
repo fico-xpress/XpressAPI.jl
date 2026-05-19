@@ -199,75 +199,109 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
-using XpressAPI
+# --------------- MathOptInterface.Constraints --------------
+# https://jump.dev/MathOptInterface.jl/stable/manual/constraints/#Quadratic-constraints
 
-# Note: To run this example, a global solver license is required.
 
-#=
-The inscribed square problem, also known as the square peg problem or the Toeplitz' conjecture, is an unsolved question in geometry: Does every plane simple closed curve contain all four vertices of some square?
-This is true if the curve is convex or piecewise smooth and in other special cases.
-The problem was proposed by Otto Toeplitz in 1911. See also https://en.wikipedia.org/wiki/Inscribed_square_problem
-This instance computes a maximal inscribing square for the curve (sin(t)*cos(t), sin(t)*t), t in [-π,π].
-Model was contributed to MINLPlib by Benjamin Müller and Felipe Serrano
-=#
-
-XPRScreateprob("") do prob
-
-if XPRSfeaturequery("Global") != 1
-  error("A global solver license is required")
+function MOI.supports(::Optimizer, ::MOI.ObjectiveFunction{F})::Bool where {
+        F <: MOI.ScalarQuadraticFunction
+    }
+    return true
 end
 
-XPRSaddcbmessage(prob, (p, m, l, t) -> if l > 0 println(": ", m); end, 0)
+# Quadratic objective R^n -> R
+function MOI.set(model::Optimizer, ::MOI.ObjectiveFunction{F}, set::F) where {
+        F <: MOI.ScalarQuadraticFunction
+    }
 
-# add variables
-obj = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-lb = [-Inf, -π, -π, -π, -π, -Inf, -Inf, 0.0, 0.0]
-ub = [Inf, π, π, π, π, Inf, Inf, Inf, Inf]
-XPRSaddcols(prob, 9, 0, obj, [0, 0], Int32[], Float64[], lb, ub)
-XPRSaddnames(prob, 2, ["objvar", "t1", "t2", "t3", "t4", "x1", "y1", "len", "height"], 0, 8)
+    # Add the linear part of the objective
+    if length(set.affine_terms) > 0
+        MOI.set(model, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Precision}}(), MOI.ScalarAffineFunction{Precision}(set.affine_terms, 0.0))
+    end
 
-#add linear parts of rows
-rowtype = ['E' for i in 1:17]
-rhs = [0.0 for i in 1:9]
-rng = [0.0 for i in 1:9]
-start = [0, 1, 2, 3, 5, 7, 9, 11, 14]
-colind = [0, 5, 6, 5, 7, 6, 8, 5, 8, 6, 7, 5, 7, 8, 6, 7, 8]
-rowcoef = [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0 , -1.0, -1.0, 1.0, -1.0, -1.0, -1.0, -1.0, 1.0, -1.0, -1.0, -1.0]
-XPRSaddrows(prob, 9, 17, rowtype, rhs, rng, start, colind, rowcoef)
+    # Add the quadratic part to the objective
+    if length(set.quadratic_terms) > 0
+        XPRSchgmqobj64(
+            model.inner,
+            length(set.quadratic_terms),
+            map(t -> _XPRS_variable_from_moi_index(model, t.variable_1).xprs_index, set.quadratic_terms),
+            map(t -> _XPRS_variable_from_moi_index(model, t.variable_2).xprs_index, set.quadratic_terms),
+            map(t -> Precision(t.coefficient), set.quadratic_terms)
+        )
+    end
 
-#add formulas
-rowind = [0, 1, 2, 3, 4, 5, 6, 7, 8]
-formulastart = [0, 8, 16, 22, 30, 36, 44, 50, 58, 64]
-type = [XPRS_TOK_COL, XPRS_TOK_CON, XPRS_TOK_OP, XPRS_TOK_COL, XPRS_TOK_CON, XPRS_TOK_OP, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_COL, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_COL, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_COL, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_COL, XPRS_TOK_OP, XPRS_TOK_EOF]
-value = [7, 2, XPRS_OP_EXPONENT, 8, 2, XPRS_OP_EXPONENT, XPRS_OP_PLUS, 0.0,  0.0, 1, XPRS_IFUN_SIN, 0.0, 1, XPRS_IFUN_COS, XPRS_OP_MULTIPLY, 0.0,  0.0, 1, XPRS_IFUN_SIN, 1, XPRS_OP_MULTIPLY, 0.0,  0.0, 2, XPRS_IFUN_SIN, 0.0, 2, XPRS_IFUN_COS, XPRS_OP_MULTIPLY, 0.0,  0.0, 2, XPRS_IFUN_SIN, 2, XPRS_OP_MULTIPLY, 0.0,  0.0, 3, XPRS_IFUN_SIN, 0.0, 3, XPRS_IFUN_COS, XPRS_OP_MULTIPLY, 0.0,  0.0, 3, XPRS_IFUN_SIN, 3, XPRS_OP_MULTIPLY, 0.0,  0.0, 4, XPRS_IFUN_COS, 0.0, 4, XPRS_IFUN_SIN, XPRS_OP_MULTIPLY, 0.0,  0.0, 4, XPRS_IFUN_SIN, 4, XPRS_OP_MULTIPLY, 0.0]
-XPRSnlpaddformulas(prob, 9, rowind, formulastart, 1, type, value)
-XPRSwriteprob(prob, "inscribedsquare.lp", "l")
+    # Set objective's constant
+    # objind = 0 as we only add a single objective here
+    XPRSsetobjdblcontrol(model.inner, 0, XPRS_OBJECTIVE_RHS, Precision(set.constant))
+    push!(model.objectives, set)
 
-#set initial values
-initvalind = [i for i in 0:8]
-initval = [0.0, -π, -π/2, 0, -π/2, 1, 1, 0, 0]
-XPRSnlpsetinitval(prob, 9, initvalind, initval)
+    return MOI.VariableIndex(-1)
+end
 
-#solve problem to local optimality
-XPRSsetintcontrol(prob, XPRS_NLPPRESOLVE, 0)
-solvestatus, solstatus = XPRSoptimize(prob, "")
-@assert solvestatus == XPRS_SOLVESTATUS_COMPLETED
-@assert (solstatus == XPRS_SOLSTATUS_OPTIMAL) || (solstatus == XPRS_SOLSTATUS_FEASIBLE)
 
-#read solution
-objval = XPRSgetdblattrib(prob, XPRS_NLPOBJVAL)
-_, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, 8)
-println(objval)
-println(sol[1])
-println("local solution: objvar: $(sol[1]), t1: $(sol[2]), t2: $(sol[3]), t3: $(sol[4]), t4: $(sol[5]), x1: $(sol[6]) y1: $(sol[7]), len: $(sol[8]), height: $(sol[9])")
+# Quadratic constraints
+function MOI.supports_constraint(model::Optimizer, ::Type{F}, ::Type{S})::Bool where {
+        F <: MOI.ScalarQuadraticFunction,
+        S <: Union{MOI.GreaterThan, MOI.LessThan, MOI.EqualTo}
+    }
+    return true
+end
 
-#solve problem to global optimality
-states = XPRSoptimize(prob, "x")
-@assert solvestatus == XPRS_SOLVESTATUS_COMPLETED
-@assert (solstatus == XPRS_SOLSTATUS_OPTIMAL) || (solstatus == XPRS_SOLSTATUS_FEASIBLE)
+function MOI.add_constraints(model::Optimizer, func::Vector{F}, set::Vector{S})::Vector{MOI.ConstraintIndex{F,S}} where {
+        F <: MOI.ScalarQuadraticFunction,
+        S <: Union{MOI.GreaterThan, MOI.LessThan, MOI.EqualTo}
+    }
 
-#read solution
-objval = XPRSgetdblattrib(prob, XPRS_NLPOBJVAL)
-_, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, 8)
-println("global solution: objvar: $(sol[1]), t1: $(sol[2]) t2: $(sol[3]), t3: $(sol[4]), t4: $(sol[5]), x1: $(sol[6]), y1: $(sol[7]), len: $(sol[8]), height: $(sol[9])")
+    # Add function in canonical form
+    for f in func
+        if !MOI.Utilities.is_canonical(f)
+            MOI.Utilities.canonicalize!(f)
+        end
+    end
+
+    # Add the linear part of the constraints
+    # If no linear part is present, create the dummy linear expression 0x0 + 0
+    indices = map(
+        i -> begin
+            if length(func[i].affine_terms) > 0
+                return MOI.add_constraint(model, MOI.ScalarAffineFunction{Precision}(func[i].affine_terms, 0.0), set[i])
+            else
+                @assert length(func[i].quadratic_terms) > 0
+                return MOI.add_constraint(model, MOI.ScalarAffineFunction{Precision}([MOI.ScalarAffineTerm{Precision}(0.0, MOI.VariableIndex(1))], 0.0), set[i])
+            end
+        end,
+        1:length(set)
+    )
+
+    # Now add all quadratic part to the newlly created constraints
+    indices = map(
+        i -> begin
+            c = _XPRS_constraint_from_moi_index(model, indices[i])
+            # Reverse mapping, also flag this constraint as quadratic
+            index = _XPRS_register_new_constraint_as(model, c, func[i], set[i])
+            # Add the quadratic matrix in Xpress
+            if length(func[i].quadratic_terms) > 0
+                XPRSaddqmatrix64(
+                    model.inner,
+                    c.xprs_index, # Row
+                    length(func[i].quadratic_terms),
+                    map(t -> _XPRS_variable_from_moi_index(model, t.variable_1).xprs_index, func[i].quadratic_terms),
+                    map(t -> _XPRS_variable_from_moi_index(model, t.variable_2).xprs_index, func[i].quadratic_terms),
+                    # MOI doubles coefficients and assume 1/2 in front:
+                    # https://jump.dev/MathOptInterface.jl/stable/manual/constraints/#Quadratic-constraints
+                    map(t -> 0.5 * Precision(t.coefficient), func[i].quadratic_terms)
+                )
+            end
+            return index
+        end,
+        1:length(set)
+    )
+    return indices
+end
+
+function MOI.add_constraint(model::Optimizer, func::F, set::S)::MOI.ConstraintIndex{F,S} where {
+        F <: MOI.ScalarQuadraticFunction,
+        S <: Union{MOI.GreaterThan, MOI.LessThan, MOI.EqualTo}
+    }
+    return MOI.add_constraints(model, [func], [set])[1]
 end

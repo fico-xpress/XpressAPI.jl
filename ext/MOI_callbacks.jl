@@ -199,75 +199,60 @@
 #    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #    See the License for the specific language governing permissions and
 #    limitations under the License.
-using XpressAPI
 
-# Note: To run this example, a global solver license is required.
+# Xpress uses a XPRSprob as user-data for all Callbacks
+const CallbackArg = XPRSprob
 
-#=
-The inscribed square problem, also known as the square peg problem or the Toeplitz' conjecture, is an unsolved question in geometry: Does every plane simple closed curve contain all four vertices of some square?
-This is true if the curve is convex or piecewise smooth and in other special cases.
-The problem was proposed by Otto Toeplitz in 1911. See also https://en.wikipedia.org/wiki/Inscribed_square_problem
-This instance computes a maximal inscribing square for the curve (sin(t)*cos(t), sin(t)*t), t in [-π,π].
-Model was contributed to MINLPlib by Benjamin Müller and Felipe Serrano
-=#
+# --------------- MathOptInterface.Callback getters ---------------
+MOI.supports(::Optimizer, ::MOI.AbstractCallback) = true
 
-XPRScreateprob("") do prob
 
-if XPRSfeaturequery("Global") != 1
-  error("A global solver license is required")
+function MOI.get(model::Optimizer, cb::MOI.CallbackVariablePrimal{CallbackArg}, index::MOI.VariableIndex)
+    v = _XPRS_variable_from_moi_index(model, index)
+    solstatus, solvec = XPRSgetsolution(cb.callback_data, v.solbuffer, v.xprs_index, v.xprs_index)
+    if solstatus == XPRS_SOLAVAILABLE_NOTFOUND
+        return NaN
+    end
+    return v.solbuffer[1]
 end
 
-XPRSaddcbmessage(prob, (p, m, l, t) -> if l > 0 println(": ", m); end, 0)
-
-# add variables
-obj = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-lb = [-Inf, -π, -π, -π, -π, -Inf, -Inf, 0.0, 0.0]
-ub = [Inf, π, π, π, π, Inf, Inf, Inf, Inf]
-XPRSaddcols(prob, 9, 0, obj, [0, 0], Int32[], Float64[], lb, ub)
-XPRSaddnames(prob, 2, ["objvar", "t1", "t2", "t3", "t4", "x1", "y1", "len", "height"], 0, 8)
-
-#add linear parts of rows
-rowtype = ['E' for i in 1:17]
-rhs = [0.0 for i in 1:9]
-rng = [0.0 for i in 1:9]
-start = [0, 1, 2, 3, 5, 7, 9, 11, 14]
-colind = [0, 5, 6, 5, 7, 6, 8, 5, 8, 6, 7, 5, 7, 8, 6, 7, 8]
-rowcoef = [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0 , -1.0, -1.0, 1.0, -1.0, -1.0, -1.0, -1.0, 1.0, -1.0, -1.0, -1.0]
-XPRSaddrows(prob, 9, 17, rowtype, rhs, rng, start, colind, rowcoef)
-
-#add formulas
-rowind = [0, 1, 2, 3, 4, 5, 6, 7, 8]
-formulastart = [0, 8, 16, 22, 30, 36, 44, 50, 58, 64]
-type = [XPRS_TOK_COL, XPRS_TOK_CON, XPRS_TOK_OP, XPRS_TOK_COL, XPRS_TOK_CON, XPRS_TOK_OP, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_COL, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_COL, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_COL, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_OP, XPRS_TOK_EOF,  XPRS_TOK_RB, XPRS_TOK_COL, XPRS_TOK_IFUN, XPRS_TOK_COL, XPRS_TOK_OP, XPRS_TOK_EOF]
-value = [7, 2, XPRS_OP_EXPONENT, 8, 2, XPRS_OP_EXPONENT, XPRS_OP_PLUS, 0.0,  0.0, 1, XPRS_IFUN_SIN, 0.0, 1, XPRS_IFUN_COS, XPRS_OP_MULTIPLY, 0.0,  0.0, 1, XPRS_IFUN_SIN, 1, XPRS_OP_MULTIPLY, 0.0,  0.0, 2, XPRS_IFUN_SIN, 0.0, 2, XPRS_IFUN_COS, XPRS_OP_MULTIPLY, 0.0,  0.0, 2, XPRS_IFUN_SIN, 2, XPRS_OP_MULTIPLY, 0.0,  0.0, 3, XPRS_IFUN_SIN, 0.0, 3, XPRS_IFUN_COS, XPRS_OP_MULTIPLY, 0.0,  0.0, 3, XPRS_IFUN_SIN, 3, XPRS_OP_MULTIPLY, 0.0,  0.0, 4, XPRS_IFUN_COS, 0.0, 4, XPRS_IFUN_SIN, XPRS_OP_MULTIPLY, 0.0,  0.0, 4, XPRS_IFUN_SIN, 4, XPRS_OP_MULTIPLY, 0.0]
-XPRSnlpaddformulas(prob, 9, rowind, formulastart, 1, type, value)
-XPRSwriteprob(prob, "inscribedsquare.lp", "l")
-
-#set initial values
-initvalind = [i for i in 0:8]
-initval = [0.0, -π, -π/2, 0, -π/2, 1, 1, 0, 0]
-XPRSnlpsetinitval(prob, 9, initvalind, initval)
-
-#solve problem to local optimality
-XPRSsetintcontrol(prob, XPRS_NLPPRESOLVE, 0)
-solvestatus, solstatus = XPRSoptimize(prob, "")
-@assert solvestatus == XPRS_SOLVESTATUS_COMPLETED
-@assert (solstatus == XPRS_SOLSTATUS_OPTIMAL) || (solstatus == XPRS_SOLSTATUS_FEASIBLE)
-
-#read solution
-objval = XPRSgetdblattrib(prob, XPRS_NLPOBJVAL)
-_, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, 8)
-println(objval)
-println(sol[1])
-println("local solution: objvar: $(sol[1]), t1: $(sol[2]), t2: $(sol[3]), t3: $(sol[4]), t4: $(sol[5]), x1: $(sol[6]) y1: $(sol[7]), len: $(sol[8]), height: $(sol[9])")
-
-#solve problem to global optimality
-states = XPRSoptimize(prob, "x")
-@assert solvestatus == XPRS_SOLVESTATUS_COMPLETED
-@assert (solstatus == XPRS_SOLSTATUS_OPTIMAL) || (solstatus == XPRS_SOLSTATUS_FEASIBLE)
-
-#read solution
-objval = XPRSgetdblattrib(prob, XPRS_NLPOBJVAL)
-_, sol = XPRSgetsolution(prob, XPRS_ALLOC, 0, 8)
-println("global solution: objvar: $(sol[1]), t1: $(sol[2]) t2: $(sol[3]), t3: $(sol[4]), t4: $(sol[5]), x1: $(sol[6]), y1: $(sol[7]), len: $(sol[8]), height: $(sol[9])")
+function MOI.get(model::Optimizer, cb::MOI.CallbackNodeStatus{CallbackArg})::MOI.CallbackNodeStatusCode
+    # Number of integer infeasibilities, including violations of special ordered sets, at the current node. (integer)
+    if XPRSgetattrib(cb.callback_data, "MIPINFEAS") == 0
+        return MOI.CALLBACK_NODE_STATUS_INTEGER
+    end
+    # CALLBACK_NODE_STATUS_UNKNOWN
+    return MOI.CALLBACK_NODE_STATUS_FRACTIONAL
 end
+
+# --------------- MathOptInterface.UserCut ---------------
+
+# User Cuts
+#     Called on fractional solutions (LP relaxation solutions)
+#     Purpose: Tighten the LP relaxation to get better bounds
+#     Don't change the feasible region of the original problem
+function MOI.set(model::Optimizer, ::MOI.UserCutCallback, cb::Function)
+    # Declares a callback function, called during the branch and bound search, after the LP relaxation has been solved for the current node, but before any internal cuts and heuristics have been applied.
+    XPRSaddcbnodelpsolved(model.inner, cb, 1)
+    return nothing
+end
+
+function MOI.submit(model::Optimizer, cb::MOI.UserCut{CallbackArg}, func::F, set::S) where {
+        F <: MOI.ScalarAffineFunction,
+        S <: Union{MOI.GreaterThan, MOI.LessThan, MOI.EqualTo}
+    }
+    XPRSaddcuts(
+        cb.callback_data,
+        1, #ncuts
+        [1], #cuttype
+        rowtypes(model, [func], [set]),
+        rhs(model, [func], [set]),
+        starts(model, [func], [set]),
+        colinds(model, [func], [set]),
+        rowcoeffs(model, [func], [set])
+    )
+    return nothing
+end
+
+
+# --------------- MathOptInterface.Heuristic ---------------

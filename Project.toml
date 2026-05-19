@@ -1,19 +1,33 @@
 name = "XpressAPI"
 uuid = "750d0954-2060-462e-b2dd-f6609bca40df"
-version = "44.01.01"
+version = "47.01.01"
 authors = ["FICO"]
 
 [deps]
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 
 [compat]
-julia = "1.6"
+Libdl = ">= 1.6"
+MathOptInterface = ">= 1.26"
+Xpress_jll = ">= 9.5"
+julia = ">= 1.9"
+SpecialFunctions = "2.7.1"
+
+[weakdeps]
+MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
+
+[extensions]
+XpressMOIExt = ["MathOptInterface"]
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 TestReports = "dcd651b4-b50a-5b6b-8f22-87e9f253a252"
+Xpress_jll = "308bddfa-7f95-4fa6-a557-f2c7addc1869"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
 
 [targets]
-test = ["Test", "TestReports", "JSON", "Random"]
+test = ["Test", "TestReports", "JSON", "Random", "MathOptInterface", "SpecialFunctions"]
