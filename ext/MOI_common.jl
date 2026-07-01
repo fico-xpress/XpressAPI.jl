@@ -1035,7 +1035,7 @@ function _XPRS_to_MOI_IISStatus(xprs_iisstatus)::MOI.ConflictStatusCode
     if xprs_iisstatus == 2
         return MOI.NO_CONFLICT_FOUND
     end
-    return MOI.NO_CONFLICT_FOUND
+    return MOI.CONFLICT_FOUND
 end
 
 # https://jump.dev/MathOptInterface.jl/stable/reference/models/#Conflict-Status

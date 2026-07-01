@@ -908,10 +908,10 @@ export XPVERSION_MAJOR
 global const XPVERSION_MINOR::Int32 = Int32(1)
 export XPVERSION_MINOR
 """ `XPVERSION_BUILD` - Build version number of Xpress optimizer library."""
-global const XPVERSION_BUILD::Int32 = Int32(1)
+global const XPVERSION_BUILD::Int32 = Int32(2)
 export XPVERSION_BUILD
 """ `XPVERSION_FULL` - Full version number of Xpress optimizer library."""
-global const XPVERSION_FULL::Int32 = Int32(470101)
+global const XPVERSION_FULL::Int32 = Int32(470102)
 export XPVERSION_FULL
 global const XPRS_DEL_COLON::Int32 = Int32(2)
 export XPRS_DEL_COLON
@@ -2044,6 +2044,8 @@ export XPRS_BARSINGR
 """
     XPRS_BESTBOUND
 Value of the best bound determined so far by the MIP search. (double)
+
+For purely continuous problems this is set to the optimal objective value (or infinity if the problem is infeasible).
 """
 global const XPRS_BESTBOUND::Int32 = Int32(2004)
 export XPRS_BESTBOUND
@@ -3734,6 +3736,8 @@ Values:
 : Start with 2 and optionally switch to 1 during the execution.
 4
 : Use the hybrid gradient algorithm.
+5
+: Use an alternative version of the hybrid gradient algorithm.
 """
 global const XPRS_BARALG::Int32 = Int32(8315)
 export XPRS_BARALG
@@ -5030,7 +5034,7 @@ Values:
 3
 : Primal simplex.
 4
-: Newton barrier (or hybrid gradient, if BARALG=4 is set).
+: Newton barrier (or hybrid gradient, if BARALG=4 or BARALG=5 is set).
 5
 : Network simplex.
 """
@@ -6652,7 +6656,7 @@ bit 0
 bit 1
 : Use the primal simplex method.
 bit 2
-: Use the barrier method (or hybrid gradient method if BARALG=4 is set).
+: Use the barrier method (or hybrid gradient method if BARALG=4 or BARALG=5 is set).
 bit 3
 : Use the network simplex method.
 """
@@ -7906,7 +7910,7 @@ export XPRS_NUMERICALEMPHASIS
 
 """
     XPRS_OBJSCALEFACTOR
-Custom objective scaling factor, expressed as a power of 2. (double)
+Custom objective scaling factor, expressed as a power of 2. (integer)
 
 When set, it overwrites the automatic objective scaling factor. A value of 0 means no objective scaling. This control is applied for the full solve, and is independent of any extra scaling that may occur specifically for the barrier or simplex solvers. As it is a power of 2, to scale by 16, set the value of the control to 4.
 
@@ -13459,7 +13463,7 @@ Loads directives into the matrix.
 - `ndirs::Integer`: Number of directives.
 - `colind::AbstractVector{Integer}`: Integer array of length `ndirs` containing the column numbers.
 - `priority::AbstractVector{Integer}`: Integer array of length `ndirs` containing the priorities for the columns or sets.
-- `dir::AbstractVector{Cchar}`: Character array of length `ndirs` specifying the branching direction for each column or set: Uthe entity is to be forced up; Dthe entity is to be forced down; Nnot specified.May be `nothing` if not required.
+- `dir::AbstractVector{Cchar}`: Character array of length `ndirs` specifying the branching direction for each column or set: Uthe entity is to be forced up; Dthe entity is to be forced down; Nnot specified.
 - `uppseudo::AbstractVector{Number}`: Double array of length `ndirs` containing the up pseudo costs for the columns or sets.
 - `downpseudo::AbstractVector{Number}`: Double array of length `ndirs` containing the down pseudo costs for the columns or sets.
 # Return value
@@ -14017,21 +14021,7 @@ end
 export XPRSaddnames
 
 """
-    XPRSaddsetnames(prob, names, first, last)::prob
-
-**Deprecated**Use XPRSaddnames instead.
-
-When a model with MIP entities is loaded, any special ordered sets may not have names associated with them. If you wish names to appear in the ASCII solutions files, the names for a range of sets can be added with this function.
-
-# Arguments
-- `prob::XPRSprob`: The current problem.
-- `names::AbstractVector{AbstractString}`: Character buffer containing the null-terminated string names.
-- `first::Integer`: Start of the range of sets.
-- `last::Integer`: End of the range of sets.
-# Return value
-- `prob::XPRSprob`: The current problem.
-
-See also the documentation of the correponding function [XPRSaddsetnames](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSaddsetnames.html) in the C API.
+Wraps callable C library function XPRSaddsetnames:
 """
 function XPRSaddsetnames(prob::XPRSprob, names::AbstractVector{T0}, first, last)::XPRSprob where {T0<:AbstractString}
   totlen = Csize_t(0)
@@ -17596,7 +17586,7 @@ Provides a simplified interface for XPRSrepairweightedinfeas.
 - `prob::XPRSprob`: The current problem.
 - `penalty::Integer`: The type of penalties created from the preferences: ceach penalty is the reciprocal of the preference (default); sthe penalties are placed in the scaled problem.
 - `phase2::Integer`: Controls the second phase of optimization: ouse the objective sense of the original problem (default); xmaximize the relaxed problem using the original objective; fskip optimization regarding the original objective; nminimize the relaxed problem using the original objective; iif the relaxation is infeasible, generate an irreducible infeasible subset for the analysis of the problem; aif the relaxation is infeasible, generate all irreducible infeasible subsets for the analysis of the problem.
-- `flags::Integer`: Specifies flags to be passed to XPRSoptimize.
+- `flags::Integer`: Ignored.
 - `lepref::Float64`: Preference for relaxing the less or equal side of row.
 - `gepref::Float64`: Preference for relaxing the greater or equal side of a row.
 - `lbpref::Float64`: Preferences for relaxing lower bounds.
