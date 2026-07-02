@@ -908,10 +908,10 @@ export XPVERSION_MAJOR
 global const XPVERSION_MINOR::Int32 = Int32(1)
 export XPVERSION_MINOR
 """ `XPVERSION_BUILD` - Build version number of Xpress optimizer library."""
-global const XPVERSION_BUILD::Int32 = Int32(2)
+global const XPVERSION_BUILD::Int32 = Int32(99)
 export XPVERSION_BUILD
 """ `XPVERSION_FULL` - Full version number of Xpress optimizer library."""
-global const XPVERSION_FULL::Int32 = Int32(470102)
+global const XPVERSION_FULL::Int32 = Int32(470199)
 export XPVERSION_FULL
 global const XPRS_DEL_COLON::Int32 = Int32(2)
 export XPRS_DEL_COLON
