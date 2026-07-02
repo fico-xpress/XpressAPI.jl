@@ -747,6 +747,13 @@ function MOI.set(model::Optimizer, ::MOI.VariablePrimalStart, index::MOI.Variabl
     return nothing
 end
 
+function MOI.get(model::Optimizer, attr::MOI.VariableBasisStatus, index::MOI.VariableIndex)::MOI.BasisStatusCode
+    @assert attr.result_index == 1
+    v = _XPRS_variable_from_moi_index(model, index)
+    rowstat, colstat = XPRSgetbasis(model.inner, XPRS_ALLOC, XPRS_ALLOC)
+    return _xprs_to_moi_variable_basis_status(colstat[v.xprs_index + 1])
+end
+
 # --------------- MathOptInterface.Constraints ---------------
 # https://jump.dev/MathOptInterface.jl/stable/manual/constraints/
 
@@ -755,7 +762,6 @@ function MOI.supports(model::Optimizer, ::Type{A})::Bool where {
     A <: Union{
         MOI.Bridges.FirstBridge,
         MOI.CanonicalConstraintFunction,
-        MOI.ConstraintBasisStatus,
         MOI.ConstraintConflictStatus,
         MOI.ConstraintDualStart,
         MOI.ConstraintFunction,
@@ -935,6 +941,18 @@ function MOI.get(model::Optimizer, result_index::MOI.ConstraintDual, index::MOI.
     return MOI.get(model, result_index, [index])[1]
 end
 
+function MOI.get(model::Optimizer, attr::MOI.ConstraintBasisStatus, index::MOI.ConstraintIndex{F,S})::MOI.BasisStatusCode where {
+        F <: MOI.AbstractFunction, S <: MOI.AbstractSet
+    }
+    @assert attr.result_index == 1
+    c = _XPRS_constraint_from_moi_index(model, index)
+    if c.xprs_index == -2
+        throw(MOI.GetAttributeNotAllowed(attr, "Basis status not available for variable bound constraints"))
+    end
+    rowstat, colstat = XPRSgetbasis(model.inner, XPRS_ALLOC, XPRS_ALLOC)
+    return _xprs_to_moi_constraint_basis_status(rowstat[c.xprs_index + 1])
+end
+
 MOI.supports(::Optimizer, ::MOI.ConstraintName, ::Type{<:MOI.ConstraintIndex})::Bool = true
 
 function MOI.get(model::Optimizer, ::MOI.ConstraintName, index::MOI.ConstraintIndex{F,S}) where {
@@ -993,10 +1011,33 @@ function MOI.get(model::Optimizer, attr::MOI.RelativeGap)
     return abs(mipobjval - bestbound) / max(abs(bestbound), abs(mipobjval))
 end
 
+# --------------- Basis status mapping ---------------
+
+function _xprs_to_moi_variable_basis_status(status::Int32)::MOI.BasisStatusCode
+    if status == XPRS_BASISSTATUS_BASIC
+        return MOI.BASIC
+    elseif status == XPRS_BASISSTATUS_NONBASIC_LOWER
+        return MOI.NONBASIC_AT_LOWER
+    elseif status == XPRS_BASISSTATUS_NONBASIC_UPPER
+        return MOI.NONBASIC_AT_UPPER
+    else
+        return MOI.SUPER_BASIC
+    end
+end
+
+function _xprs_to_moi_constraint_basis_status(status::Int32)::MOI.BasisStatusCode
+    if status == XPRS_BASISSTATUS_BASIC
+        return MOI.BASIC
+    elseif status == XPRS_BASISSTATUS_NONBASIC_LOWER || status == XPRS_BASISSTATUS_NONBASIC_UPPER
+        return MOI.NONBASIC
+    else
+        return MOI.SUPER_BASIC
+    end
+end
+
 # --------------- MathOptInterface.optimize! ---------------
 
 function MOI.optimize!(model::Optimizer)
-    # Warm start for Xpress SLP, if any variable as a primal start value
     primal_starts = filter(v -> !isnothing(v.primal_start), collect(values(model.variables)))
     if length(primal_starts) > 0
         if !isnothing(model.nlp_model)
@@ -1006,13 +1047,33 @@ function MOI.optimize!(model::Optimizer)
                 map(v -> v.xprs_index, primal_starts),
                 map(v -> v.primal_start, primal_starts)
             )
-        else 
-            # TODO: Implement LP/MIP warmstart by loading basis
+        elseif is_mip(model)
+            XPRSaddmipsol(
+                model.inner,
+                length(primal_starts),
+                map(v -> v.primal_start, primal_starts),
+                map(v -> v.xprs_index, primal_starts),
+                nothing
+            )
+        else
+            ncols = XPRSgetattrib(model.inner, "COLS")
+            lb = XPRSgetlb(model.inner, XPRS_ALLOC, 0, ncols - 1)
+            ub = XPRSgetub(model.inner, XPRS_ALLOC, 0, ncols - 1)
+            x = map((l, u) -> isfinite(l) ? l : (isfinite(u) ? u : 0.0), lb, ub)
+            for v in primal_starts
+                x[v.xprs_index + 1] = v.primal_start
+            end
+            XPRSloadlpsol(model.inner, x, nothing, nothing, nothing)
         end
     end
 
+    # TODO: Implement explicit LP/MIP warmstart by loading a basis via
+    # XPRSloadbasis. Basis get/load is a specialized use case that should be
+    # driven explicitly by the user (save a basis, load it back before a later
+    # solve), not managed implicitly here: the optimizer already handles state
+    # between consecutive solves of the same problem more efficiently.
+
     try
-        #XPRSwriteprob(model.inner, "test.lp", nothing)
         solvestatus, solstatus = XPRSoptimize(model.inner, "")
         model.last_solve_status = solvestatus
         model.last_solution_status = solstatus

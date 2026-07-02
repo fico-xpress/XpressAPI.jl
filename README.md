@@ -392,3 +392,147 @@ To use bridges with XpressAPI:
 using JuMP, XpressAPI
 model = Model(() -> MOI.Bridges.full_bridge_optimizer(XpressAPI.Optimizer(), Float64))
 ```
+
+---
+## Warmstart
+
+A warm start is a *primal starting point* supplied through JuMP's
+`set_start_value` (equivalently `MOI.VariablePrimalStart`). XpressAPI forwards this
+starting point to the appropriate Xpress C entry point at solve time. What Xpress
+does with it depends on the problem type, and is summarised in the table below.
+
+| Problem type   | Start passed via     | Partial start allowed | Effect                                        |
+| -------------- | -------------------- | --------------------- | --------------------------------------------- |
+| MIP            | `XPRSaddmipsol`      | Yes                   | Seed solution for the branch-and-bound search |
+| Non-linear     | `XPRSnlpsetinitval`  | Yes                   | Initial point for the non-linear solver       |
+| LP (pure)      | `XPRSloadlpsol`      | No (auto-completed)   | Initial primal vector for the simplex/barrier |
+
+The problem type is detected automatically: if a non-linear model is present the
+non-linear path is used; otherwise, if any variable is integer/binary the MIP
+path is used; otherwise the LP path is used. In every case the starting point is
+only forwarded when at least one variable has a start value set.
+
+### MIP warmstart
+
+For mixed-integer problems, the start values are passed via `XPRSaddmipsol`.
+**Partial solutions are supported** - only the variables you set a value for are
+sent, and Xpress attempts to complete and repair them into a feasible incumbent.
+A good incumbent gives the solver an early primal bound and can significantly
+speed up the search. This is the most common and most useful form of warm start.
+
+```julia
+using JuMP, XpressAPI
+
+model = Model(XpressAPI.Optimizer)
+@variable(model, x[1:5], Bin)
+@constraint(model, sum(x) <= 3)
+@objective(model, Max, sum(x))
+
+# Provide a known feasible (or partial) solution as a starting point
+set_start_value(x[1], 1.0)
+set_start_value(x[2], 1.0)
+optimize!(model)
+```
+
+### Non-linear warmstart
+
+For models containing non-linear constraints or objectives, the start values are
+passed via `XPRSnlpsetinitval` as the initial point of the non-linear solver. A
+good starting point can improve both convergence speed and the quality of the
+local optimum found. Partial starts are supported.
+
+```julia
+using JuMP, XpressAPI
+
+model = Model(XpressAPI.Optimizer)
+@variable(model, x)
+@variable(model, y)
+@constraint(model, x^2 + y^2 <= 1)
+@objective(model, Max, x + y)
+
+set_start_value(x, 0.7)
+set_start_value(y, 0.7)
+optimize!(model)
+```
+
+### LP primal start
+
+For pure linear programs the start values are loaded via `XPRSloadlpsol` as an
+initial primal vector. Unlike the MIP and non-linear paths, Xpress requires a
+**complete** primal vector here - a partial vector cannot be interpreted. XpressAPI
+therefore auto-completes any variable you did not set, using, in order:
+
+1. the variable's finite lower bound, else
+2. its finite upper bound, else
+3. `0.0`.
+
+Be aware of the consequences of this auto-completion:
+
+- The completed vector may be **primal-infeasible**. Xpress will detect this,
+  discard the supplied point, and continue from its own starting basis, so
+  correctness is never at risk - but a poor partial start gives no speed-up.
+- Providing values for **all** variables (a genuinely feasible point) is what
+  makes an LP primal start worthwhile.
+
+Note that an LP primal start is a comparatively *advanced and rarely useful*
+feature: for linear programs the starting *vertex* (basis) matters far more than
+the starting *point*, and for consecutive solves of the same model Xpress already
+reuses the previous basis internally (see below). Prefer MIP warm starts where
+they apply.
+
+```julia
+using JuMP, XpressAPI
+
+model = Model(XpressAPI.Optimizer)
+@variable(model, 0 <= x <= 10)
+@variable(model, 0 <= y <= 10)
+@constraint(model, x + y <= 15)
+@objective(model, Max, x + 2y)
+
+# For an LP, set every variable for the start to be of any use
+set_start_value(x, 3.0)
+set_start_value(y, 6.0)
+optimize!(model)
+```
+
+### Querying the LP basis
+
+After an LP solve you can read back the optimal basis via the standard MOI
+attributes. This is useful for inspection or for implementing your own explicit
+basis-reuse logic (see the next section).
+
+```julia
+using JuMP, XpressAPI
+import MathOptInterface as MOI
+
+model = Model(XpressAPI.Optimizer)
+@variable(model, 0 <= x <= 10)
+@variable(model, 0 <= y <= 10)
+@constraint(model, c1, x + y <= 15)
+@objective(model, Max, x + 2y)
+optimize!(model)
+
+# Query variable basis status
+x_status = MOI.get(model, MOI.VariableBasisStatus(), x)
+# Returns: MOI.BASIC, MOI.NONBASIC_AT_LOWER, MOI.NONBASIC_AT_UPPER, or MOI.SUPER_BASIC
+
+# Query constraint basis status
+c1_status = MOI.get(model, MOI.ConstraintBasisStatus(), c1)
+# Returns: MOI.BASIC, MOI.NONBASIC, or MOI.SUPER_BASIC
+```
+
+### What is *not* supported
+
+- **Implicit basis warm start.** XpressAPI does **not** cache the basis of one
+  solve and silently reload it on the next. For consecutive solves of the *same*
+  problem this is unnecessary - Xpress already carries the basis over internally
+  and does so more efficiently than an interface-level cache could.
+- **Automatic basis reuse across *different* problems.** Reusing the basis of one
+  problem as the starting basis of another (e.g. column-generation or
+  cut-generation loops, or a hand-written branch-and-bound) is a specialised use
+  case that must be driven **explicitly** by the user: save the basis after one
+  solve and load it back before the relevant later solve. XpressAPI does not, and
+  should not, do this behind the user's back, because only the user knows which
+  basis is a valid/near-optimal start for which problem. The low-level
+  `XPRSgetbasis` / `XPRSloadbasis` wrappers in `XpressAPI` are available for this.
+- **Dual starts.** `MOI.ConstraintDualStart` is not supported.

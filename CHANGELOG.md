@@ -4,6 +4,17 @@ All notable changes to the XpressAPI Julia package are documented here.
 Version numbers track the FICO Xpress version from which the bindings were
 generated.
 
+## 47.1.3
+
+- Added warm-start support to the JuMP / MOI interface via `set_start_value`
+  (`MOI.VariablePrimalStart`). The starting point is forwarded to the solver
+  according to the problem type: MIP starts through `XPRSaddmipsol`, non-linear
+  starts through `XPRSnlpsetinitval` (both accept partial solutions), and pure
+  LP starts through `XPRSloadlpsol` (which requires a complete vector, so
+  unset variables are filled from their bounds or zero). Basis reuse across
+  solves is left to the user to drive explicitly with `XPRSgetbasis` /
+  `XPRSloadbasis`; the interface does not cache and reload a basis implicitly.
+
 ## 47.1.2
 
 - Fixed `compute_conflict!` so that an infeasible subproblem is reported as
