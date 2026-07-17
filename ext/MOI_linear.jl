@@ -231,6 +231,7 @@ function MOI.set(model::Optimizer, ::MOI.ObjectiveFunction{F}, set::F) where {
     }
     # Add as objective '0' -> single objective
     _add_linear_objective(model, 0, set)
+    model.objective_type = MOI.ScalarAffineFunction{Precision}
     # Return dummy index
     return MOI.VariableIndex(-1)
 end
@@ -241,7 +242,10 @@ function MOI.set(model::Optimizer, ::MOI.ObjectiveFunction{F}, set::F) where {
     }
     t::MOI.ScalarAffineTerm{Precision} = MOI.ScalarAffineTerm(1.0, set)
     f::MOI.ScalarAffineFunction{Precision} = MOI.ScalarAffineFunction([t], 0.0)
-    return MOI.set(model, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Precision}}(), f)
+    result = MOI.set(model, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Precision}}(), f)
+    # Override the affine type set by the delegation above
+    model.objective_type = MOI.VariableIndex
+    return result
 end
 
 
@@ -612,7 +616,7 @@ end
 function MOI.set(model::Optimizer, ::MOI.ObjectiveFunction{F}, set::F) where {
         F <: MOI.VectorOfVariables
     }
-    return map(
+    result = map(
         i -> begin
             # v -> 1v + 0
             t::MOI.ScalarAffineTerm{Precision} = MOI.ScalarAffineTerm(1.0, set.variables[i])
@@ -622,4 +626,6 @@ function MOI.set(model::Optimizer, ::MOI.ObjectiveFunction{F}, set::F) where {
         end,
         1:length(set.variables)
     )
+    model.objective_type = MOI.VectorOfVariables
+    return result
 end

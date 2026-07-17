@@ -314,6 +314,9 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     # List of objective functions
     objectives::Vector{MOI.AbstractFunction}
 
+    # Type of the objective currently set, reported by `MOI.ObjectiveFunctionType`
+    objective_type::Type{<:MOI.AbstractFunction}
+
     # Non-linear model, useful to store user-defined operators
     # See JuMP.@operator
     nlp_model::Union{Nothing, MOI.Nonlinear.Model}
@@ -338,6 +341,8 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             Dict(),
             # Objectives
             Vector{MOI.AbstractFunction}(),
+            # Objective type: MOI default is `ScalarAffineFunction`
+            MOI.ScalarAffineFunction{Precision},
             nothing,
             Dict{Symbol, Int}(),
             Vector{IISData}(),
@@ -393,7 +398,9 @@ function MOI.empty!(model::Optimizer)
     end
     empty!(model.user_func_mapping)
     empty!(model.iisdata)
+    empty!(model.objectives)
     # Reset states
+    model.objective_type = MOI.ScalarAffineFunction{Precision}
     model.last_solve_status = XPRS_SOLVESTATUS_UNSTARTED
     model.last_solution_status = XPRS_SOLSTATUS_NOTFOUND
     model.has_integer_variables = false
@@ -487,6 +494,14 @@ function MOI.get(model::Optimizer, ::MOI.RawStatusString)::String
 end
 
 MOI.get(::Optimizer, ::MOI.SolverName)::String = "Xpress"
+
+# Report the version of the Xpress library actually loaded at runtime (which may
+# differ from the version this package was built against) as a SemVer string.
+function MOI.get(::Optimizer, ::MOI.SolverVersion)::String
+    major, minor, build = XPRSgetversionnumbers()
+    return "$(major).$(minor).$(build)"
+end
+
 MOI.supports(::Optimizer, ::MOI.Silent)::Bool = true
 MOI.set(model::Optimizer, ::MOI.Silent, b::Bool) = b ? XPRSsetcontrol(model.inner, "OUTPUTLOG", XPRS_OUTPUTLOG_NO_OUTPUT) : XPRSsetcontrol(model.inner, "OUTPUTLOG", XPRS_OUTPUTLOG_FULL_OUTPUT)
 MOI.get(model::Optimizer, ::MOI.Silent)::Bool = XPRSgetcontrol(model.inner, "OUTPUTLOG") == XPRS_OUTPUTLOG_NO_OUTPUT
@@ -590,6 +605,22 @@ function MOI.get(model::Optimizer, ::MOI.NumberOfConstraints{F,S})::Int64 where 
     return length(model.constraints[_F][_S])
 end
 
+# Return each (F, S) constraint-type tuple present in the model exactly once.
+# The keys of `model.constraints` are already normalized to the precision type
+# `P`, matching what `NumberOfConstraints{F,S}` counts. Empty inner maps (which
+# would report a count of zero) are skipped.
+function MOI.get(model::Optimizer, ::MOI.ListOfConstraintTypesPresent)::Vector{Tuple{Type,Type}}
+    present = Tuple{Type,Type}[]
+    for (F, inner) in model.constraints
+        for (S, constraints) in inner
+            if length(constraints) > 0
+                push!(present, (F, S))
+            end
+        end
+    end
+    return present
+end
+
 # Termination status
 function MOI.get(model::Optimizer, ::MOI.TerminationStatus)::MOI.TerminationStatusCode
     moi_code, str_message = get_last_solve_status_MOI(model)
@@ -650,6 +681,11 @@ function MOI.set(model::Optimizer, ::MOI.ObjectiveSense, sense::MOI.Optimization
     end
     return
 end
+
+# --------------- MathOptInterface.ObjectiveFunctionType ---------------
+# `model.objective_type` is maintained by the objective setters and reset by
+# `MOI.empty!`. Per the MOI contract, `set`/`supports` are not implemented.
+MOI.get(model::Optimizer, ::MOI.ObjectiveFunctionType)::Type{<:MOI.AbstractFunction} = model.objective_type
 
 
 function MOI.get(model::Optimizer, result_index::MOI.ObjectiveValue)::Union{Precision, Vector{Precision}}

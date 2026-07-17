@@ -387,10 +387,11 @@ XpressAPI works seamlessly with MOI's automatic bridging system, which can trans
 - Interval constraints → Separate bounds
 - And many more transformations
 
-To use bridges with XpressAPI:
+JuMP adds these bridges automatically, so no special setup is required -- just
+create the model with the optimizer directly:
 ```julia
 using JuMP, XpressAPI
-model = Model(() -> MOI.Bridges.full_bridge_optimizer(XpressAPI.Optimizer(), Float64))
+model = Model(XpressAPI.Optimizer)
 ```
 
 ---

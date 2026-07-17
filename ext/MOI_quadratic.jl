@@ -235,6 +235,9 @@ function MOI.set(model::Optimizer, ::MOI.ObjectiveFunction{F}, set::F) where {
     XPRSsetobjdblcontrol(model.inner, 0, XPRS_OBJECTIVE_RHS, Precision(set.constant))
     push!(model.objectives, set)
 
+    # Set after the affine part above so the quadratic type wins
+    model.objective_type = MOI.ScalarQuadraticFunction{Precision}
+
     return MOI.VariableIndex(-1)
 end
 

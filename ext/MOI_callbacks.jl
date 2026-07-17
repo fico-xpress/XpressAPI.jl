@@ -204,7 +204,14 @@
 const CallbackArg = XPRSprob
 
 # --------------- MathOptInterface.Callback getters ---------------
-MOI.supports(::Optimizer, ::MOI.AbstractCallback) = true
+# Advertise support per callback type. Only UserCutCallback is implemented
+# (see MOI.set / MOI.submit below); LazyConstraintCallback and
+# HeuristicCallback are not, so we must report `false` for them rather than a
+# blanket `true`. A blanket `true` makes JuMP offer callbacks that then fail
+# with a MethodError when set/submit is called.
+MOI.supports(::Optimizer, ::MOI.UserCutCallback) = true
+MOI.supports(::Optimizer, ::MOI.LazyConstraintCallback) = false
+MOI.supports(::Optimizer, ::MOI.HeuristicCallback) = false
 
 
 function MOI.get(model::Optimizer, cb::MOI.CallbackVariablePrimal{CallbackArg}, index::MOI.VariableIndex)
@@ -255,4 +262,8 @@ function MOI.submit(model::Optimizer, cb::MOI.UserCut{CallbackArg}, func::F, set
 end
 
 
-# --------------- MathOptInterface.Heuristic ---------------
+# --------------- Not yet implemented ---------------
+# MOI.LazyConstraintCallback / MOI.submit(::MOI.LazyConstraint, ...) and
+# MOI.HeuristicCallback / MOI.submit(::MOI.HeuristicSolution, ...) are not
+# implemented. `MOI.supports` reports `false` for them above so JuMP does not
+# offer them.
