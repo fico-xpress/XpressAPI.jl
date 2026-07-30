@@ -298,22 +298,10 @@ end
 function rhs(model::Optimizer, func::Vector{<: MOI.ScalarAffineFunction}, set::Vector{S}) where {
     S <: Union{MOI.GreaterThan, MOI.LessThan, MOI.EqualTo}
 }
-    # Type{P} array of length `nrows` containing the right hand side elements
-    return map(s -> begin
-            if S <: MOI.EqualTo
-                return Precision(s.value)
-            end
-
-            if S <: MOI.GreaterThan
-                return Precision(s.lower)
-            end
-
-            if S <: MOI.LessThan
-                return Precision(s.upper)
-            end
-        end,
-        set
-    )
+    # Type{P} array of length `nrows` containing the right hand side elements.
+    # `_xprs_set_value` maps each scalar set to its RHS value (defined alongside
+    # the in-place ConstraintSet setter in MOI_common.jl).
+    return map(s -> Precision(_xprs_set_value(s)), set)
 end
 
 function starts(model::Optimizer, func::Vector{<: MOI.ScalarAffineFunction}, set::Vector{S}) where {
@@ -440,22 +428,12 @@ function MOI.add_constraints(model::Optimizer, func::Vector{F}, set::Vector{S}):
     coltypes = map(x -> 'C', set)
     change_bounds = change_type = false
 
-    if S <: MOI.EqualTo
+    # Bound sets map onto a column bound: sense and value come from the same
+    # helpers used by the in-place ConstraintSet setter (see MOI_common.jl).
+    if S <: Union{MOI.EqualTo, MOI.GreaterThan, MOI.LessThan}
         change_bounds = true
-        bounds = map(x -> Precision(x.value), set)
-        senses = map(x -> 'B', set)
-    end
-
-    if S <: MOI.GreaterThan
-        change_bounds = true
-        bounds = map(x -> Precision(x.lower), set)
-        senses = map(x -> 'L', set)
-    end
-
-    if S <: MOI.LessThan
-        change_bounds = true
-        bounds = map(x -> Precision(x.upper), set)
-        senses = map(x -> 'U', set)
+        senses = map(_xprs_bound_sense, set)
+        bounds = map(s -> Precision(_xprs_set_value(s)), set)
     end
 
     if S <: MOI.ZeroOne

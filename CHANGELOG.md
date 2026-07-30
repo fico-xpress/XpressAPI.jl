@@ -4,6 +4,64 @@ All notable changes to the XpressAPI Julia package are documented here.
 Version numbers track the FICO Xpress version from which the bindings were
 generated.
 
+## 47.1.5
+
+- Fixed newly added JuMP / MOI variables silently defaulting to a lower bound of
+  `0.0`. MOI variables are free by default (`-Inf`, `+Inf`), but Xpress defaults
+  a column's lower bound to `0.0`, so a variable with no explicit bound was made
+  non-negative -- causing wrong results or spurious infeasibilities for models
+  relying on free variables. New variables are now created with an explicit
+  `-Inf` lower bound.
+- Added in-place `set(::Optimizer, ::MOI.ConstraintSet, ...)` to the JuMP / MOI
+  interface. Variable bounds (`GreaterThan`, `LessThan`, `EqualTo`, `Interval`)
+  and affine constraint right-hand sides can now be modified without rebuilding
+  the model, routing through `XPRSchgbounds` / `XPRSchgrhs`, so warm-start and
+  re-solve loops pick up the new set on the next `optimize!`.
+- Added `MOI.DualObjectiveValue` to the JuMP / MOI interface. It reports the
+  objective value of the dual solution after an LP solve, derived from the
+  constraint duals so that it follows the MOI sign convention and, at
+  optimality, matches `MOI.ObjectiveValue` within tolerance.
+- Fixed the `MOI.ConstraintDual` sign conventions in the JuMP / MOI interface.
+  Duals are now reported relative to a minimization problem as MOI requires
+  (negated for maximization models), so a `GreaterThan` row/bound has a
+  non-negative dual and a `LessThan` one a non-positive dual regardless of the
+  objective sense. Duals of variable bounds are now returned as the column
+  reduced cost (via `XPRSgetredcosts`) instead of `NaN`, and the dual of a
+  parent constraint (such as a split `Interval` bound) is taken from its
+  binding child; the vector getter now returns a flat `Vector` rather than a
+  malformed nested one.
+- Shipped `MOI_FEATURES.md` inside the installed package. The README links to
+  it, but it was previously omitted from the install, leaving a dead link. The
+  bridge-usage examples in that document were also corrected to create the
+  model directly with `Model(XpressAPI.Optimizer)` (JuMP adds the required
+  bridges automatically) rather than wrapping it in a
+  `MOI.Bridges.full_bridge_optimizer`, and the README wording no longer claims
+  the package provides no modeling API given the JuMP / MOI extension it ships.
+- Continued the low-level wrapper clean-up following upstream review feedback:
+  string arguments and results now use the concrete `String` type (and name
+  lists are returned as `Vector{String}`) instead of `AbstractString`, except
+  for name-array inputs which stay generic so any string vector can be passed;
+  wrapped functions emit an explicit `return`; and the docstring signature line
+  now shows the return type rather than the output parameter names.
+- Fixed the "argument too short" error raised when a pre-allocated output
+  array is smaller than required. The generated code concatenated the required
+  length (an integer) directly onto the message string, which threw an opaque
+  `MethodError` instead of the intended `XPRSexception`; the length is now
+  converted with `string(...)`.
+- Fixed an intermittent heap-corruption crash on Windows (an access violation
+  during garbage collection) that could occur while a callback was active
+  during a solve. Each callback invocation previously allocated a fresh
+  problem wrapper to pass to the user callback; because callbacks run
+  re-entrantly while the solver holds the call stack, this per-invocation
+  allocation could trigger garbage collection at an unsafe point. The wrapper
+  is now created once and reused across all invocations of a given callback,
+  so callbacks no longer allocate it per call. Note: this reuse is only safe
+  because MIP branch-and-bound callbacks are serialised on the main thread
+  (`XPRS_CALLBACKFROMMAINTHREAD`). That guarantee does not hold for the
+  SLP / nonlinear / multistart solves, where the optimizer may invoke
+  callbacks from worker threads; callbacks are not currently safe to use
+  during those solves.
+
 ## 47.1.4
 
 - Added `MOI.SolverVersion` to the JuMP / MOI interface. It reports the version

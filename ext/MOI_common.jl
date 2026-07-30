@@ -252,6 +252,12 @@ mutable struct Constraint
     # Like VectorAffineFunction actually generates a set of ScalarAffineFunction
     subconstraints::Vector{Constraint}
 
+    # Back-reference to the parent constraint that generated this one (e.g. the
+    # Interval bound that split into GreaterThan/LessThan children), or `nothing`
+    # for a top-level constraint. Lets a child set() keep the parent's cached set
+    # in step (see the in-place ConstraintSet setter in this file).
+    parent::Union{Constraint, Nothing}
+
     function Constraint(
         moi_index::Int,
         xprs_index::Int,
@@ -268,7 +274,8 @@ mutable struct Constraint
             moi_fct_value,
             moi_set_value,
             Precision[NaN],
-            Vector{Constraint}()
+            Vector{Constraint}(),
+            nothing
         )
     end
 end
@@ -621,6 +628,21 @@ function MOI.get(model::Optimizer, ::MOI.ListOfConstraintTypesPresent)::Vector{T
     return present
 end
 
+# Every constraint index of type (F, S) currently in the model. The constraints
+# are stored keyed by the precision-normalized types, so template types are
+# normalized before lookup (mirroring `NumberOfConstraints{F,S}`); the returned
+# indices carry the caller's requested `{F,S}` as the MOI API requires.
+function MOI.get(model::Optimizer, ::MOI.ListOfConstraintIndices{F,S})::Vector{MOI.ConstraintIndex{F,S}} where {
+        F <: MOI.AbstractFunction, S <: MOI.AbstractSet
+    }
+    _F = MOI_precision_type(F)
+    _S = MOI_precision_type(S)
+    if !haskey(model.constraints, _F) || !haskey(model.constraints[_F], _S)
+        return MOI.ConstraintIndex{F,S}[]
+    end
+    return [MOI.ConstraintIndex{F,S}(index.value) for index in keys(model.constraints[_F][_S])]
+end
+
 # Termination status
 function MOI.get(model::Optimizer, ::MOI.TerminationStatus)::MOI.TerminationStatusCode
     moi_code, str_message = get_last_solve_status_MOI(model)
@@ -647,6 +669,14 @@ function MOI.get(model::Optimizer, result_index::MOI.PrimalStatus)::MOI.ResultSt
     return MOI.UNKNOWN_RESULT_STATUS
 end
 
+
+# Sign that maps Xpress duals/reduced costs (reported relative to the solver's
+# own min/max convention) onto the MOI convention, which is fixed relative to a
+# minimization problem: +1 for MIN_SENSE, -1 for MAX_SENSE. Matches the
+# reference Xpress.jl implementation (XpressAPI.jl issue #9).
+function _dual_multiplier(model::Optimizer)::Precision
+    return MOI.get(model, MOI.ObjectiveSense()) == MOI.MIN_SENSE ? 1.0 : -1.0
+end
 
 function MOI.get(model::Optimizer, result_index::MOI.DualStatus)::MOI.ResultStatusCode
     @assert result_index.result_index == 1
@@ -687,12 +717,38 @@ end
 # `MOI.empty!`. Per the MOI contract, `set`/`supports` are not implemented.
 MOI.get(model::Optimizer, ::MOI.ObjectiveFunctionType)::Type{<:MOI.AbstractFunction} = model.objective_type
 
+# --------------- MathOptInterface.ObjectiveFunction ---------------
+# The objective currently set. The last entry of `model.objectives` always
+# carries the current objective with its real constant (the objective setters
+# push the full function last, after any affine sub-part), so it is converted to
+# the requested type `F` -- which the callers set to `ObjectiveFunctionType`, so
+# the conversion is always the identity or the affine->VariableIndex narrowing
+# MOI defines. `set`/`supports` stay with the per-type setters.
+function MOI.get(model::Optimizer, ::MOI.ObjectiveFunction{F})::F where {F <: MOI.AbstractFunction}
+    if isempty(model.objectives)
+        return convert(F, zero(MOI.ScalarAffineFunction{Precision}))
+    end
+    return convert(F, model.objectives[end])
+end
+
 
 function MOI.get(model::Optimizer, result_index::MOI.ObjectiveValue)::Union{Precision, Vector{Precision}}
     @assert result_index.result_index == 1 && length(model.objectives) > 0
     #return Precision(XPRSgetobjdblattrib(model.inner, result_index.result_index-1, XPRS_OBJVAL))
     objs = map(i -> Precision(XPRScalcobjn(model.inner, i-1, nothing)), 1:length(model.objectives))
     return length(objs) > 1 ? objs : objs[1]
+end
+
+# --------------- MathOptInterface.DualObjectiveValue ---------------
+# Xpress exposes no native dual-objective attribute, so derive it from the dual
+# solution via the MOI fallback, which pairs each constraint dual with its set
+# constant and adds the objective constant. This relies on `ConstraintDual`
+# already following the MOI sign convention (see `_dual_multiplier`); at
+# optimality strong duality makes the result match `ObjectiveValue` within
+# tolerance.
+function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)::Precision
+    @assert attr.result_index == 1
+    return MOI.Utilities.get_fallback(model, attr, Precision)
 end
 
 # --------------- MathOptInterface.Variables ---------------
@@ -762,7 +818,11 @@ function MOI.add_variables(model::Optimizer, n::Int)::Vector{MOI.VariableIndex}
         nothing,
         nothing,
         nothing,
-        nothing,
+        # MOI variables are free by default (-Inf, +Inf); Xpress would otherwise
+        # default the lower bound to 0.0, silently making every new variable
+        # non-negative. Pass an explicit -Inf lower bound so a variable stays free
+        # until a bound constraint is added.
+        fill(Precision(-Inf), n),
         nothing
     )
     return indices
@@ -892,6 +952,11 @@ function _XPRS_register_new_constraint_as_parent(
     new_c = _XPRS_constraint_from_moi_index(model, new_index)
     # Set constraint subfunction
     new_c.subconstraints = map(c -> _XPRS_constraint_from_moi_index(model, c), childs)
+    # Link each child back to its parent so a child-side set() can refresh the
+    # parent's cached set (see the in-place ConstraintSet setters).
+    for subc in new_c.subconstraints
+        subc.parent = new_c
+    end
     return new_index
 end
 
@@ -948,33 +1013,63 @@ function MOI.get(model::Optimizer, result_index::MOI.ConstraintPrimal, index::MO
     return MOI.get(model, result_index, [index])[1]
 end
 
+# Reduced cost of a single variable-bound constraint, in the MOI convention.
+# Xpress exposes reduced costs per column via XPRSgetredcosts; the sign is
+# clamped by bound sense so a LessThan (upper) bound has a non-positive dual and
+# a GreaterThan (lower) bound a non-negative one, matching Xpress.jl (issue #9).
+function _variable_bound_dual(model::Optimizer, c::Constraint)::Precision
+    col = _XPRS_variable_from_moi_index(model, c.moi_fct_value).xprs_index
+    solstatus, djs = XPRSgetredcosts(model.inner, c.solbuffer, col, col)
+    if solstatus == XPRS_SOLAVAILABLE_NOTFOUND
+        return NaN
+    end
+    rc = _dual_multiplier(model) * djs[1]
+    if c.moi_set_type <: MOI.LessThan
+        return min(0.0, rc)
+    elseif c.moi_set_type <: MOI.GreaterThan
+        return max(0.0, rc)
+    else # EqualTo / Interval: reduced cost applies to whichever bound is active
+        return rc
+    end
+end
+
+# Dual of a single constraint, in the MOI convention, returned as a scalar.
+function _constraint_dual(model::Optimizer, c::Constraint)::Precision
+    # Variable bounds (xprs_index == -2) map to column reduced costs. SOS
+    # constraints share the -2 sentinel but have no meaningful dual.
+    if c.xprs_index == -2
+        if c.moi_set_type <: Union{MOI.SOS1, MOI.SOS2}
+            return NaN
+        end
+        return _variable_bound_dual(model, c)
+    end
+    solstatus, solvec = XPRSgetduals(model.inner, c.solbuffer, c.xprs_index, c.xprs_index)
+    if solstatus == XPRS_SOLAVAILABLE_NOTFOUND
+        return NaN
+    end
+    return _dual_multiplier(model) * solvec[1]
+end
+
 function MOI.get(model::Optimizer, result_index::MOI.ConstraintDual, indices::Vector{MOI.ConstraintIndex{F,S}})::Vector{Precision} where {
         F <: MOI.AbstractFunction, S <: MOI.AbstractSet
     }
     @assert result_index.result_index == 1
-    return map(index -> begin
-            c = _XPRS_constraint_from_moi_index(model, index)
-            if c.xprs_index == -2 # Variable bounds are set as constraints with xprs index -2
-                return NaN
-            end
-            # (so are parent constraints)
-            if length(c.subconstraints) > 0 # Variable bounds are set as constraints with xprs index -2
-                return map(subc -> NaN, c.subconstraints)
-            end
-            solstatus, solvec = XPRSgetduals(model.inner, c.solbuffer, c.xprs_index, c.xprs_index)
-            if solstatus == XPRS_SOLAVAILABLE_NOTFOUND
-                return NaN
-            end
-            return solvec[1]
-        end,
-        indices
-    )
+    return map(index -> MOI.get(model, result_index, index), indices)
 end
 
 function MOI.get(model::Optimizer, result_index::MOI.ConstraintDual, index::MOI.ConstraintIndex{F,S})::Precision where {
         F <: MOI.AbstractFunction, S <: MOI.AbstractSet
     }
-    return MOI.get(model, result_index, [index])[1]
+    @assert result_index.result_index == 1
+    c = _XPRS_constraint_from_moi_index(model, index)
+    # A parent constraint (e.g. a split Interval bound) delegates to the child
+    # carrying the binding dual: report the child with the largest-magnitude
+    # dual, which is the active one (the slack bound contributes ~0).
+    if length(c.subconstraints) > 0
+        duals = map(subc -> _constraint_dual(model, subc), c.subconstraints)
+        return duals[argmax(abs.(duals))]
+    end
+    return _constraint_dual(model, c)
 end
 
 function MOI.get(model::Optimizer, attr::MOI.ConstraintBasisStatus, index::MOI.ConstraintIndex{F,S})::MOI.BasisStatusCode where {
@@ -1025,6 +1120,100 @@ function MOI.get(model::Optimizer, ::MOI.ConstraintSet, index::MOI.ConstraintInd
     }
     c = _XPRS_constraint_from_moi_index(model, index)
     return c.moi_set_value
+end
+
+# --------------- set MathOptInterface.ConstraintSet (in place) ---------------
+# Change a constraint's set without rebuilding the model: variable bounds route
+# to XPRSchgbounds and affine right-hand sides to XPRSchgrhs, mirroring how the
+# constraint was originally loaded (see MOI_linear.jl). MOI requires the new set
+# to be the same type as the old one, so only the value changes; the cached
+# `moi_set_value` is refreshed so the getter stays consistent.
+
+# Xpress bound sense for a scalar bound set: lower ('L'), upper ('U') or both
+# ('B' == fixed), matching the senses used at constraint creation.
+@inline _xprs_bound_sense(::MOI.GreaterThan) = 'L'
+@inline _xprs_bound_sense(::MOI.LessThan) = 'U'
+@inline _xprs_bound_sense(::MOI.EqualTo) = 'B'
+
+# Value carried by a scalar bound/RHS set.
+@inline _xprs_set_value(s::MOI.GreaterThan) = s.lower
+@inline _xprs_set_value(s::MOI.LessThan) = s.upper
+@inline _xprs_set_value(s::MOI.EqualTo) = s.value
+
+# Variable bound (GreaterThan / LessThan / EqualTo).
+function MOI.set(model::Optimizer, ::MOI.ConstraintSet, index::MOI.ConstraintIndex{F,S}, set::S) where {
+        F <: MOI.VariableIndex,
+        S <: Union{MOI.GreaterThan, MOI.LessThan, MOI.EqualTo}
+    }
+    c = _XPRS_constraint_from_moi_index(model, index)
+    col = _XPRS_variable_from_moi_index(model, c.moi_fct_value).xprs_index
+    XPRSchgbounds(model.inner, 1, [col], [_xprs_bound_sense(set)], [Precision(_xprs_set_value(set))])
+    c.moi_set_value = set
+    # If this bound is one half of a split Interval, keep the parent's cached
+    # Interval in step so get(ConstraintSet) on the parent does not go stale.
+    _xprs_refresh_interval_parent(c, set)
+    return
+end
+
+# Refresh the cached Interval on the parent of a bound child after that child's
+# lower ('L') or upper ('U') bound was changed in place. No-op unless `c` is a
+# child of an Interval parent.
+function _xprs_refresh_interval_parent(c::Constraint, set::Union{MOI.GreaterThan, MOI.LessThan})
+    parent = c.parent
+    if isnothing(parent) || !(parent.moi_set_value isa MOI.Interval)
+        return
+    end
+    old = parent.moi_set_value
+    if set isa MOI.GreaterThan
+        parent.moi_set_value = MOI.Interval(set.lower, old.upper)
+    else
+        parent.moi_set_value = MOI.Interval(old.lower, set.upper)
+    end
+    return
+end
+_xprs_refresh_interval_parent(::Constraint, ::MOI.EqualTo) = nothing
+
+# Variable bound Interval: a parent constraint whose two children carry the
+# lower ('L') and upper ('U') bounds (see the Interval split in MOI_linear.jl).
+function MOI.set(model::Optimizer, ::MOI.ConstraintSet, index::MOI.ConstraintIndex{F,S}, set::S) where {
+        F <: MOI.VariableIndex,
+        S <: MOI.Interval
+    }
+    c = _XPRS_constraint_from_moi_index(model, index)
+    col = _XPRS_variable_from_moi_index(model, c.moi_fct_value).xprs_index
+    XPRSchgbounds(model.inner, 2, [col, col], ['L', 'U'], [Precision(set.lower), Precision(set.upper)])
+    c.moi_set_value = set
+    # Keep the child bound sets in step with the parent Interval.
+    for subc in c.subconstraints
+        if subc.moi_set_type <: MOI.GreaterThan
+            subc.moi_set_value = MOI.GreaterThan(set.lower)
+        elseif subc.moi_set_type <: MOI.LessThan
+            subc.moi_set_value = MOI.LessThan(set.upper)
+        end
+    end
+    return
+end
+
+# Affine right-hand side (GreaterThan / LessThan / EqualTo).
+function MOI.set(model::Optimizer, ::MOI.ConstraintSet, index::MOI.ConstraintIndex{F,S}, set::S) where {
+        F <: MOI.ScalarAffineFunction,
+        S <: Union{MOI.GreaterThan, MOI.LessThan, MOI.EqualTo}
+    }
+    c = _XPRS_constraint_from_moi_index(model, index)
+    XPRSchgrhs(model.inner, 1, [c.xprs_index], [Precision(_xprs_set_value(set))])
+    c.moi_set_value = set
+    return
+end
+
+# Any other variable-bound set type (e.g. Semicontinuous / Semiinteger, which
+# `supports_constraint` accepts at add time) has no in-place set(ConstraintSet)
+# path yet: report it as unsupported rather than surfacing a raw MethodError.
+function MOI.set(model::Optimizer, attr::MOI.ConstraintSet, index::MOI.ConstraintIndex{F,S}, ::S) where {
+        F <: MOI.VariableIndex,
+        S <: Union{MOI.Semicontinuous, MOI.Semiinteger}
+    }
+    throw(MOI.SetAttributeNotAllowed(attr,
+        "In-place modification of $(S) bounds is not supported; delete and re-add the constraint."))
 end
 
 function MOI.get(model::Optimizer, ::MOI.ConstraintFunction, index::MOI.ConstraintIndex{F,S})::F where {

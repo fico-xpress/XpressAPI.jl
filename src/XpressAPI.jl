@@ -208,8 +208,11 @@ any C function can be directly accessed from Julia, this is sometimes cumbersome
 since for every call you must know and specify the exact prototype of the C function. 
 Consequently, this package provides a Julia function wrapper for every C function.
 
-The goal of this package is *not* to provide a full-fledged Julia API or even
-a modeling API. These things can be built on top of this package.
+The core of this package is a thin, low-level wrapper rather than a full-fledged
+idiomatic Julia API; higher-level interfaces can be built on top of it. The
+package also ships an optional [JuMP](https://jump.dev) / MathOptInterface
+extension (see [MOI_FEATURES.md](MOI_FEATURES.md)) that provides exactly that
+kind of modeling layer for users who want it.
 
 ## Installation
 
@@ -508,6 +511,48 @@ gap = MOI.get(model, MOI.RawOptimizerAttribute("MIPRELGAP"))  # Get MIP gap
 ```
 
 **All Xpress controls and attributes** are accessible via `MOI.RawOptimizerAttribute`.
+
+---
+## Model Queries
+
+In addition to the standard solution attributes, XpressAPI answers the common MOI
+model-introspection queries:
+
+| Attribute | Returns |
+|-----------|---------|
+| `MOI.SolverVersion` | Runtime Xpress library version as a `major.minor.build` string |
+| `MOI.ObjectiveFunctionType` | Type of the objective function currently set |
+| `MOI.ListOfConstraintTypesPresent` | Each `(F, S)` constraint-type tuple present, once |
+| `MOI.DualObjectiveValue` | Dual-solution objective after an LP solve (equals the primal objective at optimality) |
+
+---
+## Model Modification
+
+Variable bounds (`GreaterThan`, `LessThan`, `EqualTo`, `Interval`) and affine
+constraint right-hand sides can be modified in place via
+`MOI.set(model, MOI.ConstraintSet(), ci, new_set)`, without rebuilding the
+model, so a re-solve or warm-start loop picks up the change on the next
+`optimize!`.
+
+```julia
+using JuMP, XpressAPI
+import MathOptInterface as MOI
+
+model = Model(XpressAPI.Optimizer)
+@variable(model, x <= 4)
+@objective(model, Max, x)
+optimize!(model)          # x = 4
+
+# Relax the upper bound in place and re-solve.
+ci = MOI.ConstraintIndex{MOI.VariableIndex, MOI.LessThan{Float64}}(index(x).value)
+MOI.set(model, MOI.ConstraintSet(), ci, MOI.LessThan(6.0))
+optimize!(model)          # x = 6
+```
+
+Note that `MOI.delete` (removing variables or constraints) and `MOI.modify`
+(e.g. changing individual coefficients) are **not yet implemented**. In-place
+modification of `Semicontinuous` / `Semiinteger` bounds is also unsupported and
+throws `MOI.SetAttributeNotAllowed`.
 
 ---
 ## Callbacks

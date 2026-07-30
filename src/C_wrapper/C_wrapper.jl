@@ -435,8 +435,15 @@ mutable struct CallbackNode
   prob::Any
   nin::Int32   # for user functions
   nout::Int32  # for user functions
+  # Reusable lightweight XPRSprob wrapper passed to the callback closure.
+  # Created lazily on first invocation and reused across the (potentially
+  # thousands of) callback invocations during a solve, so we do NOT allocate a
+  # fresh wrapper (plus its CallbackNode fields) on every call. Allocating from
+  # inside a callback runs re-entrantly on the C stack (XPRSoptimize) and can
+  # trigger GC there, which was implicated in a Windows heap crash (TXP-9312).
+  cbprob::Any
   function CallbackNode()
-    new(nothing, nothing, Int32(-1), nothing, nothing, Int32(0), Int32(0))
+    new(nothing, nothing, Int32(-1), nothing, nothing, Int32(0), Int32(0), nothing)
   end
 end
 
@@ -587,6 +594,36 @@ function callbackProb(f::Function, handle::Ptr{Cvoid})
   end
 end
 
+# Variant that reuses a cached callback-prob wrapper stored on the callback
+# node, so repeated callback invocations during a solve allocate nothing.
+# CALLBACKFROMMAINTHREAD=1 serialises callbacks on the main thread, so a single
+# cached wrapper per node cannot be entered concurrently or re-entrantly.
+#
+# WARNING: CALLBACKFROMMAINTHREAD is only honoured for MIP branch-and-bound
+# callbacks. It does NOT apply to the SLP / nonlinear / multistart solves
+# (XPRSnlpoptimize and friends), where the optimizer may fire callbacks from
+# worker threads and potentially concurrently (see TXP-6877). Calling back into
+# Julia from a foreign thread is already unsafe there regardless of this cache
+# (Julia's GC cannot be entered from an unregistered thread); on top of that,
+# concurrent invocations for the same node would race on the shared
+# prob.handle field below. Reusing a single cached wrapper is therefore only
+# safe for the main-thread-serialised MIP path. Do not rely on callbacks
+# during nonlinear/SLP/multistart solves until that path is made thread-safe.
+function callbackProb(f::Function, handle::Ptr{Cvoid}, node::CallbackNode)
+  prob = node.cbprob
+  if prob === nothing
+    prob = XPRSprob(handle, Val(:callback))
+    node.cbprob = prob
+  else
+    prob.handle = handle
+  end
+  try
+    f(prob)
+  finally
+    prob.handle = C_NULL
+  end
+end
+
 function close(prob::XPRSprob)
   global destroyprob
   handle = prob.handle
@@ -608,6 +645,7 @@ function close(prob::XPRSprob)
         node.next = nothing
         node.closure = nothing
         node.prob = nothing
+        node.cbprob = nothing
         node = next
       end
       prob.callbacksHead.next = prob.callbacksTail
@@ -901,10 +939,10 @@ export XPVERSION_MAJOR
 const XPVERSION_MINOR::Int32 = Int32(1)
 export XPVERSION_MINOR
 """ `XPVERSION_BUILD` - Build version number of Xpress optimizer library."""
-const XPVERSION_BUILD::Int32 = Int32(4)
+const XPVERSION_BUILD::Int32 = Int32(5)
 export XPVERSION_BUILD
 """ `XPVERSION_FULL` - Full version number of Xpress optimizer library."""
-const XPVERSION_FULL::Int32 = Int32(470104)
+const XPVERSION_FULL::Int32 = Int32(470105)
 export XPVERSION_FULL
 const XPRS_DEL_COLON::Int32 = Int32(2)
 
@@ -2020,7 +2058,9 @@ const XPRS_MEMORYLIMITDETECTED::Int32 = Int32(1380)
 
 """
     XPRS_MIPBESTOBJVAL
-Objective function value of the best integer solution found. (double)
+**Deprecated**Obsolete. (double)
+
+This attribute always returns the same value as MIPOBJVAL. Use MIPOBJVAL to retrieve the objective function value of the best integer solution found after a MIP solve.
 """
 const XPRS_MIPBESTOBJVAL::Int32 = Int32(2006)
 
@@ -2038,7 +2078,7 @@ const XPRS_MIPINFEAS::Int32 = Int32(1024)
 
 """
     XPRS_MIPOBJVAL
-Objective function value of the last integer solution found. (double)
+Objective function value of the best integer solution found. (double)
 """
 const XPRS_MIPOBJVAL::Int32 = Int32(2003)
 
@@ -10301,7 +10341,7 @@ Base.convert(::Type{T}, a::XPRSMIPStopStage) where {T<:Int32} = T(a)
 Wraps callable C library function XPRSendlicensing:
 """
 function XPRSendlicensing()::Nothing
-withLibrary() do
+return withLibrary() do
   faddr = getFunctionAddress("XPRSendlicensing")
   retcode = ccall(faddr, Cint, (), )
   if retcode != 0
@@ -10314,8 +10354,8 @@ end
 """
 Wraps callable C library function XPRSlicense:
 """
-function XPRSlicense(p_i::Int32, p_c::AbstractString)::Tuple{Int32,AbstractString}
-withLibrary() do
+function XPRSlicense(p_i::Int32, p_c::String)::Tuple{Int32,String}
+return withLibrary() do
   p_i_dummy = Ref{Int32}(0)
   p_c_buffer = Vector{Cchar}(undef, 260)
   faddr = getFunctionAddress("XPRSlicense")
@@ -10333,7 +10373,7 @@ end
 Wraps callable C library function XPRSbeginlicensing:
 """
 function XPRSbeginlicensing()::Int32
-withLibrary() do
+return withLibrary() do
   p_notyet_dummy = Ref{Int32}(0)
   faddr = getFunctionAddress("XPRSbeginlicensing")
   retcode = ccall(faddr, Cint, (Ref{Cint},), p_notyet_dummy)
@@ -10358,7 +10398,7 @@ This checking is relatively lightweight but disabling it can improve performance
 See also the documentation of the correponding function [XPRSsetcheckedmode](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSsetcheckedmode.html) in the C API.
 """
 function XPRSsetcheckedmode(checkedmode)::Nothing
-withLibrary() do
+return withLibrary() do
   checkedmodexx = Int32(checkedmode)
   faddr = getFunctionAddress("XPRSsetcheckedmode")
   retcode = ccall(faddr, Cint, (Cint,), checkedmodexx)
@@ -10370,7 +10410,7 @@ end # withLibrary()
 end
 
 """
-    XPRSgetcheckedmode()::checkedmode
+    XPRSgetcheckedmode()::Int32
 
 You can use this function to interrogate whether checking and validation of all Optimizer function calls is enabled for the current process.
 
@@ -10382,7 +10422,7 @@ Checking and validation is enabled by default but can be disabled by XPRSsetchec
 See also the documentation of the correponding function [XPRSgetcheckedmode](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSgetcheckedmode.html) in the C API.
 """
 function XPRSgetcheckedmode()::Int32
-withLibrary() do
+return withLibrary() do
   p_checkedmode_dummy = Ref{Int32}(0)
   faddr = getFunctionAddress("XPRSgetcheckedmode")
   retcode = ccall(faddr, Cint, (Ref{Cint},), p_checkedmode_dummy)
@@ -10395,17 +10435,17 @@ end # withLibrary()
 end
 
 """
-    XPRSgetbanner()::banner
+    XPRSgetbanner()::String
 
 Returns the banner and copyright message.
 
 # Return value
-- `banner::AbstractString`: A buffer of at least `XPRS_MAXBANNERLENGTH` characters in which the null terminated banner string will be returned.
+- `banner::String`: A buffer of at least `XPRS_MAXBANNERLENGTH` characters in which the null terminated banner string will be returned.
 
 See also the documentation of the correponding function [XPRSgetbanner](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSgetbanner.html) in the C API.
 """
-function XPRSgetbanner()::AbstractString
-withLibrary() do
+function XPRSgetbanner()::String
+return withLibrary() do
   banner_buffer = Vector{Cchar}(undef, 512)
   faddr = getFunctionAddress("XPRSgetbanner")
   retcode = ccall(faddr, Cint, (Ptr{Cchar},), banner_buffer)
@@ -10418,17 +10458,17 @@ end # withLibrary()
 end
 
 """
-    XPRSgetversion()::version
+    XPRSgetversion()::String
 
 Returns the full Optimizer version number in the form 15.10.03, where 15 is the major release, 10 is the minor release, and 03 is the build number.
 
 # Return value
-- `version::AbstractString`: Buffer long enough to hold the version string (plus a null terminator).
+- `version::String`: Buffer long enough to hold the version string (plus a null terminator).
 
 See also the documentation of the correponding function [XPRSgetversion](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSgetversion.html) in the C API.
 """
-function XPRSgetversion()::AbstractString
-withLibrary() do
+function XPRSgetversion()::String
+return withLibrary() do
   version_buffer = Vector{Cchar}(undef, 16)
   faddr = getFunctionAddress("XPRSgetversion")
   retcode = ccall(faddr, Cint, (Ptr{Cchar},), version_buffer)
@@ -10441,7 +10481,7 @@ end # withLibrary()
 end
 
 """
-    XPRSgetversionnumbers()::major, minor, build
+    XPRSgetversionnumbers()::Tuple{Int32,Int32,Int32}
 
 Returns the Optimizer version numbers split into major, minor, and build number.
 
@@ -10453,7 +10493,7 @@ Returns the Optimizer version numbers split into major, minor, and build number.
 See also the documentation of the correponding function [XPRSgetversionnumbers](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSgetversionnumbers.html) in the C API.
 """
 function XPRSgetversionnumbers()::Tuple{Int32,Int32,Int32}
-withLibrary() do
+return withLibrary() do
   p_major_dummy = Ref{Int32}(0)
   p_minor_dummy = Ref{Int32}(0)
   p_build_dummy = Ref{Int32}(0)
@@ -10470,7 +10510,7 @@ end # withLibrary()
 end
 
 """
-    XPRSgetdaysleft()::daysleft
+    XPRSgetdaysleft()::Int32
 
 Returns the number of days left until the license expires.
 
@@ -10480,7 +10520,7 @@ Returns the number of days left until the license expires.
 See also the documentation of the correponding function [XPRSgetdaysleft](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSgetdaysleft.html) in the C API.
 """
 function XPRSgetdaysleft()::Int32
-withLibrary() do
+return withLibrary() do
   p_daysleft_dummy = Ref{Int32}(0)
   faddr = getFunctionAddress("XPRSgetdaysleft")
   retcode = ccall(faddr, Cint, (Ref{Cint},), p_daysleft_dummy)
@@ -10493,7 +10533,7 @@ end # withLibrary()
 end
 
 """
-    XPRSfeaturequery(feature)::status
+    XPRSfeaturequery(feature)::Int32
 
 Checks if the provided feature is available in the current license used by the optimizer.
 
@@ -10505,7 +10545,7 @@ Checks if the provided feature is available in the current license used by the o
 See also the documentation of the correponding function [XPRSfeaturequery](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSfeaturequery.html) in the C API.
 """
 function XPRSfeaturequery(feature::Union{Nothing,AbstractString})::Int32
-withLibrary() do
+return withLibrary() do
   if isnothing(feature)
     feature_pass = C_NULL
   else
@@ -10533,7 +10573,7 @@ end
 See also the documentation of the correponding function [XPRS_ge_setarchconsistency](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRS_ge_setarchconsistency.html) in the C API.
 """
 function XPRS_ge_setarchconsistency(consistent)::Nothing
-withLibrary() do
+return withLibrary() do
   consistentxx = Int32(consistent)
   faddr = getFunctionAddress("XPRS_ge_setarchconsistency")
   retcode = ccall(faddr, Cint, (Cint,), consistentxx)
@@ -10548,7 +10588,7 @@ end
 Wraps callable C library function XPRS_ge_setdebugmode:
 """
 function XPRS_ge_setdebugmode(debugmode)::Nothing
-withLibrary() do
+return withLibrary() do
   debugmodexx = Int32(debugmode)
   faddr = getFunctionAddress("XPRS_ge_setdebugmode")
   retcode = ccall(faddr, Cint, (Cint,), debugmodexx)
@@ -10563,7 +10603,7 @@ end
 Wraps callable C library function XPRS_ge_getdebugmode:
 """
 function XPRS_ge_getdebugmode()::Int32
-withLibrary() do
+return withLibrary() do
   p_debugmode_dummy = Ref{Int32}(0)
   faddr = getFunctionAddress("XPRS_ge_getdebugmode")
   retcode = ccall(faddr, Cint, (Ref{Cint},), p_debugmode_dummy)
@@ -10576,7 +10616,7 @@ end # withLibrary()
 end
 
 """
-    XPRS_ge_getlasterror(maxbytes)::msgcode, msg, nbytes
+    XPRS_ge_getlasterror(maxbytes)::Tuple{Int32,String,Int32}
 
 Returns the last error encountered during a call to the Xpress global environment.
 
@@ -10584,13 +10624,13 @@ Returns the last error encountered during a call to the Xpress global environmen
 - `maxbytes::Integer`: The size of the character buffer `msg`.
 # Return values
 - `msgcode::Int32`: Memory location in which the error code will be returned.
-- `msg::AbstractString`: A character buffer of size `maxbytes` in which the last error message relating to the global environment will be returned.
+- `msg::String`: A character buffer of size `maxbytes` in which the last error message relating to the global environment will be returned.
 - `nbytes::Int32`: Memory location in which the minimum required size of the buffer to hold the full error string will be returned.
 
 See also the documentation of the correponding function [XPRS_ge_getlasterror](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRS_ge_getlasterror.html) in the C API.
 """
-function XPRS_ge_getlasterror(maxbytes)::Tuple{Int32,AbstractString,Int32}
-withLibrary() do
+function XPRS_ge_getlasterror(maxbytes)::Tuple{Int32,String,Int32}
+return withLibrary() do
   p_msgcode_dummy = Ref{Int32}(0)
   msg_buffer = Vector{Cchar}(undef, maxbytes)
   maxbytesxx = Int32(maxbytes)
@@ -10618,7 +10658,7 @@ Set whether the current application is allowed to use the Insight Compute interf
 See also the documentation of the correponding function [XPRS_ge_setcomputeallowed](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRS_ge_setcomputeallowed.html) in the C API.
 """
 function XPRS_ge_setcomputeallowed(allow)::Nothing
-withLibrary() do
+return withLibrary() do
   faddr = getFunctionAddress("XPRS_ge_setcomputeallowed")
   retcode = ccall(faddr, Cint, (Cint,), Int32(allow))
   if retcode != 0
@@ -10629,7 +10669,7 @@ end # withLibrary()
 end
 
 """
-    XPRS_ge_getcomputeallowed()::allow
+    XPRS_ge_getcomputeallowed()::XPRSAllowCompute
 
 Query whether the current application is allowed to use the Insight Compute interface.
 
@@ -10639,7 +10679,7 @@ Query whether the current application is allowed to use the Insight Compute inte
 See also the documentation of the correponding function [XPRS_ge_getcomputeallowed](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRS_ge_getcomputeallowed.html) in the C API.
 """
 function XPRS_ge_getcomputeallowed()::XPRSAllowCompute
-withLibrary() do
+return withLibrary() do
   p_allow_dummy = Ref{Cint}(0)
   faddr = getFunctionAddress("XPRS_ge_getcomputeallowed")
   retcode = ccall(faddr, Cint, (Ref{Cint},), p_allow_dummy)
@@ -10652,7 +10692,7 @@ end # withLibrary()
 end
 
 """
-    XPRSsetprobname(prob, probname)::prob
+    XPRSsetprobname(prob, probname)::XPRSprob
 
 Sets the current problem name.
 
@@ -10676,11 +10716,11 @@ function XPRSsetprobname(prob::XPRSprob, probname::Union{Nothing,AbstractString}
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSsetlogfile(prob, filename)::prob
+    XPRSsetlogfile(prob, filename)::XPRSprob
 
 This directs all Optimizer output to a log file.
 
@@ -10704,11 +10744,11 @@ function XPRSsetlogfile(prob::XPRSprob, filename::Union{Nothing,AbstractString})
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSsetdefaultcontrol(prob, control)::prob
+    XPRSsetdefaultcontrol(prob, control)::XPRSprob
 
 Sets a single control to its default value.
 
@@ -10728,11 +10768,11 @@ function XPRSsetdefaultcontrol(prob::XPRSprob, control)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSsetdefaults(prob)::prob
+    XPRSsetdefaults(prob)::XPRSprob
 
 Sets all controls to their default values.
 
@@ -10750,11 +10790,11 @@ function XPRSsetdefaults(prob::XPRSprob)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSreadprob(prob, filename, flags)::prob
+    XPRSreadprob(prob, filename, flags)::XPRSprob
 
 Reads an (X)MPS or LP format matrix from file.
 
@@ -10784,11 +10824,11 @@ function XPRSreadprob(prob::XPRSprob, filename::Union{Nothing,AbstractString}, f
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSloadlp(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub)::prob
+    XPRSloadlp(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub)::XPRSprob
 
 Enables the user to pass a matrix directly to the Optimizer, rather than reading the matrix from a file.
 
@@ -10896,11 +10936,11 @@ function XPRSloadlp(prob::XPRSprob, probname::Union{Nothing,AbstractString}, nco
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSloadlp64(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub)::prob
+    XPRSloadlp64(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub)::XPRSprob
 
 Enables the user to pass a matrix directly to the Optimizer, rather than reading the matrix from a file.
 
@@ -11008,11 +11048,11 @@ function XPRSloadlp64(prob::XPRSprob, probname::Union{Nothing,AbstractString}, n
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSloadqp(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub, nobjqcoefs, objqcol1, objqcol2, objqcoef)::prob
+    XPRSloadqp(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub, nobjqcoefs, objqcol1, objqcol2, objqcoef)::XPRSprob
 
 Used to load a quadratic problem into the Optimizer data structure.
 
@@ -11148,11 +11188,11 @@ function XPRSloadqp(prob::XPRSprob, probname::Union{Nothing,AbstractString}, nco
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSloadqp64(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub, nobjqcoefs, objqcol1, objqcol2, objqcoef)::prob
+    XPRSloadqp64(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub, nobjqcoefs, objqcol1, objqcol2, objqcoef)::XPRSprob
 
 Used to load a quadratic problem into the Optimizer data structure.
 
@@ -11288,11 +11328,11 @@ function XPRSloadqp64(prob::XPRSprob, probname::Union{Nothing,AbstractString}, n
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSloadmiqp(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub, nobjqcoefs, objqcol1, objqcol2, objqcoef, nentities, nsets, coltype, entind, limit, settype, setstart, setind, refval)::prob
+    XPRSloadmiqp(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub, nobjqcoefs, objqcol1, objqcol2, objqcoef, nentities, nsets, coltype, entind, limit, settype, setstart, setind, refval)::XPRSprob
 
 Used to load a MIQP problem, hence a MIP with quadratic objective coefficients, into the Optimizer data structures.
 
@@ -11488,11 +11528,11 @@ function XPRSloadmiqp(prob::XPRSprob, probname::Union{Nothing,AbstractString}, n
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSloadmiqp64(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub, nobjqcoefs, objqcol1, objqcol2, objqcoef, nentities, nsets, coltype, entind, limit, settype, setstart, setind, refval)::prob
+    XPRSloadmiqp64(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub, nobjqcoefs, objqcol1, objqcol2, objqcoef, nentities, nsets, coltype, entind, limit, settype, setstart, setind, refval)::XPRSprob
 
 Used to load a MIQP problem, hence a MIP with quadratic objective coefficients, into the Optimizer data structures.
 
@@ -11688,11 +11728,11 @@ function XPRSloadmiqp64(prob::XPRSprob, probname::Union{Nothing,AbstractString},
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSfixmipentities(prob, options)::prob
+    XPRSfixmipentities(prob, options)::XPRSprob
 
 Fixes all the MIP entities to the values of the last found MIP solution.
 
@@ -11714,11 +11754,11 @@ function XPRSfixmipentities(prob::XPRSprob, options)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSloadmodelcuts(prob, nrows, rowind)::prob
+    XPRSloadmodelcuts(prob, nrows, rowind)::XPRSprob
 
 Specifies that a set of rows in the matrix will be treated as model cuts.
 
@@ -11746,11 +11786,11 @@ function XPRSloadmodelcuts(prob::XPRSprob, nrows, rowind)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSloaddelayedrows(prob, nrows, rowind)::prob
+    XPRSloaddelayedrows(prob, nrows, rowind)::XPRSprob
 
 Specifies that a set of rows in the matrix will be treated as delayed rows during a tree search.
 
@@ -11780,11 +11820,11 @@ function XPRSloaddelayedrows(prob::XPRSprob, nrows, rowind)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSloaddirs(prob, ndirs, colind, priority, dir, uppseudo, downpseudo)::prob
+    XPRSloaddirs(prob, ndirs, colind, priority, dir, uppseudo, downpseudo)::XPRSprob
 
 Loads directives into the matrix.
 
@@ -11844,11 +11884,11 @@ function XPRSloaddirs(prob::XPRSprob, ndirs, colind, priority, dir, uppseudo, do
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSloadbranchdirs(prob, ncols, colind, dir)::prob
+    XPRSloadbranchdirs(prob, ncols, colind, dir)::XPRSprob
 
 Loads directives into the current problem to specify which MIP entities the Optimizer should continue to branch on when a node solution is integer feasible.
 
@@ -11884,11 +11924,11 @@ function XPRSloadbranchdirs(prob::XPRSprob, ncols, colind, dir)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSloadpresolvedirs(prob, ndirs, colind, priority, dir, uppseudo, downpseudo)::prob
+    XPRSloadpresolvedirs(prob, ndirs, colind, priority, dir, uppseudo, downpseudo)::XPRSprob
 
 Loads directives into the presolved matrix.
 
@@ -11948,11 +11988,11 @@ function XPRSloadpresolvedirs(prob::XPRSprob, ndirs, colind, priority, dir, upps
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSloadmip(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub, nentities, nsets, coltype, entind, limit, settype, setstart, setind, refval)::prob
+    XPRSloadmip(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub, nentities, nsets, coltype, entind, limit, settype, setstart, setind, refval)::XPRSprob
 
 Used to load a MIP problem into the Optimizer data structures.
 
@@ -12122,11 +12162,11 @@ function XPRSloadmip(prob::XPRSprob, probname::Union{Nothing,AbstractString}, nc
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSloadmip64(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub, nentities, nsets, coltype, entind, limit, settype, setstart, setind, refval)::prob
+    XPRSloadmip64(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub, nentities, nsets, coltype, entind, limit, settype, setstart, setind, refval)::XPRSprob
 
 Used to load a MIP problem into the Optimizer data structures.
 
@@ -12296,11 +12336,11 @@ function XPRSloadmip64(prob::XPRSprob, probname::Union{Nothing,AbstractString}, 
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSaddnames(prob, type, names, first, last)::prob
+    XPRSaddnames(prob, type, names, first, last)::XPRSprob
 
 When a model is loaded, the rows, columns, sets, piecewise linear and general constraints of the model may not have names associated with them.
 
@@ -12341,7 +12381,7 @@ function XPRSaddnames(prob::XPRSprob, type, names::AbstractVector{T0}, first, la
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
@@ -12370,11 +12410,11 @@ function XPRSaddsetnames(prob::XPRSprob, names::AbstractVector{T0}, first, last)
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSscale(prob, rowscale, colscale)::prob
+    XPRSscale(prob, rowscale, colscale)::XPRSprob
 
 Re-scales the current matrix.
 
@@ -12408,11 +12448,11 @@ function XPRSscale(prob::XPRSprob, rowscale, colscale)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSreaddirs(prob, filename)::prob
+    XPRSreaddirs(prob, filename)::XPRSprob
 
 Reads a directives file to help direct the tree search.
 
@@ -12436,11 +12476,11 @@ function XPRSreaddirs(prob::XPRSprob, filename::Union{Nothing,AbstractString})::
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSwritedirs(prob, filename)::prob
+    XPRSwritedirs(prob, filename)::XPRSprob
 
 Writes the tree search directives from the current problem to a directives file.
 
@@ -12464,7 +12504,7 @@ function XPRSwritedirs(prob::XPRSprob, filename::Union{Nothing,AbstractString}):
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
@@ -12477,11 +12517,11 @@ function XPRSunloadprob(prob::XPRSprob)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSsetindicators(prob, nrows, rowind, colind, complement)::prob
+    XPRSsetindicators(prob, nrows, rowind, colind, complement)::XPRSprob
 
 Specifies that a set of rows in the matrix will be treated as indicator constraints during a tree search.
 
@@ -12527,11 +12567,11 @@ function XPRSsetindicators(prob::XPRSprob, nrows, rowind, colind, complement)::X
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSaddpwlcons(prob, npwls, npoints, colind, resultant, start, xval, yval)::prob
+    XPRSaddpwlcons(prob, npwls, npoints, colind, resultant, start, xval, yval)::XPRSprob
 
 Adds one or more piecewise linear constraints to the problem.
 
@@ -12595,11 +12635,11 @@ function XPRSaddpwlcons(prob::XPRSprob, npwls, npoints, colind, resultant, start
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSaddpwlcons64(prob, npwls, npoints, colind, resultant, start, xval, yval)::prob
+    XPRSaddpwlcons64(prob, npwls, npoints, colind, resultant, start, xval, yval)::XPRSprob
 
 Adds one or more piecewise linear constraints to the problem.
 
@@ -12663,11 +12703,11 @@ function XPRSaddpwlcons64(prob::XPRSprob, npwls, npoints, colind, resultant, sta
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSgetpwlcons(prob, colind, resultant, start, xval, yval, maxpoints, first, last)::colind, resultant, start, xval, yval, npoints
+    XPRSgetpwlcons(prob, colind, resultant, start, xval, yval, maxpoints, first, last)::Tuple{Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}},Int32}
 
 Returns the piecewise linear constraints `y = f(x)` in a given range.
 
@@ -12748,11 +12788,11 @@ function XPRSgetpwlcons(prob::XPRSprob, colind::Union{XPRSallocatable,Nothing,Ab
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_npoints = p_npoints_dummy[]
-  colind, resultant, start, xval, yval, p_npoints
+  return colind, resultant, start, xval, yval, p_npoints
 end
 
 """
-    XPRSgetpwlcons64(prob, colind, resultant, start, xval, yval, maxpoints, first, last)::colind, resultant, start, xval, yval, npoints
+    XPRSgetpwlcons64(prob, colind, resultant, start, xval, yval, maxpoints, first, last)::Tuple{Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int64}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}},Int64}
 
 Returns the piecewise linear constraints `y = f(x)` in a given range.
 
@@ -12833,11 +12873,11 @@ function XPRSgetpwlcons64(prob::XPRSprob, colind::Union{XPRSallocatable,Nothing,
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_npoints = p_npoints_dummy[]
-  colind, resultant, start, xval, yval, p_npoints
+  return colind, resultant, start, xval, yval, p_npoints
 end
 
 """
-    XPRSaddgencons(prob, ncons, ncols, nvals, contype, resultant, colstart, colind, valstart, val)::prob
+    XPRSaddgencons(prob, ncons, ncols, nvals, contype, resultant, colstart, colind, valstart, val)::XPRSprob
 
 Adds one or more general constraints to the problem.
 
@@ -12909,11 +12949,11 @@ function XPRSaddgencons(prob::XPRSprob, ncons, ncols, nvals, contype, resultant,
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSaddgencons64(prob, ncons, ncols, nvals, contype, resultant, colstart, colind, valstart, val)::prob
+    XPRSaddgencons64(prob, ncons, ncols, nvals, contype, resultant, colstart, colind, valstart, val)::XPRSprob
 
 Adds one or more general constraints to the problem.
 
@@ -12985,11 +13025,11 @@ function XPRSaddgencons64(prob::XPRSprob, ncons, ncols, nvals, contype, resultan
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSgetgencons(prob, contype, resultant, colstart, colind, maxcols, valstart, val, maxvals, first, last)::contype, resultant, colstart, colind, ncols, valstart, val, nvals
+    XPRSgetgencons(prob, contype, resultant, colstart, colind, maxcols, valstart, val, maxvals, first, last)::Tuple{Union{Nothing,AbstractVector{XPRSGenConsType}},Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}},Int32,Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Float64}},Int32}
 
 Returns the general constraints `y = f(x1, ..., xn, c1, ..., cm)` in a given range.
 
@@ -13096,11 +13136,11 @@ function XPRSgetgencons(prob::XPRSprob, contype::Union{XPRSallocatable,Nothing,A
   end
   p_ncols = p_ncols_dummy[]
   p_nvals = p_nvals_dummy[]
-  contype, resultant, colstart, colind, p_ncols, valstart, val, p_nvals
+  return contype, resultant, colstart, colind, p_ncols, valstart, val, p_nvals
 end
 
 """
-    XPRSgetgencons64(prob, contype, resultant, colstart, colind, maxcols, valstart, val, maxvals, first, last)::contype, resultant, colstart, colind, ncols, valstart, val, nvals
+    XPRSgetgencons64(prob, contype, resultant, colstart, colind, maxcols, valstart, val, maxvals, first, last)::Tuple{Union{Nothing,AbstractVector{XPRSGenConsType}},Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int64}},Union{Nothing,AbstractVector{Int32}},Int64,Union{Nothing,AbstractVector{Int64}},Union{Nothing,AbstractVector{Float64}},Int64}
 
 Returns the general constraints `y = f(x1, ..., xn, c1, ..., cm)` in a given range.
 
@@ -13207,11 +13247,11 @@ function XPRSgetgencons64(prob::XPRSprob, contype::Union{XPRSallocatable,Nothing
   end
   p_ncols = p_ncols_dummy[]
   p_nvals = p_nvals_dummy[]
-  contype, resultant, colstart, colind, p_ncols, valstart, val, p_nvals
+  return contype, resultant, colstart, colind, p_ncols, valstart, val, p_nvals
 end
 
 """
-    XPRSdelpwlcons(prob, npwls, pwlind)::prob
+    XPRSdelpwlcons(prob, npwls, pwlind)::XPRSprob
 
 Delete piecewise linear constraints from a problem.
 
@@ -13239,11 +13279,11 @@ function XPRSdelpwlcons(prob::XPRSprob, npwls, pwlind)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSdelgencons(prob, ncons, conind)::prob
+    XPRSdelgencons(prob, ncons, conind)::XPRSprob
 
 Delete general constraints from a problem.
 
@@ -13271,11 +13311,11 @@ function XPRSdelgencons(prob::XPRSprob, ncons, conind)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSdumpcontrols(prob)::prob
+    XPRSdumpcontrols(prob)::XPRSprob
 
 Displays the list of controls and their current value for those controls that have been set to a non default value.
 
@@ -13293,11 +13333,11 @@ function XPRSdumpcontrols(prob::XPRSprob)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSgetindicators(prob, colind, complement, first, last)::colind, complement
+    XPRSgetindicators(prob, colind, complement, first, last)::Tuple{Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}}}
 
 Returns the indicator constraint condition (indicator variable and complement flag) associated to the rows in a given range.
 
@@ -13340,11 +13380,11 @@ function XPRSgetindicators(prob::XPRSprob, colind::Union{XPRSallocatable,Nothing
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  colind, complement
+  return colind, complement
 end
 
 """
-    XPRSdelindicators(prob, first, last)::prob
+    XPRSdelindicators(prob, first, last)::XPRSprob
 
 Delete indicator constraints.
 
@@ -13368,11 +13408,11 @@ function XPRSdelindicators(prob::XPRSprob, first, last)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSminim(prob, flags)::prob
+    XPRSminim(prob, flags)::XPRSprob
 
 **Deprecated**XPRSlpoptimize or XPRSmipoptimize should be used instead.
 
@@ -13398,11 +13438,11 @@ function XPRSminim(prob::XPRSprob, flags::Union{Nothing,AbstractString})::XPRSpr
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSmaxim(prob, flags)::prob
+    XPRSmaxim(prob, flags)::XPRSprob
 
 **Deprecated**XPRSlpoptimize or XPRSmipoptimize should be used instead.
 
@@ -13428,11 +13468,11 @@ function XPRSmaxim(prob::XPRSprob, flags::Union{Nothing,AbstractString})::XPRSpr
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSlpoptimize(prob, flags)::prob
+    XPRSlpoptimize(prob, flags)::XPRSprob
 
 This function begins a search for the optimal continuous (LP) solution.
 
@@ -13458,11 +13498,11 @@ function XPRSlpoptimize(prob::XPRSprob, flags::Union{Nothing,AbstractString})::X
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSmipoptimize(prob, flags)::prob
+    XPRSmipoptimize(prob, flags)::XPRSprob
 
 This function begins a tree search for the optimal MIP solution.
 
@@ -13488,11 +13528,11 @@ function XPRSmipoptimize(prob::XPRSprob, flags::Union{Nothing,AbstractString})::
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSoptimize(prob, flags)::solvestatus, solstatus
+    XPRSoptimize(prob, flags)::Tuple{Int32,Int32}
 
 This function begins a search for the optimal solution of the problem.
 
@@ -13523,11 +13563,11 @@ function XPRSoptimize(prob::XPRSprob, flags::Union{Nothing,AbstractString})::Tup
   end
   solvestatus = solvestatus_dummy[]
   solstatus = solstatus_dummy[]
-  solvestatus, solstatus
+  return solvestatus, solstatus
 end
 
 """
-    XPRSreadslxsol(prob, filename, flags)::prob
+    XPRSreadslxsol(prob, filename, flags)::XPRSprob
 
 Reads an ASCII solution file `.slx` created by the XPRSwriteslxsol function.
 
@@ -13557,11 +13597,11 @@ function XPRSreadslxsol(prob::XPRSprob, filename::Union{Nothing,AbstractString},
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSalter(prob, filename)::prob
+    XPRSalter(prob, filename)::XPRSprob
 
 To change matrix coefficients, use XPRSchgmcoef.
 
@@ -13582,11 +13622,11 @@ function XPRSalter(prob::XPRSprob, filename::Union{Nothing,AbstractString})::XPR
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSreadbasis(prob, filename, flags)::prob
+    XPRSreadbasis(prob, filename, flags)::XPRSprob
 
 Instructs the Optimizer to read in a previously saved basis from a file.
 
@@ -13616,11 +13656,11 @@ function XPRSreadbasis(prob::XPRSprob, filename::Union{Nothing,AbstractString}, 
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSreadbinsol(prob, filename, flags)::prob
+    XPRSreadbinsol(prob, filename, flags)::XPRSprob
 
 Reads a solution from a binary solution file.
 
@@ -13650,11 +13690,11 @@ function XPRSreadbinsol(prob::XPRSprob, filename::Union{Nothing,AbstractString},
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSgetinfeas(prob, x, slack, duals, djs)::nprimalcols, nprimalrows, ndualrows, ndualcols, x, slack, duals, djs
+    XPRSgetinfeas(prob, x, slack, duals, djs)::Tuple{Int32,Int32,Int32,Int32,Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}}}
 
 Returns a list of infeasible primal and dual variables.
 
@@ -13753,11 +13793,11 @@ function XPRSgetinfeas(prob::XPRSprob, x::Union{XPRSallocatable,Nothing,Abstract
   p_nprimalrows = p_nprimalrows_dummy[]
   p_ndualrows = p_ndualrows_dummy[]
   p_ndualcols = p_ndualcols_dummy[]
-  p_nprimalcols, p_nprimalrows, p_ndualrows, p_ndualcols, x, slack, duals, djs
+  return p_nprimalcols, p_nprimalrows, p_ndualrows, p_ndualcols, x, slack, duals, djs
 end
 
 """
-    XPRSgetscaledinfeas(prob, x, slack, duals, djs)::nprimalcols, nprimalrows, ndualrows, ndualcols, x, slack, duals, djs
+    XPRSgetscaledinfeas(prob, x, slack, duals, djs)::Tuple{Int32,Int32,Int32,Int32,Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}}}
 
 Returns a list primal and dual variables that are infeasible for the scaled original problem.
 
@@ -13858,11 +13898,11 @@ function XPRSgetscaledinfeas(prob::XPRSprob, x::Union{XPRSallocatable,Nothing,Ab
   p_nprimalrows = p_nprimalrows_dummy[]
   p_ndualrows = p_ndualrows_dummy[]
   p_ndualcols = p_ndualcols_dummy[]
-  p_nprimalcols, p_nprimalrows, p_ndualrows, p_ndualcols, x, slack, duals, djs
+  return p_nprimalcols, p_nprimalrows, p_ndualrows, p_ndualcols, x, slack, duals, djs
 end
 
 """
-    XPRSgetunbvec(prob)::seq
+    XPRSgetunbvec(prob)::Int32
 
 Returns the index vector which causes the primal simplex or dual simplex algorithm to determine that a matrix is primal or dual unbounded respectively.
 
@@ -13882,11 +13922,11 @@ function XPRSgetunbvec(prob::XPRSprob)::Int32
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_seq = p_seq_dummy[]
-  p_seq
+  return p_seq
 end
 
 """
-    XPRScrossoverlpsol(prob)::status
+    XPRScrossoverlpsol(prob)::Int32
 
 Provides a basic optimal solution for a given solution of an LP problem.
 
@@ -13908,11 +13948,11 @@ function XPRScrossoverlpsol(prob::XPRSprob)::Int32
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_status = p_status_dummy[]
-  p_status
+  return p_status
 end
 
 """
-    XPRStune(prob, flags)::prob
+    XPRStune(prob, flags)::XPRSprob
 
 This function begins a tuner session for the current problem.
 
@@ -13938,11 +13978,11 @@ function XPRStune(prob::XPRSprob, flags::Union{Nothing,AbstractString})::XPRSpro
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRStuneprobsetfile(prob, setfile, ifmip, sense)::prob
+    XPRStuneprobsetfile(prob, setfile, ifmip, sense)::XPRSprob
 
 This function begins a tuner session for a set of problems.
 
@@ -13972,11 +14012,11 @@ function XPRStuneprobsetfile(prob::XPRSprob, setfile::Union{Nothing,AbstractStri
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRStunerwritemethod(prob, methodfile)::prob
+    XPRStunerwritemethod(prob, methodfile)::XPRSprob
 
 This function writes the current tuner method to a given file or prints it to the console.
 
@@ -14000,11 +14040,11 @@ function XPRStunerwritemethod(prob::XPRSprob, methodfile::Union{Nothing,Abstract
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRStunerreadmethod(prob, methodfile)::prob
+    XPRStunerreadmethod(prob, methodfile)::XPRSprob
 
 This function loads a user defined tuner method from the given file.
 
@@ -14028,7 +14068,7 @@ function XPRStunerreadmethod(prob::XPRSprob, methodfile::Union{Nothing,AbstractS
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
@@ -14055,11 +14095,11 @@ function XPRSgetbarnumstability(prob::XPRSprob, colstab::Union{XPRSallocatable,N
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  colstab, rowstab
+  return colstab, rowstab
 end
 
 """
-    XPRSgetlastbarsol(prob, x, slack, duals, djs)::x, slack, duals, djs, status
+    XPRSgetlastbarsol(prob, x, slack, duals, djs)::Tuple{Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}},Int32}
 
 Used to obtain the last barrier solution values following optimization that used the barrier solver.
 
@@ -14123,11 +14163,11 @@ function XPRSgetlastbarsol(prob::XPRSprob, x::Union{XPRSallocatable,Nothing,Abst
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_status = p_status_dummy[]
-  x, slack, duals, djs, p_status
+  return x, slack, duals, djs, p_status
 end
 
 """
-    XPRSiisclear(prob)::prob
+    XPRSiisclear(prob)::XPRSprob
 
 Resets the search for Irreducible Infeasible Sets (IIS).
 
@@ -14145,11 +14185,11 @@ function XPRSiisclear(prob::XPRSprob)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSiisfirst(prob, mode)::status
+    XPRSiisfirst(prob, mode)::Int32
 
 Initiates a search for an Irreducible Infeasible Set (IIS) in an infeasible problem.
 
@@ -14171,11 +14211,11 @@ function XPRSiisfirst(prob::XPRSprob, mode)::Int32
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_status = p_status_dummy[]
-  p_status
+  return p_status
 end
 
 """
-    XPRSiisnext(prob)::status
+    XPRSiisnext(prob)::Int32
 
 Continues the search for further Irreducible Infeasible Sets (IIS), or calls XPRSiisfirst (IIS) if no IIS has been identified yet.
 
@@ -14195,11 +14235,11 @@ function XPRSiisnext(prob::XPRSprob)::Int32
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_status = p_status_dummy[]
-  p_status
+  return p_status
 end
 
 """
-    XPRSiisprint(prob, iis)::prob
+    XPRSiisprint(prob, iis)::XPRSprob
 
 Prints a given Irreducible Infeasible Set (IIS) in the log.
 
@@ -14221,11 +14261,11 @@ function XPRSiisprint(prob::XPRSprob, iis)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSiisstatus(prob, nrows, ncols, suminfeas, numinfeas)::niis, nrows, ncols, suminfeas, numinfeas
+    XPRSiisstatus(prob, nrows, ncols, suminfeas, numinfeas)::Tuple{Int32,Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Int32}}}
 
 Returns statistics on the Irreducible Infeasible Sets (IIS) found so far by XPRSiisfirst (IIS), XPRSiisnext (IIS `-n`) or XPRSiisall (IIS `-a`).
 
@@ -14309,11 +14349,11 @@ function XPRSiisstatus(prob::XPRSprob, nrows::Union{XPRSallocatable,Nothing,Abst
     end
   end
   p_niis = p_niis_dummy[]
-  p_niis, nrows, ncols, suminfeas, numinfeas
+  return p_niis, nrows, ncols, suminfeas, numinfeas
 end
 
 """
-    XPRSiisall(prob)::prob
+    XPRSiisall(prob)::XPRSprob
 
 Performs an automated search for independent Irreducible Infeasible Sets (IIS) in an infeasible problem.
 
@@ -14331,11 +14371,11 @@ function XPRSiisall(prob::XPRSprob)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSiiswrite(prob, iis, filename, filetype, flags)::prob
+    XPRSiiswrite(prob, iis, filename, filetype, flags)::XPRSprob
 
 Writes an LP/MPS/CSV file containing a given Irreducible Infeasible Set (IIS).
 
@@ -14371,11 +14411,11 @@ function XPRSiiswrite(prob::XPRSprob, iis, filename::Union{Nothing,AbstractStrin
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSiisisolations(prob, iis)::prob
+    XPRSiisisolations(prob, iis)::XPRSprob
 
 Performs the isolation identification procedure for an Irreducible Infeasible Set (IIS).
 
@@ -14397,11 +14437,11 @@ function XPRSiisisolations(prob::XPRSprob, iis)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSgetiisdata(prob, iis, rowind, colind, contype, bndtype, duals, djs, isolationrows, isolationcols)::nrows, ncols, rowind, colind, contype, bndtype, duals, djs, isolationrows, isolationcols
+    XPRSgetiisdata(prob, iis, rowind, colind, contype, bndtype, duals, djs, isolationrows, isolationcols)::Tuple{Int32,Int32,Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Cchar}},Union{Nothing,AbstractVector{Cchar}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Cchar}},Union{Nothing,AbstractVector{Cchar}}}
 
 Returns information for an Irreducible Infeasible Set: size, variables and constraints (row and column vectors), and conflicting sides of the variables.
 
@@ -14538,11 +14578,11 @@ function XPRSgetiisdata(prob::XPRSprob, iis, rowind::Union{XPRSallocatable,Nothi
   end
   p_nrows = p_nrows_dummy[]
   p_ncols = p_ncols_dummy[]
-  p_nrows, p_ncols, rowind, colind, contype, bndtype, duals, djs, isolationrows, isolationcols
+  return p_nrows, p_ncols, rowind, colind, contype, bndtype, duals, djs, isolationrows, isolationcols
 end
 
 """
-    XPRSloadpresolvebasis(prob, rowstat, colstat)::prob
+    XPRSloadpresolvebasis(prob, rowstat, colstat)::XPRSprob
 
 Loads a presolved basis from the user's areas.
 
@@ -14576,11 +14616,11 @@ function XPRSloadpresolvebasis(prob::XPRSprob, rowstat, colstat)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSloadsecurevecs(prob, nrows, ncols, rowind, colind)::prob
+    XPRSloadsecurevecs(prob, nrows, ncols, rowind, colind)::XPRSprob
 
 Allows the user to mark rows and columns in order to prevent the presolve removing these rows and columns from the matrix.
 
@@ -14618,11 +14658,11 @@ function XPRSloadsecurevecs(prob::XPRSprob, nrows, ncols, rowind, colind)::XPRSp
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSaddrows(prob, nrows, ncoefs, rowtype, rhs, rng, start, colind, rowcoef)::prob
+    XPRSaddrows(prob, nrows, ncoefs, rowtype, rhs, rng, start, colind, rowcoef)::XPRSprob
 
 Adds rows to the optimizer matrix.
 
@@ -14692,11 +14732,11 @@ function XPRSaddrows(prob::XPRSprob, nrows, ncoefs, rowtype, rhs, rng, start, co
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSaddrows64(prob, nrows, ncoefs, rowtype, rhs, rng, start, colind, rowcoef)::prob
+    XPRSaddrows64(prob, nrows, ncoefs, rowtype, rhs, rng, start, colind, rowcoef)::XPRSprob
 
 Adds rows to the optimizer matrix.
 
@@ -14766,11 +14806,11 @@ function XPRSaddrows64(prob::XPRSprob, nrows, ncoefs, rowtype, rhs, rng, start, 
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSdelrows(prob, nrows, rowind)::prob
+    XPRSdelrows(prob, nrows, rowind)::XPRSprob
 
 Delete rows from a matrix.
 
@@ -14798,11 +14838,11 @@ function XPRSdelrows(prob::XPRSprob, nrows, rowind)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSaddcols(prob, ncols, ncoefs, objcoef, start, rowind, rowcoef, lb, ub)::prob
+    XPRSaddcols(prob, ncols, ncoefs, objcoef, start, rowind, rowcoef, lb, ub)::XPRSprob
 
 Adds columns to the optimizer matrix.
 
@@ -14872,11 +14912,11 @@ function XPRSaddcols(prob::XPRSprob, ncols, ncoefs, objcoef, start, rowind, rowc
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSaddcols64(prob, ncols, ncoefs, objcoef, start, rowind, rowcoef, lb, ub)::prob
+    XPRSaddcols64(prob, ncols, ncoefs, objcoef, start, rowind, rowcoef, lb, ub)::XPRSprob
 
 Adds columns to the optimizer matrix.
 
@@ -14946,11 +14986,11 @@ function XPRSaddcols64(prob::XPRSprob, ncols, ncoefs, objcoef, start, rowind, ro
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSdelcols(prob, ncols, colind)::prob
+    XPRSdelcols(prob, ncols, colind)::XPRSprob
 
 Delete columns from a matrix.
 
@@ -14978,11 +15018,11 @@ function XPRSdelcols(prob::XPRSprob, ncols, colind)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSchgcoltype(prob, ncols, colind, coltype)::prob
+    XPRSchgcoltype(prob, ncols, colind, coltype)::XPRSprob
 
 Used to change the type of a specified set of columns in the matrix.
 
@@ -15018,11 +15058,11 @@ function XPRSchgcoltype(prob::XPRSprob, ncols, colind, coltype)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSloadbasis(prob, rowstat, colstat)::prob
+    XPRSloadbasis(prob, rowstat, colstat)::XPRSprob
 
 Loads a basis from the user's areas.
 
@@ -15056,11 +15096,11 @@ function XPRSloadbasis(prob::XPRSprob, rowstat, colstat)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSpostsolve(prob)::prob
+    XPRSpostsolve(prob)::XPRSprob
 
 Postsolve the current matrix when it is in a presolved state.
 
@@ -15078,11 +15118,11 @@ function XPRSpostsolve(prob::XPRSprob)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSdelsets(prob, nsets, setind)::prob
+    XPRSdelsets(prob, nsets, setind)::XPRSprob
 
 Delete sets from a problem.
 
@@ -15110,11 +15150,11 @@ function XPRSdelsets(prob::XPRSprob, nsets, setind)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSaddsets(prob, nsets, nelems, settype, start, colind, refval)::prob
+    XPRSaddsets(prob, nsets, nelems, settype, start, colind, refval)::XPRSprob
 
 Allows sets to be added to the problem after passing it to the Optimizer using the input routines.
 
@@ -15168,11 +15208,11 @@ function XPRSaddsets(prob::XPRSprob, nsets, nelems, settype, start, colind, refv
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSaddsets64(prob, nsets, nelems, settype, start, colind, refval)::prob
+    XPRSaddsets64(prob, nsets, nelems, settype, start, colind, refval)::XPRSprob
 
 Allows sets to be added to the problem after passing it to the Optimizer using the input routines.
 
@@ -15226,11 +15266,11 @@ function XPRSaddsets64(prob::XPRSprob, nsets, nelems, settype, start, colind, re
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSstrongbranch(prob, nbounds, colind, bndtype, bndval, iterlim, objval, status)::objval, status
+    XPRSstrongbranch(prob, nbounds, colind, bndtype, bndval, iterlim, objval, status)::Tuple{Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Int32}}}
 
 Performs strong branching iterations on all specified bound changes.
 
@@ -15299,11 +15339,11 @@ function XPRSstrongbranch(prob::XPRSprob, nbounds, colind, bndtype, bndval, iter
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  objval, status
+  return objval, status
 end
 
 """
-    XPRSestimaterowdualranges(prob, nrows, rowind, iterlim, mindual, maxdual)::mindual, maxdual
+    XPRSestimaterowdualranges(prob, nrows, rowind, iterlim, mindual, maxdual)::Tuple{Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}}}
 
 Performs a dual side range sensitivity analysis, i.e. calculates estimates for the possible ranges for dual values.
 
@@ -15354,11 +15394,11 @@ function XPRSestimaterowdualranges(prob::XPRSprob, nrows, rowind, iterlim, mindu
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  mindual, maxdual
+  return mindual, maxdual
 end
 
 """
-    XPRSsetmessagestatus(prob, msgcode, status)::prob
+    XPRSsetmessagestatus(prob, msgcode, status)::XPRSprob
 
 Manages suppression of messages.
 
@@ -15380,11 +15420,11 @@ function XPRSsetmessagestatus(prob::XPRSprob, msgcode, status)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSgetmessagestatus(prob, msgcode)::status
+    XPRSgetmessagestatus(prob, msgcode)::Int32
 
 Retrieves the current suppression status of a message.
 
@@ -15406,11 +15446,11 @@ function XPRSgetmessagestatus(prob::XPRSprob, msgcode)::Int32
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_status = p_status_dummy[]
-  p_status
+  return p_status
 end
 
 """
-    XPRSchgobjsense(prob, objsense)::prob
+    XPRSchgobjsense(prob, objsense)::XPRSprob
 
 Changes the problem's objective function sense to minimize or maximize.
 
@@ -15429,11 +15469,11 @@ function XPRSchgobjsense(prob::XPRSprob, objsense)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSchgglblimit(prob, ncols, colind, limit)::prob
+    XPRSchgglblimit(prob, ncols, colind, limit)::XPRSprob
 
 Used to change semi-continuous or semi-integer lower bounds, or upper limits on partial integers.
 
@@ -15469,7 +15509,7 @@ function XPRSchgglblimit(prob::XPRSprob, ncols, colind, limit)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
@@ -15485,7 +15525,7 @@ end
 
 
 """
-    XPRSsave(prob)::prob
+    XPRSsave(prob)::XPRSprob
 
 Saves the current data structures, i.e. matrices, control settings and problem attribute settings to file and terminates the run so that optimization can be resumed later.
 
@@ -15503,11 +15543,11 @@ function XPRSsave(prob::XPRSprob)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSsaveas(prob, filename)::prob
+    XPRSsaveas(prob, filename)::XPRSprob
 
 Saves the current data structures, i.e. matrices, control settings and problem attribute settings to file and terminates the run so that optimization can be resumed later.
 
@@ -15531,11 +15571,11 @@ function XPRSsaveas(prob::XPRSprob, filename::Union{Nothing,AbstractString})::XP
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSrestore(prob, probname, flags)::prob
+    XPRSrestore(prob, probname, flags)::XPRSprob
 
 Restores the Optimizer's data structures from a file created by XPRSsaveas (SAVE).
 
@@ -15567,11 +15607,11 @@ function XPRSrestore(prob::XPRSprob, probname::Union{Nothing,AbstractString}, fl
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSpivot(prob, enter, leave)::prob
+    XPRSpivot(prob, enter, leave)::XPRSprob
 
 Performs a simplex pivot by bringing variable `enter` into the basis and removing `leave`.
 
@@ -15593,11 +15633,11 @@ function XPRSpivot(prob::XPRSprob, enter, leave)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSloadlpsol(prob, x, slack, duals, djs)::status
+    XPRSloadlpsol(prob, x, slack, duals, djs)::Int32
 
 Loads an LP solution for the problem into the Optimizer.
 
@@ -15649,11 +15689,11 @@ function XPRSloadlpsol(prob::XPRSprob, x, slack, duals, djs)::Int32
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_status = p_status_dummy[]
-  p_status
+  return p_status
 end
 
 """
-    XPRSbasiscondition(prob)::cond, scaledcond
+    XPRSbasiscondition(prob)::Tuple{Float64,Float64}
 
 Use XPRSbasisstability instead.
 
@@ -15671,11 +15711,11 @@ function XPRSbasiscondition(prob::XPRSprob)::Tuple{Float64,Float64}
   end
   p_cond = p_cond_dummy[]
   p_scaledcond = p_scaledcond_dummy[]
-  p_cond, p_scaledcond
+  return p_cond, p_scaledcond
 end
 
 """
-    XPRSrepairweightedinfeas(prob, lepref, gepref, lbpref, ubpref, phase2, delta, flags)::status
+    XPRSrepairweightedinfeas(prob, lepref, gepref, lbpref, ubpref, phase2, delta, flags)::Int32
 
 By relaxing a set of selected constraints and bounds of an infeasible problem, it attempts to identify a 'solution' that violates the selected set of constraints and bounds minimally, while satisfying all other constraints and bounds.
 
@@ -15738,11 +15778,11 @@ function XPRSrepairweightedinfeas(prob::XPRSprob, lepref, gepref, lbpref, ubpref
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_status = p_status_dummy[]
-  p_status
+  return p_status
 end
 
 """
-    XPRSrepairweightedinfeasbounds(prob, lepref, gepref, lbpref, ubpref, lerelax, gerelax, lbrelax, ubrelax, phase2, delta, flags)::status
+    XPRSrepairweightedinfeasbounds(prob, lepref, gepref, lbpref, ubpref, lerelax, gerelax, lbrelax, ubrelax, phase2, delta, flags)::Int32
 
 An extended version of XPRSrepairweightedinfeas that allows for bounding the level of relaxation allowed.
 
@@ -15835,11 +15875,11 @@ function XPRSrepairweightedinfeasbounds(prob::XPRSprob, lepref, gepref, lbpref, 
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_status = p_status_dummy[]
-  p_status
+  return p_status
 end
 
 """
-    XPRSrepairinfeas(prob, penalty, phase2, flags, lepref, gepref, lbpref, ubpref, delta)::status
+    XPRSrepairinfeas(prob, penalty, phase2, flags, lepref, gepref, lbpref, ubpref, delta)::Int32
 
 Provides a simplified interface for XPRSrepairweightedinfeas.
 
@@ -15870,11 +15910,11 @@ function XPRSrepairinfeas(prob::XPRSprob, penalty, phase2, flags, lepref, gepref
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_status = p_status_dummy[]
-  p_status
+  return p_status
 end
 
 """
-    XPRSbasisstability(prob, type, norm, scaled)::value
+    XPRSbasisstability(prob, type, norm, scaled)::Float64
 
 Calculates various measures for the stability of the current basis, including the basis condition number.
 
@@ -15900,11 +15940,11 @@ function XPRSbasisstability(prob::XPRSprob, type, norm, scaled)::Float64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_value = p_value_dummy[]
-  p_value
+  return p_value
 end
 
 """
-    XPRSobjsa(prob, ncols, colind, lower, upper)::lower, upper
+    XPRSobjsa(prob, ncols, colind, lower, upper)::Tuple{Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}}}
 
 Returns upper and lower sensitivity ranges for specified objective function coefficients.
 
@@ -15955,11 +15995,11 @@ function XPRSobjsa(prob::XPRSprob, ncols, colind, lower::Union{XPRSallocatable,N
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  lower, upper
+  return lower, upper
 end
 
 """
-    XPRSbndsa(prob, ncols, colind, lblower, lbupper, ublower, ubupper)::lblower, lbupper, ublower, ubupper
+    XPRSbndsa(prob, ncols, colind, lblower, lbupper, ublower, ubupper)::Tuple{Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}}}
 
 Returns upper and lower sensitivity ranges for specified variables' lower and upper bounds.
 
@@ -16032,11 +16072,11 @@ function XPRSbndsa(prob::XPRSprob, ncols, colind, lblower::Union{XPRSallocatable
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  lblower, lbupper, ublower, ubupper
+  return lblower, lbupper, ublower, ubupper
 end
 
 """
-    XPRSrhssa(prob, nrows, rowind, lower, upper)::lower, upper
+    XPRSrhssa(prob, nrows, rowind, lower, upper)::Tuple{Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}}}
 
 Returns upper and lower sensitivity ranges for specified right hand side (RHS) function coefficients.
 
@@ -16087,11 +16127,11 @@ function XPRSrhssa(prob::XPRSprob, nrows, rowind, lower::Union{XPRSallocatable,N
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  lower, upper
+  return lower, upper
 end
 
 """
-    XPRSaddqmatrix(prob, row, ncoefs, rowqcol1, rowqcol2, rowqcoef)::prob
+    XPRSaddqmatrix(prob, row, ncoefs, rowqcol1, rowqcol2, rowqcoef)::XPRSprob
 
 Adds a new quadratic matrix into a row defined by triplets.
 
@@ -16137,11 +16177,11 @@ function XPRSaddqmatrix(prob::XPRSprob, row, ncoefs, rowqcol1, rowqcol2, rowqcoe
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSaddqmatrix64(prob, row, ncoefs, rowqcol1, rowqcol2, rowqcoef)::prob
+    XPRSaddqmatrix64(prob, row, ncoefs, rowqcol1, rowqcol2, rowqcoef)::XPRSprob
 
 Adds a new quadratic matrix into a row defined by triplets.
 
@@ -16187,11 +16227,11 @@ function XPRSaddqmatrix64(prob::XPRSprob, row, ncoefs, rowqcol1, rowqcol2, rowqc
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSdelqmatrix(prob, row)::prob
+    XPRSdelqmatrix(prob, row)::XPRSprob
 
 Deletes the quadratic part of a row or of the objective function.
 
@@ -16211,11 +16251,11 @@ function XPRSdelqmatrix(prob::XPRSprob, row)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSloadqcqp(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub, nobjqcoefs, objqcol1, objqcol2, objqcoef, nqrows, qrowind, nrowqcoefs, rowqcol1, rowqcol2, rowqcoef)::prob
+    XPRSloadqcqp(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub, nobjqcoefs, objqcol1, objqcol2, objqcoef, nqrows, qrowind, nrowqcoefs, rowqcol1, rowqcol2, rowqcoef)::XPRSprob
 
 Used to load a quadratic problem with quadratic side constraints into the Optimizer data structure.
 
@@ -16393,11 +16433,11 @@ function XPRSloadqcqp(prob::XPRSprob, probname::Union{Nothing,AbstractString}, n
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSloadqcqp64(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub, nobjqcoefs, objqcol1, objqcol2, objqcoef, nqrows, qrowind, nrowqcoefs, rowqcol1, rowqcol2, rowqcoef)::prob
+    XPRSloadqcqp64(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub, nobjqcoefs, objqcol1, objqcol2, objqcoef, nqrows, qrowind, nrowqcoefs, rowqcol1, rowqcol2, rowqcoef)::XPRSprob
 
 Used to load a quadratic problem with quadratic side constraints into the Optimizer data structure.
 
@@ -16575,11 +16615,11 @@ function XPRSloadqcqp64(prob::XPRSprob, probname::Union{Nothing,AbstractString},
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSloadmiqcqp(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub, nobjqcoefs, objqcol1, objqcol2, objqcoef, nqrows, qrowind, nrowqcoefs, rowqcol1, rowqcol2, rowqcoef, nentities, nsets, coltype, entind, limit, settype, setstart, setind, refval)::prob
+    XPRSloadmiqcqp(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub, nobjqcoefs, objqcol1, objqcol2, objqcoef, nqrows, qrowind, nrowqcoefs, rowqcol1, rowqcol2, rowqcoef, nentities, nsets, coltype, entind, limit, settype, setstart, setind, refval)::XPRSprob
 
 Used to load a mixed integer quadratic problem with quadratic constraints into the Optimizer data structure.
 
@@ -16817,11 +16857,11 @@ function XPRSloadmiqcqp(prob::XPRSprob, probname::Union{Nothing,AbstractString},
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSloadmiqcqp64(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub, nobjqcoefs, objqcol1, objqcol2, objqcoef, nqrows, qrowind, nrowqcoefs, rowqcol1, rowqcol2, rowqcoef, nentities, nsets, coltype, entind, limit, settype, setstart, setind, refval)::prob
+    XPRSloadmiqcqp64(prob, probname, ncols, nrows, rowtype, rhs, rng, objcoef, start, collen, rowind, rowcoef, lb, ub, nobjqcoefs, objqcol1, objqcol2, objqcoef, nqrows, qrowind, nrowqcoefs, rowqcol1, rowqcol2, rowqcoef, nentities, nsets, coltype, entind, limit, settype, setstart, setind, refval)::XPRSprob
 
 Used to load a mixed integer quadratic problem with quadratic constraints into the Optimizer data structure.
 
@@ -17059,11 +17099,11 @@ function XPRSloadmiqcqp64(prob::XPRSprob, probname::Union{Nothing,AbstractString
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSaddobj(prob, ncols, colind, objcoef, priority, weight)::prob
+    XPRSaddobj(prob, ncols, colind, objcoef, priority, weight)::XPRSprob
 
 Appends an objective function with the given coefficients to a multi-objective problem.
 
@@ -17104,11 +17144,11 @@ function XPRSaddobj(prob::XPRSprob, ncols, colind, objcoef, priority, weight)::X
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSchgobjn(prob, objidx, ncols, colind, objcoef)::prob
+    XPRSchgobjn(prob, objidx, ncols, colind, objcoef)::XPRSprob
 
 Modifies one or more coefficients of an objective function in a multi-objective problem.
 
@@ -17148,11 +17188,11 @@ function XPRSchgobjn(prob::XPRSprob, objidx, ncols, colind, objcoef)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSdelobj(prob, objidx)::prob
+    XPRSdelobj(prob, objidx)::XPRSprob
 
 Removes an objective function from the problem.
 
@@ -17174,11 +17214,11 @@ function XPRSdelobj(prob::XPRSprob, objidx)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRScopycallbacks(dest, src)::dest
+    XPRScopycallbacks(dest, src)::XPRSprob
 
 Copies callback functions defined for one problem to another.
 
@@ -17197,11 +17237,11 @@ function XPRScopycallbacks(dest::XPRSprob, src::XPRSprob)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(dest), nothing))
   end
-  dest
+  return dest
 end
 
 """
-    XPRScopycontrols(dest, src)::dest
+    XPRScopycontrols(dest, src)::XPRSprob
 
 Copies controls defined for one problem to another.
 
@@ -17220,11 +17260,11 @@ function XPRScopycontrols(dest::XPRSprob, src::XPRSprob)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(dest), nothing))
   end
-  dest
+  return dest
 end
 
 """
-    XPRScopyprob(dest, src, name)::dest
+    XPRScopyprob(dest, src, name)::XPRSprob
 
 Copies information defined for one problem to another.
 
@@ -17249,11 +17289,11 @@ function XPRScopyprob(dest::XPRSprob, src::XPRSprob, name::Union{Nothing,Abstrac
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(dest), nothing))
   end
-  dest
+  return dest
 end
 
 """
-    XPRSinterrupt(prob, reason)::prob
+    XPRSinterrupt(prob, reason)::XPRSprob
 
 Interrupts the Optimizer algorithms.
 
@@ -17271,22 +17311,22 @@ function XPRSinterrupt(prob::XPRSprob, reason)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSgetprobname(prob)::name
+    XPRSgetprobname(prob)::String
 
 Returns the current problem name.
 
 # Arguments
 - `prob::XPRSprob`: The current problem.
 # Return value
-- `name::AbstractString`: A buffer of MAXPROBNAMELENGTH+1 bytes to contain the current problem name.
+- `name::String`: A buffer of MAXPROBNAMELENGTH+1 bytes to contain the current problem name.
 
 See also the documentation of the correponding function [XPRSgetprobname](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSgetprobname.html) in the C API.
 """
-function XPRSgetprobname(prob::XPRSprob)::AbstractString
+function XPRSgetprobname(prob::XPRSprob)::String
   name_buffer = Vector{Cchar}(undef, 1025)
   faddr = getFunctionAddress("XPRSgetprobname")
   retcode = ccall(faddr, Cint, (Ptr{Cvoid},Ptr{Cchar}), prob.handle, name_buffer)
@@ -17295,11 +17335,11 @@ function XPRSgetprobname(prob::XPRSprob)::AbstractString
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   name = GC.@preserve name_buffer unsafe_string(pointer(name_buffer))
-  name
+  return name
 end
 
 """
-    XPRSsetintcontrol(prob, control, value)::prob
+    XPRSsetintcontrol(prob, control, value)::XPRSprob
 
 Sets the value of a given integer control parameter.
 
@@ -17321,11 +17361,11 @@ function XPRSsetintcontrol(prob::XPRSprob, control, value)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSsetintcontrol64(prob, control, value)::prob
+    XPRSsetintcontrol64(prob, control, value)::XPRSprob
 
 Sets the value of a given integer control parameter.
 
@@ -17347,11 +17387,11 @@ function XPRSsetintcontrol64(prob::XPRSprob, control, value)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSsetdblcontrol(prob, control, value)::prob
+    XPRSsetdblcontrol(prob, control, value)::XPRSprob
 
 Sets the value of a given double control parameter.
 
@@ -17372,11 +17412,11 @@ function XPRSsetdblcontrol(prob::XPRSprob, control, value)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSsetstrcontrol(prob, control, value)::prob
+    XPRSsetstrcontrol(prob, control, value)::XPRSprob
 
 Used to set the value of a given string control parameter.
 
@@ -17402,11 +17442,11 @@ function XPRSsetstrcontrol(prob::XPRSprob, control, value::Union{Nothing,Abstrac
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSgetintcontrol(prob, control)::value
+    XPRSgetintcontrol(prob, control)::Int32
 
 Enables users to recover the values of various integer control parameters
 
@@ -17428,11 +17468,11 @@ function XPRSgetintcontrol(prob::XPRSprob, control)::Int32
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_value = p_value_dummy[]
-  p_value
+  return p_value
 end
 
 """
-    XPRSgetintcontrol64(prob, control)::value
+    XPRSgetintcontrol64(prob, control)::Int64
 
 Enables users to recover the values of various integer control parameters
 
@@ -17454,11 +17494,11 @@ function XPRSgetintcontrol64(prob::XPRSprob, control)::Int64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_value = p_value_dummy[]
-  p_value
+  return p_value
 end
 
 """
-    XPRSgetdblcontrol(prob, control)::value
+    XPRSgetdblcontrol(prob, control)::Float64
 
 Retrieves the value of a given double control parameter.
 
@@ -17480,11 +17520,11 @@ function XPRSgetdblcontrol(prob::XPRSprob, control)::Float64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_value = p_value_dummy[]
-  p_value
+  return p_value
 end
 
 """
-    XPRSgetstrcontrol(prob, control)::value
+    XPRSgetstrcontrol(prob, control)::String
 
 Returns the value of a given string control parameters.
 
@@ -17492,11 +17532,11 @@ Returns the value of a given string control parameters.
 - `prob::XPRSprob`: The current problem.
 - `control::Integer`: Control parameter whose value is to be returned.
 # Return value
-- `value::AbstractString`: Pointer to a string where the value of the control (plus null terminator) will be returned.
+- `value::String`: Pointer to a string where the value of the control (plus null terminator) will be returned.
 
 See also the documentation of the correponding function [XPRSgetstrcontrol](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSgetstrcontrol.html) in the C API.
 """
-function XPRSgetstrcontrol(prob::XPRSprob, control)::AbstractString
+function XPRSgetstrcontrol(prob::XPRSprob, control)::String
   controlxx = Int32(control)
   value_buffer = Vector{Cchar}(undef, 1024)
   faddr = getFunctionAddress("XPRSgetstrcontrol")
@@ -17506,11 +17546,11 @@ function XPRSgetstrcontrol(prob::XPRSprob, control)::AbstractString
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   value = GC.@preserve value_buffer unsafe_string(pointer(value_buffer))
-  value
+  return value
 end
 
 """
-    XPRSgetstringcontrol(prob, control, maxbytes)::value, nbytes
+    XPRSgetstringcontrol(prob, control, maxbytes)::Tuple{String,Int32}
 
 Returns the value of a given string control parameters.
 
@@ -17519,12 +17559,12 @@ Returns the value of a given string control parameters.
 - `control::Integer`: Control parameter whose value is to be returned.
 - `maxbytes::Integer`: Maximum number of bytes to be written into the value argument.
 # Return values
-- `value::AbstractString`: Pointer to a string where the value of the control (plus null terminator) will be returned.
+- `value::String`: Pointer to a string where the value of the control (plus null terminator) will be returned.
 - `nbytes::Int32`: Returns the length of the string control including the null terminator.
 
 See also the documentation of the correponding function [XPRSgetstringcontrol](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSgetstringcontrol.html) in the C API.
 """
-function XPRSgetstringcontrol(prob::XPRSprob, control, maxbytes)::Tuple{AbstractString,Int32}
+function XPRSgetstringcontrol(prob::XPRSprob, control, maxbytes)::Tuple{String,Int32}
   controlxx = Int32(control)
   value_buffer = Vector{Cchar}(undef, maxbytes)
   maxbytesxx = Int32(maxbytes)
@@ -17537,11 +17577,11 @@ function XPRSgetstringcontrol(prob::XPRSprob, control, maxbytes)::Tuple{Abstract
   end
   value = GC.@preserve value_buffer unsafe_string(pointer(value_buffer))
   p_nbytes = p_nbytes_dummy[]
-  value, p_nbytes
+  return value, p_nbytes
 end
 
 """
-    XPRSgetintattrib(prob, attrib)::value
+    XPRSgetintattrib(prob, attrib)::Int32
 
 Enables users to recover the values of various integer problem attributes.
 
@@ -17565,11 +17605,11 @@ function XPRSgetintattrib(prob::XPRSprob, attrib)::Int32
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_value = p_value_dummy[]
-  p_value
+  return p_value
 end
 
 """
-    XPRSgetintattrib64(prob, attrib)::value
+    XPRSgetintattrib64(prob, attrib)::Int64
 
 Enables users to recover the values of various integer problem attributes.
 
@@ -17593,11 +17633,11 @@ function XPRSgetintattrib64(prob::XPRSprob, attrib)::Int64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_value = p_value_dummy[]
-  p_value
+  return p_value
 end
 
 """
-    XPRSgetstrattrib(prob, attrib)::value
+    XPRSgetstrattrib(prob, attrib)::String
 
 Enables users to recover the values of various string problem attributes.
 
@@ -17607,11 +17647,11 @@ Problem attributes are set during loading and optimization of a problem.
 - `prob::XPRSprob`: The current problem.
 - `attrib::Integer`: Problem attribute whose value is to be returned.
 # Return value
-- `value::AbstractString`: Pointer to a string where the value of the attribute (plus null terminator) will be returned.
+- `value::String`: Pointer to a string where the value of the attribute (plus null terminator) will be returned.
 
 See also the documentation of the correponding function [XPRSgetstrattrib](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSgetstrattrib.html) in the C API.
 """
-function XPRSgetstrattrib(prob::XPRSprob, attrib)::AbstractString
+function XPRSgetstrattrib(prob::XPRSprob, attrib)::String
   attribxx = Int32(attrib)
   value_buffer = Vector{Cchar}(undef, 1024)
   faddr = getFunctionAddress("XPRSgetstrattrib")
@@ -17621,11 +17661,11 @@ function XPRSgetstrattrib(prob::XPRSprob, attrib)::AbstractString
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   value = GC.@preserve value_buffer unsafe_string(pointer(value_buffer))
-  value
+  return value
 end
 
 """
-    XPRSgetstringattrib(prob, attrib, maxbytes)::value, nbytes
+    XPRSgetstringattrib(prob, attrib, maxbytes)::Tuple{String,Int32}
 
 Enables users to recover the values of various string problem attributes.
 
@@ -17636,12 +17676,12 @@ Problem attributes are set during loading and optimization of a problem.
 - `attrib::Integer`: Problem attribute whose value is to be returned.
 - `maxbytes::Integer`: Maximum number of bytes to be written into the cgval argument.
 # Return values
-- `value::AbstractString`: Pointer to a string where the value of the attribute (plus null terminator) will be returned.
+- `value::String`: Pointer to a string where the value of the attribute (plus null terminator) will be returned.
 - `nbytes::Int32`: Returns the length of the string control including the null terminator.
 
 See also the documentation of the correponding function [XPRSgetstringattrib](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSgetstringattrib.html) in the C API.
 """
-function XPRSgetstringattrib(prob::XPRSprob, attrib, maxbytes)::Tuple{AbstractString,Int32}
+function XPRSgetstringattrib(prob::XPRSprob, attrib, maxbytes)::Tuple{String,Int32}
   attribxx = Int32(attrib)
   value_buffer = Vector{Cchar}(undef, maxbytes)
   maxbytesxx = Int32(maxbytes)
@@ -17654,11 +17694,11 @@ function XPRSgetstringattrib(prob::XPRSprob, attrib, maxbytes)::Tuple{AbstractSt
   end
   value = GC.@preserve value_buffer unsafe_string(pointer(value_buffer))
   p_nbytes = p_nbytes_dummy[]
-  value, p_nbytes
+  return value, p_nbytes
 end
 
 """
-    XPRSgetdblattrib(prob, attrib)::value
+    XPRSgetdblattrib(prob, attrib)::Float64
 
 Enables users to retrieve the values of various double problem attributes.
 
@@ -17682,11 +17722,11 @@ function XPRSgetdblattrib(prob::XPRSprob, attrib)::Float64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_value = p_value_dummy[]
-  p_value
+  return p_value
 end
 
 """
-    XPRSgetcontrolinfo(prob, name)::id, type
+    XPRSgetcontrolinfo(prob, name)::Tuple{Int32,XPRSParameterType}
 
 Accesses the id number and the type information of a control given its name.
 
@@ -17717,11 +17757,11 @@ function XPRSgetcontrolinfo(prob::XPRSprob, name::Union{Nothing,AbstractString})
   end
   p_id = p_id_dummy[]
   p_type = XPRSParameterType(p_type_dummy[])
-  p_id, p_type
+  return p_id, p_type
 end
 
 """
-    XPRSgetattribinfo(prob, name)::id, type
+    XPRSgetattribinfo(prob, name)::Tuple{Int32,XPRSParameterType}
 
 Accesses the id number and the type information of an attribute given its name.
 
@@ -17752,11 +17792,11 @@ function XPRSgetattribinfo(prob::XPRSprob, name::Union{Nothing,AbstractString}):
   end
   p_id = p_id_dummy[]
   p_type = XPRSParameterType(p_type_dummy[])
-  p_id, p_type
+  return p_id, p_type
 end
 
 """
-    XPRSgetindex(prob, type, name)::index
+    XPRSgetindex(prob, type, name)::Int32
 
 Returns the index for a specified row or column name.
 
@@ -17784,11 +17824,11 @@ function XPRSgetindex(prob::XPRSprob, type, name::Union{Nothing,AbstractString})
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_index = p_index_dummy[]
-  p_index
+  return p_index
 end
 
 """
-    XPRSsetobjintcontrol(prob, objidx, control, value)::prob
+    XPRSsetobjintcontrol(prob, objidx, control, value)::XPRSprob
 
 Sets the value of an integer control parameter associated with an objective.
 
@@ -17813,11 +17853,11 @@ function XPRSsetobjintcontrol(prob::XPRSprob, objidx, control, value)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSsetobjintcontrol64(prob, objidx, control, value)::prob
+    XPRSsetobjintcontrol64(prob, objidx, control, value)::XPRSprob
 
 Sets the value of an integer control parameter associated with an objective.
 
@@ -17842,11 +17882,11 @@ function XPRSsetobjintcontrol64(prob::XPRSprob, objidx, control, value)::XPRSpro
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSsetobjdblcontrol(prob, objidx, control, value)::prob
+    XPRSsetobjdblcontrol(prob, objidx, control, value)::XPRSprob
 
 Sets the value of an double control parameter associated with an objective.
 
@@ -17870,11 +17910,11 @@ function XPRSsetobjdblcontrol(prob::XPRSprob, objidx, control, value)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSgetobjintcontrol(prob, objidx, control)::value
+    XPRSgetobjintcontrol(prob, objidx, control)::Int32
 
 Retrieves the value of a given integer control parameter associated with an objective.
 
@@ -17899,11 +17939,11 @@ function XPRSgetobjintcontrol(prob::XPRSprob, objidx, control)::Int32
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_value = p_value_dummy[]
-  p_value
+  return p_value
 end
 
 """
-    XPRSgetobjintcontrol64(prob, objidx, control)::value
+    XPRSgetobjintcontrol64(prob, objidx, control)::Int64
 
 Retrieves the value of a given integer control parameter associated with an objective.
 
@@ -17928,11 +17968,11 @@ function XPRSgetobjintcontrol64(prob::XPRSprob, objidx, control)::Int64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_value = p_value_dummy[]
-  p_value
+  return p_value
 end
 
 """
-    XPRSgetobjdblcontrol(prob, objidx, control)::value
+    XPRSgetobjdblcontrol(prob, objidx, control)::Float64
 
 Retrieves the value of a given double control parameter associated with an objective function.
 
@@ -17957,11 +17997,11 @@ function XPRSgetobjdblcontrol(prob::XPRSprob, objidx, control)::Float64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_value = p_value_dummy[]
-  p_value
+  return p_value
 end
 
 """
-    XPRSgetobjintattrib(prob, solveidx, attrib)::value
+    XPRSgetobjintattrib(prob, solveidx, attrib)::Int32
 
 Retrieves the value of a given integer attribute associated with a multi-objective solve.
 
@@ -17987,11 +18027,11 @@ function XPRSgetobjintattrib(prob::XPRSprob, solveidx, attrib)::Int32
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_value = p_value_dummy[]
-  p_value
+  return p_value
 end
 
 """
-    XPRSgetobjintattrib64(prob, solveidx, attrib)::value
+    XPRSgetobjintattrib64(prob, solveidx, attrib)::Int64
 
 Retrieves the value of a given integer attribute associated with a multi-objective solve.
 
@@ -18017,11 +18057,11 @@ function XPRSgetobjintattrib64(prob::XPRSprob, solveidx, attrib)::Int64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_value = p_value_dummy[]
-  p_value
+  return p_value
 end
 
 """
-    XPRSgetobjdblattrib(prob, solveidx, attrib)::value
+    XPRSgetobjdblattrib(prob, solveidx, attrib)::Float64
 
 Retrieves the value of a given double attribute associated with a multi-objective solve.
 
@@ -18047,11 +18087,11 @@ function XPRSgetobjdblattrib(prob::XPRSprob, solveidx, attrib)::Float64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_value = p_value_dummy[]
-  p_value
+  return p_value
 end
 
 """
-    XPRSgetqobj(prob, objqcol1, objqcol2)::objqcoef
+    XPRSgetqobj(prob, objqcol1, objqcol2)::Float64
 
 Returns a single quadratic objective function coefficient corresponding to the variable pair ` (objqcol1, objqcol2)` of the Hessian matrix.
 
@@ -18075,11 +18115,11 @@ function XPRSgetqobj(prob::XPRSprob, objqcol1, objqcol2)::Float64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_objqcoef = p_objqcoef_dummy[]
-  p_objqcoef
+  return p_objqcoef
 end
 
 """
-    XPRSgetdirs(prob, indices, prios, branchdirs, uppseudo, downpseudo)::ndir, indices, prios, branchdirs, uppseudo, downpseudo
+    XPRSgetdirs(prob, indices, prios, branchdirs, uppseudo, downpseudo)::Tuple{Int32,Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Cchar}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}}}
 
 Used to return the directives that have been loaded into a matrix.
 
@@ -18156,11 +18196,11 @@ function XPRSgetdirs(prob::XPRSprob, indices::Union{XPRSallocatable,Nothing,Abst
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_ndir = p_ndir_dummy[]
-  p_ndir, indices, prios, branchdirs, uppseudo, downpseudo
+  return p_ndir, indices, prios, branchdirs, uppseudo, downpseudo
 end
 
 """
-    XPRSgetscale(prob, rowscale, colscale)::rowscale, colscale
+    XPRSgetscale(prob, rowscale, colscale)::Tuple{Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}}}
 
 Returns the the current scaling of the matrix.
 
@@ -18199,11 +18239,11 @@ function XPRSgetscale(prob::XPRSprob, rowscale::Union{XPRSallocatable,Nothing,Ab
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  rowscale, colscale
+  return rowscale, colscale
 end
 
 """
-    XPRSgetpivotorder(prob, pivotorder)::pivotorder
+    XPRSgetpivotorder(prob, pivotorder)::AbstractVector{Int32}
 
 Returns the pivot order of the basic variables.
 
@@ -18230,11 +18270,11 @@ function XPRSgetpivotorder(prob::XPRSprob, pivotorder::Union{XPRSallocatable,Abs
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  pivotorder
+  return pivotorder
 end
 
 """
-    XPRSgetpresolvemap(prob, rowmap, colmap)::rowmap, colmap
+    XPRSgetpresolvemap(prob, rowmap, colmap)::Tuple{Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}}}
 
 Returns the mapping of the row and column numbers from the presolve problem back to the original problem.
 
@@ -18273,11 +18313,11 @@ function XPRSgetpresolvemap(prob::XPRSprob, rowmap::Union{XPRSallocatable,Nothin
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  rowmap, colmap
+  return rowmap, colmap
 end
 
 """
-    XPRSbtran(prob, vec)::vec
+    XPRSbtran(prob, vec)::AbstractVector{Float64}
 
 Post-multiplies a (row) vector provided by the user by the inverse of the current basis.
 
@@ -18296,11 +18336,11 @@ function XPRSbtran(prob::XPRSprob, vec::AbstractVector{Float64})::AbstractVector
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  vec
+  return vec
 end
 
 """
-    XPRSftran(prob, vec)::vec
+    XPRSftran(prob, vec)::AbstractVector{Float64}
 
 Pre-multiplies a (column) vector provided by the user by the inverse of the current matrix.
 
@@ -18319,11 +18359,11 @@ function XPRSftran(prob::XPRSprob, vec::AbstractVector{Float64})::AbstractVector
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  vec
+  return vec
 end
 
 """
-    XPRSgetobj(prob, objcoef, first, last)::objcoef
+    XPRSgetobj(prob, objcoef, first, last)::AbstractVector{Float64}
 
 Returns the objective function coefficients for the columns in a given range.
 
@@ -18354,11 +18394,11 @@ function XPRSgetobj(prob::XPRSprob, objcoef::Union{XPRSallocatable,AbstractVecto
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  objcoef
+  return objcoef
 end
 
 """
-    XPRSgetobjn(prob, objidx, objcoef, first, last)::objcoef
+    XPRSgetobjn(prob, objidx, objcoef, first, last)::AbstractVector{Float64}
 
 For a given objective function, returns the objective coefficients for the columns in a given range.
 
@@ -18391,11 +18431,11 @@ function XPRSgetobjn(prob::XPRSprob, objidx, objcoef::Union{XPRSallocatable,Abst
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  objcoef
+  return objcoef
 end
 
 """
-    XPRSgetrhs(prob, rhs, first, last)::rhs
+    XPRSgetrhs(prob, rhs, first, last)::AbstractVector{Float64}
 
 Returns the right hand side elements for the rows in a given range.
 
@@ -18426,11 +18466,11 @@ function XPRSgetrhs(prob::XPRSprob, rhs::Union{XPRSallocatable,AbstractVector{Fl
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  rhs
+  return rhs
 end
 
 """
-    XPRSgetrhsrange(prob, rng, first, last)::rng
+    XPRSgetrhsrange(prob, rng, first, last)::AbstractVector{Float64}
 
 Returns the right hand side range values for the rows in a given range.
 
@@ -18461,11 +18501,11 @@ function XPRSgetrhsrange(prob::XPRSprob, rng::Union{XPRSallocatable,AbstractVect
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  rng
+  return rng
 end
 
 """
-    XPRSgetlb(prob, lb, first, last)::lb
+    XPRSgetlb(prob, lb, first, last)::AbstractVector{Float64}
 
 Returns the lower bounds for the columns in a given range.
 
@@ -18496,11 +18536,11 @@ function XPRSgetlb(prob::XPRSprob, lb::Union{XPRSallocatable,AbstractVector{Floa
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  lb
+  return lb
 end
 
 """
-    XPRSgetub(prob, ub, first, last)::ub
+    XPRSgetub(prob, ub, first, last)::AbstractVector{Float64}
 
 Returns the upper bounds for the columns in a given range.
 
@@ -18531,11 +18571,11 @@ function XPRSgetub(prob::XPRSprob, ub::Union{XPRSallocatable,AbstractVector{Floa
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  ub
+  return ub
 end
 
 """
-    XPRSgetcols(prob, start, rowind, rowcoef, maxcoefs, first, last)::start, rowind, rowcoef, ncoefs
+    XPRSgetcols(prob, start, rowind, rowcoef, maxcoefs, first, last)::Tuple{AbstractVector{Int32},AbstractVector{Int32},AbstractVector{Float64},Int32}
 
 Returns the nonzeros in the constraint matrix for the columns in a given range.
 
@@ -18567,11 +18607,11 @@ function XPRSgetcols(prob::XPRSprob, start::AbstractVector{Int32}, rowind::Abstr
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_ncoefs = p_ncoefs_dummy[]
-  start, rowind, rowcoef, p_ncoefs
+  return start, rowind, rowcoef, p_ncoefs
 end
 
 """
-    XPRSgetcols64(prob, start, rowind, rowcoef, maxcoefs, first, last)::start, rowind, rowcoef, ncoefs
+    XPRSgetcols64(prob, start, rowind, rowcoef, maxcoefs, first, last)::Tuple{AbstractVector{Int64},AbstractVector{Int32},AbstractVector{Float64},Int64}
 
 Returns the nonzeros in the constraint matrix for the columns in a given range.
 
@@ -18603,11 +18643,11 @@ function XPRSgetcols64(prob::XPRSprob, start::AbstractVector{Int64}, rowind::Abs
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_ncoefs = p_ncoefs_dummy[]
-  start, rowind, rowcoef, p_ncoefs
+  return start, rowind, rowcoef, p_ncoefs
 end
 
 """
-    XPRSgetrows(prob, start, colind, colcoef, maxcoefs, first, last)::start, colind, colcoef, ncoefs
+    XPRSgetrows(prob, start, colind, colcoef, maxcoefs, first, last)::Tuple{AbstractVector{Int32},AbstractVector{Int32},AbstractVector{Float64},Int32}
 
 Returns the nonzeros in the constraint matrix for the rows in a given range.
 
@@ -18639,11 +18679,11 @@ function XPRSgetrows(prob::XPRSprob, start::AbstractVector{Int32}, colind::Abstr
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_ncoefs = p_ncoefs_dummy[]
-  start, colind, colcoef, p_ncoefs
+  return start, colind, colcoef, p_ncoefs
 end
 
 """
-    XPRSgetrows64(prob, start, colind, colcoef, maxcoefs, first, last)::start, colind, colcoef, ncoefs
+    XPRSgetrows64(prob, start, colind, colcoef, maxcoefs, first, last)::Tuple{AbstractVector{Int64},AbstractVector{Int32},AbstractVector{Float64},Int64}
 
 Returns the nonzeros in the constraint matrix for the rows in a given range.
 
@@ -18675,11 +18715,11 @@ function XPRSgetrows64(prob::XPRSprob, start::AbstractVector{Int64}, colind::Abs
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_ncoefs = p_ncoefs_dummy[]
-  start, colind, colcoef, p_ncoefs
+  return start, colind, colcoef, p_ncoefs
 end
 
 """
-    XPRSgetmipentities(prob, coltype, colind, limit, settype, start, setcols, refval)::nentities, nsets, coltype, colind, limit, settype, start, setcols, refval
+    XPRSgetmipentities(prob, coltype, colind, limit, settype, start, setcols, refval)::Tuple{Int32,Int32,Union{Nothing,AbstractVector{Cchar}},Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Cchar}},AbstractVector{Int32},AbstractVector{Int32},AbstractVector{Float64}}
 
 Retrieves integr and entity information about a problem.
 
@@ -18754,11 +18794,11 @@ function XPRSgetmipentities(prob::XPRSprob, coltype::Union{XPRSallocatable,Nothi
   end
   p_nentities = p_nentities_dummy[]
   p_nsets = p_nsets_dummy[]
-  p_nentities, p_nsets, coltype, colind, limit, settype, start, setcols, refval
+  return p_nentities, p_nsets, coltype, colind, limit, settype, start, setcols, refval
 end
 
 """
-    XPRSgetmipentities64(prob, coltype, colind, limit, settype, start, setcols, refval)::nentities, nsets, coltype, colind, limit, settype, start, setcols, refval
+    XPRSgetmipentities64(prob, coltype, colind, limit, settype, start, setcols, refval)::Tuple{Int32,Int32,Union{Nothing,AbstractVector{Cchar}},Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Cchar}},AbstractVector{Int64},AbstractVector{Int32},AbstractVector{Float64}}
 
 Retrieves integr and entity information about a problem.
 
@@ -18833,11 +18873,11 @@ function XPRSgetmipentities64(prob::XPRSprob, coltype::Union{XPRSallocatable,Not
   end
   p_nentities = p_nentities_dummy[]
   p_nsets = p_nsets_dummy[]
-  p_nentities, p_nsets, coltype, colind, limit, settype, start, setcols, refval
+  return p_nentities, p_nsets, coltype, colind, limit, settype, start, setcols, refval
 end
 
 """
-    XPRSgetrowflags(prob, flags, first, last)::flags
+    XPRSgetrowflags(prob, flags, first, last)::AbstractVector{Int32}
 
 Retrieve if a range of rows have been set up as special rows.
 
@@ -18868,11 +18908,11 @@ function XPRSgetrowflags(prob::XPRSprob, flags::Union{XPRSallocatable,AbstractVe
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  flags
+  return flags
 end
 
 """
-    XPRSclearrowflags(prob, flags, first, last)::prob
+    XPRSclearrowflags(prob, flags, first, last)::XPRSprob
 
 Clears extra information attached to a range of rows.
 
@@ -18902,11 +18942,11 @@ function XPRSclearrowflags(prob::XPRSprob, flags, first, last)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSgetcoef(prob, row, col)::coef
+    XPRSgetcoef(prob, row, col)::Float64
 
 Returns a single coefficient in the constraint matrix.
 
@@ -18930,11 +18970,11 @@ function XPRSgetcoef(prob::XPRSprob, row, col)::Float64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_coef = p_coef_dummy[]
-  p_coef
+  return p_coef
 end
 
 """
-    XPRSgetmqobj(prob, start, colind, objqcoef, maxcoefs, first, last)::start, colind, objqcoef, ncoefs
+    XPRSgetmqobj(prob, start, colind, objqcoef, maxcoefs, first, last)::Tuple{AbstractVector{Int32},AbstractVector{Int32},AbstractVector{Float64},Int32}
 
 Returns the nonzeros in the quadratic objective coefficients matrix for the columns in a given range.
 
@@ -18968,11 +19008,11 @@ function XPRSgetmqobj(prob::XPRSprob, start::AbstractVector{Int32}, colind::Abst
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_ncoefs = p_ncoefs_dummy[]
-  start, colind, objqcoef, p_ncoefs
+  return start, colind, objqcoef, p_ncoefs
 end
 
 """
-    XPRSgetmqobj64(prob, start, colind, objqcoef, maxcoefs, first, last)::start, colind, objqcoef, ncoefs
+    XPRSgetmqobj64(prob, start, colind, objqcoef, maxcoefs, first, last)::Tuple{AbstractVector{Int64},AbstractVector{Int32},AbstractVector{Float64},Int64}
 
 Returns the nonzeros in the quadratic objective coefficients matrix for the columns in a given range.
 
@@ -19006,11 +19046,11 @@ function XPRSgetmqobj64(prob::XPRSprob, start::AbstractVector{Int64}, colind::Ab
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_ncoefs = p_ncoefs_dummy[]
-  start, colind, objqcoef, p_ncoefs
+  return start, colind, objqcoef, p_ncoefs
 end
 
 """
-    XPRSwritebasis(prob, filename, flags)::prob
+    XPRSwritebasis(prob, filename, flags)::XPRSprob
 
 Writes the current basis to a file for later input into the Optimizer.
 
@@ -19040,11 +19080,11 @@ function XPRSwritebasis(prob::XPRSprob, filename::Union{Nothing,AbstractString},
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSwritesol(prob, filename, flags)::prob
+    XPRSwritesol(prob, filename, flags)::XPRSprob
 
 Writes the current solution to a CSV format ASCII file, problem_name`.asc` (and `.hdr`).
 
@@ -19074,11 +19114,11 @@ function XPRSwritesol(prob::XPRSprob, filename::Union{Nothing,AbstractString}, f
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSwritebinsol(prob, filename, flags)::prob
+    XPRSwritebinsol(prob, filename, flags)::XPRSprob
 
 Writes the current MIP or LP solution to a binary solution file for later input into the Optimizer.
 
@@ -19108,7 +19148,7 @@ function XPRSwritebinsol(prob::XPRSprob, filename::Union{Nothing,AbstractString}
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
@@ -19149,11 +19189,11 @@ function XPRSgetsol(prob::XPRSprob, x::Union{XPRSallocatable,Nothing,AbstractVec
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  x, slack, duals, djs
+  return x, slack, duals, djs
 end
 
 """
-    XPRSwriteprtsol(prob, filename, flags)::prob
+    XPRSwriteprtsol(prob, filename, flags)::XPRSprob
 
 Writes the current solution to a fixed format ASCII file, problem_name `.prt`.
 
@@ -19183,11 +19223,11 @@ function XPRSwriteprtsol(prob::XPRSprob, filename::Union{Nothing,AbstractString}
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSwriteslxsol(prob, filename, flags)::prob
+    XPRSwriteslxsol(prob, filename, flags)::XPRSprob
 
 Creates an ASCII solution file (`.slx`) using a similar format to MPS files.
 
@@ -19219,11 +19259,11 @@ function XPRSwriteslxsol(prob::XPRSprob, filename::Union{Nothing,AbstractString}
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSgetprimalray(prob, ray)::ray, hasray
+    XPRSgetprimalray(prob, ray)::Tuple{AbstractVector{Float64},Int32}
 
 Retrieves a primal ray (primal unbounded direction) for the current problem, if the problem is found to be unbounded.
 
@@ -19253,11 +19293,11 @@ function XPRSgetprimalray(prob::XPRSprob, ray::Union{XPRSallocatable,AbstractVec
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_hasray = p_hasray_dummy[]
-  ray, p_hasray
+  return ray, p_hasray
 end
 
 """
-    XPRSgetdualray(prob, ray)::ray, hasray
+    XPRSgetdualray(prob, ray)::Tuple{AbstractVector{Float64},Int32}
 
 Retrieves a dual ray (dual unbounded direction) for the current problem, if the problem is found to be infeasible.
 
@@ -19287,11 +19327,11 @@ function XPRSgetdualray(prob::XPRSprob, ray::Union{XPRSallocatable,AbstractVecto
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_hasray = p_hasray_dummy[]
-  ray, p_hasray
+  return ray, p_hasray
 end
 
 """
-    XPRSloadmipsol(prob, x)::status
+    XPRSloadmipsol(prob, x)::Int32
 
 Loads a starting MIP solution for the problem into the Optimizer.
 
@@ -19319,11 +19359,11 @@ function XPRSloadmipsol(prob::XPRSprob, x)::Int32
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_status = p_status_dummy[]
-  p_status
+  return p_status
 end
 
 """
-    XPRSgetbasis(prob, rowstat, colstat)::rowstat, colstat
+    XPRSgetbasis(prob, rowstat, colstat)::Tuple{Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}}}
 
 Returns the current basis into the user's data arrays.
 
@@ -19362,11 +19402,11 @@ function XPRSgetbasis(prob::XPRSprob, rowstat::Union{XPRSallocatable,Nothing,Abs
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  rowstat, colstat
+  return rowstat, colstat
 end
 
 """
-    XPRSgetbasisval(prob, row, col)::rowstat, colstat
+    XPRSgetbasisval(prob, row, col)::Tuple{Int32,Int32}
 
 Returns the current basis status for a specific column or row.
 
@@ -19393,11 +19433,11 @@ function XPRSgetbasisval(prob::XPRSprob, row, col)::Tuple{Int32,Int32}
   end
   p_rowstat = p_rowstat_dummy[]
   p_colstat = p_colstat_dummy[]
-  p_rowstat, p_colstat
+  return p_rowstat, p_colstat
 end
 
 """
-    XPRSaddmanagedcuts(prob, globalvalid, ncuts, rowtype, rhs, start, colind, cutcoef)::prob
+    XPRSaddmanagedcuts(prob, globalvalid, ncuts, rowtype, rhs, start, colind, cutcoef)::XPRSprob
 
 Adds cuts to the Optimizer's internal cut pool from within the cutround callback set by XPRSaddcbcutround.
 
@@ -19461,11 +19501,11 @@ function XPRSaddmanagedcuts(prob::XPRSprob, globalvalid, ncuts, rowtype, rhs, st
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSaddmanagedcuts64(prob, globalvalid, ncuts, rowtype, rhs, start, colind, cutcoef)::prob
+    XPRSaddmanagedcuts64(prob, globalvalid, ncuts, rowtype, rhs, start, colind, cutcoef)::XPRSprob
 
 Adds cuts to the Optimizer's internal cut pool from within the cutround callback set by XPRSaddcbcutround.
 
@@ -19529,11 +19569,11 @@ function XPRSaddmanagedcuts64(prob::XPRSprob, globalvalid, ncuts, rowtype, rhs, 
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSaddcuts(prob, ncuts, cuttype, rowtype, rhs, start, colind, cutcoef)::prob
+    XPRSaddcuts(prob, ncuts, cuttype, rowtype, rhs, start, colind, cutcoef)::XPRSprob
 
 Adds cuts directly to the matrix at the current node.
 
@@ -19603,11 +19643,11 @@ function XPRSaddcuts(prob::XPRSprob, ncuts, cuttype, rowtype, rhs, start, colind
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSaddcuts64(prob, ncuts, cuttype, rowtype, rhs, start, colind, cutcoef)::prob
+    XPRSaddcuts64(prob, ncuts, cuttype, rowtype, rhs, start, colind, cutcoef)::XPRSprob
 
 Adds cuts directly to the matrix at the current node.
 
@@ -19677,11 +19717,11 @@ function XPRSaddcuts64(prob::XPRSprob, ncuts, cuttype, rowtype, rhs, start, coli
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSdelcuts(prob, basis, cuttype, interp, delta, ncuts, cutind)::prob
+    XPRSdelcuts(prob, basis, cuttype, interp, delta, ncuts, cutind)::XPRSprob
 
 Deletes cuts from the matrix at the current node.
 
@@ -19718,11 +19758,11 @@ function XPRSdelcuts(prob::XPRSprob, basis, cuttype, interp, delta, ncuts, cutin
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSdelcpcuts(prob, cuttype, interp, ncuts, cutind)::prob
+    XPRSdelcpcuts(prob, cuttype, interp, ncuts, cutind)::XPRSprob
 
 During the branch and bound search, cuts are stored in the cut pool to be applied at descendant nodes.
 
@@ -19756,11 +19796,11 @@ function XPRSdelcpcuts(prob::XPRSprob, cuttype, interp, ncuts, cutind)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSgetcutlist(prob, cuttype, interp, maxcuts, cutind)::ncuts, cutind
+    XPRSgetcutlist(prob, cuttype, interp, maxcuts, cutind)::Tuple{Int32,AbstractVector{Ptr{Cvoid}}}
 
 Retrieves a list of cut objects for the cuts active at the current node.
 
@@ -19796,11 +19836,11 @@ function XPRSgetcutlist(prob::XPRSprob, cuttype, interp, maxcuts, cutind::Union{
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_ncuts = p_ncuts_dummy[]
-  p_ncuts, cutind
+  return p_ncuts, cutind
 end
 
 """
-    XPRSgetcpcutlist(prob, cuttype, interp, delta, maxcuts, cutind, viol)::ncuts, cutind, viol
+    XPRSgetcpcutlist(prob, cuttype, interp, delta, maxcuts, cutind, viol)::Tuple{Int32,Union{Nothing,AbstractVector{Ptr{Cvoid}}},Union{Nothing,AbstractVector{Float64}}}
 
 Returns a list of cut indices from the cut pool.
 
@@ -19849,11 +19889,11 @@ function XPRSgetcpcutlist(prob::XPRSprob, cuttype, interp, delta, maxcuts, cutin
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_ncuts = p_ncuts_dummy[]
-  p_ncuts, cutind, viol
+  return p_ncuts, cutind, viol
 end
 
 """
-    XPRSgetcpcuts(prob, rowind, ncuts, maxcoefs, cuttype, rowtype, start, colind, cutcoef, rhs)::cuttype, rowtype, start, colind, cutcoef, rhs
+    XPRSgetcpcuts(prob, rowind, ncuts, maxcoefs, cuttype, rowtype, start, colind, cutcoef, rhs)::Tuple{Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Cchar}},AbstractVector{Int32},AbstractVector{Int32},AbstractVector{Float64},Union{Nothing,AbstractVector{Float64}}}
 
 Returns cuts from the cut pool.
 
@@ -19921,11 +19961,11 @@ function XPRSgetcpcuts(prob::XPRSprob, rowind, ncuts, maxcoefs, cuttype::Union{X
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  cuttype, rowtype, start, colind, cutcoef, rhs
+  return cuttype, rowtype, start, colind, cutcoef, rhs
 end
 
 """
-    XPRSgetcpcuts64(prob, rowind, ncuts, maxcoefs, cuttype, rowtype, start, colind, cutcoef, rhs)::cuttype, rowtype, start, colind, cutcoef, rhs
+    XPRSgetcpcuts64(prob, rowind, ncuts, maxcoefs, cuttype, rowtype, start, colind, cutcoef, rhs)::Tuple{Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Cchar}},AbstractVector{Int64},AbstractVector{Int32},AbstractVector{Float64},Union{Nothing,AbstractVector{Float64}}}
 
 Returns cuts from the cut pool.
 
@@ -19993,11 +20033,11 @@ function XPRSgetcpcuts64(prob::XPRSprob, rowind, ncuts, maxcoefs, cuttype::Union
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  cuttype, rowtype, start, colind, cutcoef, rhs
+  return cuttype, rowtype, start, colind, cutcoef, rhs
 end
 
 """
-    XPRSloadcuts(prob, cuttype, interp, ncuts, cutind)::prob
+    XPRSloadcuts(prob, cuttype, interp, ncuts, cutind)::XPRSprob
 
 Loads cuts from the cut pool into the matrix.
 
@@ -20031,11 +20071,11 @@ function XPRSloadcuts(prob::XPRSprob, cuttype, interp, ncuts, cutind)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSstorecuts(prob, ncuts, nodups, cuttype, rowtype, rhs, start, cutind, colind, cutcoef)::cutind
+    XPRSstorecuts(prob, ncuts, nodups, cuttype, rowtype, rhs, start, cutind, colind, cutcoef)::AbstractVector{Ptr{Cvoid}}
 
 Stores cuts into the cut pool, but does not apply them to the current node.
 
@@ -20116,11 +20156,11 @@ function XPRSstorecuts(prob::XPRSprob, ncuts, nodups, cuttype, rowtype, rhs, sta
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  cutind
+  return cutind
 end
 
 """
-    XPRSstorecuts64(prob, ncuts, nodups, cuttype, rowtype, rhs, start, cutind, colind, cutcoef)::cutind
+    XPRSstorecuts64(prob, ncuts, nodups, cuttype, rowtype, rhs, start, cutind, colind, cutcoef)::AbstractVector{Ptr{Cvoid}}
 
 Stores cuts into the cut pool, but does not apply them to the current node.
 
@@ -20201,11 +20241,11 @@ function XPRSstorecuts64(prob::XPRSprob, ncuts, nodups, cuttype, rowtype, rhs, s
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  cutind
+  return cutind
 end
 
 """
-    XPRSpresolverow(prob, rowtype, norigcoefs, origcolind, origrowcoef, origrhs, maxcoefs, colind, rowcoef)::ncoefs, colind, rowcoef, rhs, status
+    XPRSpresolverow(prob, rowtype, norigcoefs, origcolind, origrowcoef, origrhs, maxcoefs, colind, rowcoef)::Tuple{Int32,Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Float64}},Float64,Int32}
 
 Presolves a row formulated in terms of the original variables such that it can be added to a presolved matrix.
 
@@ -20276,11 +20316,11 @@ function XPRSpresolverow(prob::XPRSprob, rowtype, norigcoefs, origcolind, origro
   p_ncoefs = p_ncoefs_dummy[]
   p_rhs = p_rhs_dummy[]
   p_status = p_status_dummy[]
-  p_ncoefs, colind, rowcoef, p_rhs, p_status
+  return p_ncoefs, colind, rowcoef, p_rhs, p_status
 end
 
 """
-    XPRSpresolvesol(prob, origx, prex)::prex
+    XPRSpresolvesol(prob, origx, prex)::AbstractVector{Float64}
 
 Presolves a primal solution formulated in the input space into the corresponding solution formulated in the presolved space.
 
@@ -20317,11 +20357,11 @@ function XPRSpresolvesol(prob::XPRSprob, origx, prex::Union{XPRSallocatable,Abst
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prex
+  return prex
 end
 
 """
-    XPRSpostsolvesol(prob, prex, origx)::origx
+    XPRSpostsolvesol(prob, prex, origx)::AbstractVector{Float64}
 
 Postsolves a primal solution formulated in the presolved space into the corresponding solution formulated in the input space.
 
@@ -20358,11 +20398,11 @@ function XPRSpostsolvesol(prob::XPRSprob, prex, origx::Union{XPRSallocatable,Abs
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  origx
+  return origx
 end
 
 """
-    XPRSgetpivots(prob, enter, outlist, x, maxpivots)::outlist, x, objval, npivots
+    XPRSgetpivots(prob, enter, outlist, x, maxpivots)::Tuple{Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Float64}},Float64,Int32}
 
 Returns a list of potential leaving variables if a specified variable enters the basis.
 
@@ -20411,11 +20451,11 @@ function XPRSgetpivots(prob::XPRSprob, enter, outlist::Union{XPRSallocatable,Not
   end
   p_objval = p_objval_dummy[]
   p_npivots = p_npivots_dummy[]
-  outlist, x, p_objval, p_npivots
+  return outlist, x, p_objval, p_npivots
 end
 
 """
-    XPRSwriteprob(prob, filename, flags)::prob
+    XPRSwriteprob(prob, filename, flags)::XPRSprob
 
 Writes the current problem to an MPS or LP file.
 
@@ -20445,11 +20485,11 @@ function XPRSwriteprob(prob::XPRSprob, filename::Union{Nothing,AbstractString}, 
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRScalcslacks(prob, solution, slacks)::slacks
+    XPRScalcslacks(prob, solution, slacks)::AbstractVector{Float64}
 
 Calculates the row slack values for a given solution.
 
@@ -20484,11 +20524,11 @@ function XPRScalcslacks(prob::XPRSprob, solution, slacks::Union{XPRSallocatable,
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  slacks
+  return slacks
 end
 
 """
-    XPRScalcreducedcosts(prob, duals, solution, djs)::djs
+    XPRScalcreducedcosts(prob, duals, solution, djs)::AbstractVector{Float64}
 
 Calculates the reduced cost values for a given (row) dual solution.
 
@@ -20531,11 +20571,11 @@ function XPRScalcreducedcosts(prob::XPRSprob, duals, solution, djs::Union{XPRSal
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  djs
+  return djs
 end
 
 """
-    XPRScalcobjective(prob, solution)::objval
+    XPRScalcobjective(prob, solution)::Float64
 
 Calculates the objective value of a given solution.
 
@@ -20563,11 +20603,11 @@ function XPRScalcobjective(prob::XPRSprob, solution)::Float64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_objval = p_objval_dummy[]
-  p_objval
+  return p_objval
 end
 
 """
-    XPRScalcobjn(prob, objidx, solution)::objval
+    XPRScalcobjn(prob, objidx, solution)::Float64
 
 Calculates the objective value of the given objective function in a multi-objective problem.
 
@@ -20597,11 +20637,11 @@ function XPRScalcobjn(prob::XPRSprob, objidx, solution)::Float64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_objval = p_objval_dummy[]
-  p_objval
+  return p_objval
 end
 
 """
-    XPRScalcsolinfo(prob, solution, duals, property)::value
+    XPRScalcsolinfo(prob, solution, duals, property)::Float64
 
 Calculates the required property of a solution, like maximum infeasibility of a given primal and dual solution.
 
@@ -20639,11 +20679,11 @@ function XPRScalcsolinfo(prob::XPRSprob, solution, duals, property)::Float64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_value = p_value_dummy[]
-  p_value
+  return p_value
 end
 
 """
-    XPRSgetrowtype(prob, rowtype, first, last)::rowtype
+    XPRSgetrowtype(prob, rowtype, first, last)::AbstractVector{Cchar}
 
 Returns the row types for the rows in a given range.
 
@@ -20674,11 +20714,11 @@ function XPRSgetrowtype(prob::XPRSprob, rowtype::Union{XPRSallocatable,AbstractV
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  rowtype
+  return rowtype
 end
 
 """
-    XPRSgetpresolvebasis(prob, rowstat, colstat)::rowstat, colstat
+    XPRSgetpresolvebasis(prob, rowstat, colstat)::Tuple{Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}}}
 
 Returns the current basis from memory into the user's data areas.
 
@@ -20719,11 +20759,11 @@ function XPRSgetpresolvebasis(prob::XPRSprob, rowstat::Union{XPRSallocatable,Not
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  rowstat, colstat
+  return rowstat, colstat
 end
 
 """
-    XPRSgetcoltype(prob, coltype, first, last)::coltype
+    XPRSgetcoltype(prob, coltype, first, last)::AbstractVector{Cchar}
 
 Returns the column types for the columns in a given range.
 
@@ -20754,11 +20794,11 @@ function XPRSgetcoltype(prob::XPRSprob, coltype::Union{XPRSallocatable,AbstractV
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  coltype
+  return coltype
 end
 
 """
-    XPRSgetqrowcoeff(prob, row, rowqcol1, rowqcol2)::rowqcoef
+    XPRSgetqrowcoeff(prob, row, rowqcol1, rowqcol2)::Float64
 
 Returns a single quadratic constraint coefficient corresponding to the variable pair (`rowqcol1`, `rowqcol2`) of the Hessian of a given constraint.
 
@@ -20784,11 +20824,11 @@ function XPRSgetqrowcoeff(prob::XPRSprob, row, rowqcol1, rowqcol2)::Float64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_rowqcoef = p_rowqcoef_dummy[]
-  p_rowqcoef
+  return p_rowqcoef
 end
 
 """
-    XPRSgetqrowqmatrix(prob, row, start, colind, rowqcoef, maxcoefs, first, last)::start, colind, rowqcoef, ncoefs
+    XPRSgetqrowqmatrix(prob, row, start, colind, rowqcoef, maxcoefs, first, last)::Tuple{AbstractVector{Int32},AbstractVector{Int32},AbstractVector{Float64},Int32}
 
 Returns the nonzeros in a quadratic constraint coefficients matrix for the columns in a given range.
 
@@ -20824,11 +20864,11 @@ function XPRSgetqrowqmatrix(prob::XPRSprob, row, start::AbstractVector{Int32}, c
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_ncoefs = p_ncoefs_dummy[]
-  start, colind, rowqcoef, p_ncoefs
+  return start, colind, rowqcoef, p_ncoefs
 end
 
 """
-    XPRSgetqrowqmatrixtriplets(prob, row, rowqcol1, rowqcol2, rowqcoef)::ncoefs, rowqcol1, rowqcol2, rowqcoef
+    XPRSgetqrowqmatrixtriplets(prob, row, rowqcol1, rowqcol2, rowqcoef)::Tuple{Int32,Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Float64}}}
 
 Returns the nonzeros in a quadratic constraint coefficients matrix as triplets (index pairs with coefficients).
 
@@ -20905,11 +20945,11 @@ function XPRSgetqrowqmatrixtriplets(prob::XPRSprob, row, rowqcol1::Union{XPRSall
     end
   end
   p_ncoefs = p_ncoefs_dummy[]
-  p_ncoefs, rowqcol1, rowqcol2, rowqcoef
+  return p_ncoefs, rowqcol1, rowqcol2, rowqcoef
 end
 
 """
-    XPRSchgqrowcoeff(prob, row, rowqcol1, rowqcol2, rowqcoef)::prob
+    XPRSchgqrowcoeff(prob, row, rowqcol1, rowqcol2, rowqcoef)::XPRSprob
 
 Changes a single quadratic coefficient in a row.
 
@@ -20934,11 +20974,11 @@ function XPRSchgqrowcoeff(prob::XPRSprob, row, rowqcol1, rowqcol2, rowqcoef)::XP
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSgetqrows(prob, rowind)::nrows, rowind
+    XPRSgetqrows(prob, rowind)::Tuple{Int32,AbstractVector{Int32}}
 
 Returns the list indices of the rows that have quadratic coefficients.
 
@@ -20968,11 +21008,11 @@ function XPRSgetqrows(prob::XPRSprob, rowind::Union{XPRSallocatable,AbstractVect
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_nrows = p_nrows_dummy[]
-  p_nrows, rowind
+  return p_nrows, rowind
 end
 
 """
-    XPRSchgbounds(prob, nbounds, colind, bndtype, bndval)::prob
+    XPRSchgbounds(prob, nbounds, colind, bndtype, bndval)::XPRSprob
 
 Used to change the bounds on columns in the matrix.
 
@@ -21016,11 +21056,11 @@ function XPRSchgbounds(prob::XPRSprob, nbounds, colind, bndtype, bndval)::XPRSpr
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRStriggerrestart(prob)::status
+    XPRStriggerrestart(prob)::Int32
 
 Triggers a restart of the MIP search process.
 
@@ -21040,11 +21080,11 @@ function XPRStriggerrestart(prob::XPRSprob)::Int32
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_status = p_status_dummy[]
-  p_status
+  return p_status
 end
 
 """
-    XPRSgetnamelist(prob, type, first, last)::names, nbytes
+    XPRSgetnamelist(prob, type, first, last)::Tuple{Vector{String},Int32}
 
 Returns the names for the rows, columns, sets, piecewise linear constraints, general constraints or objectives in a given range.
 
@@ -21054,12 +21094,12 @@ Returns the names for the rows, columns, sets, piecewise linear constraints, gen
 - `first::Integer`: First row, column, set, piecewise linear or general constraint in the range.
 - `last::Integer`: Last row, column, set, piecewise linear or general constraint in the range.
 # Return values
-- `names::AbstractVector{AbstractString}`: A buffer into which the names will be returned as a sequence of null-terminated strings.
+- `names::Vector{String}`: A buffer into which the names will be returned as a sequence of null-terminated strings.
 - `nbytes::Int32`: A pointer to a variable into which will be written the number of bytes required to contain the names in the specified range, including null termination.
 
 See also the documentation of the correponding function [XPRSgetnamelist](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSgetnamelist.html) in the C API.
 """
-function XPRSgetnamelist(prob::XPRSprob, type, first, last)::Tuple{AbstractVector{AbstractString},Int32}
+function XPRSgetnamelist(prob::XPRSprob, type, first, last)::Tuple{Vector{String},Int32}
   typexx = Int32(type)
   names_required = Ref{Int32}(0)
   retcode = ccall(getFunctionAddress("XPRSgetnamelist"), Cint, (Ptr{Cvoid}, Cint, Ptr{Cchar}, Cint, Ref{Cint}, Cint, Cint), prob.handle, Int32(type), C_NULL, Int32(0), names_required, Int32(first), Int32(last))
@@ -21067,7 +21107,7 @@ function XPRSgetnamelist(prob::XPRSprob, type, first, last)::Tuple{AbstractVecto
     throw(XPRSexception(prob, retcode))
   end
   names_buffer = Vector{Cchar}(undef, names_required[])
-  names_array = Vector{AbstractString}(undef, last-first+1)
+  names_array = Vector{String}(undef, last-first+1)
   maxbytes = names_required[]
   maxbytesxx = Int32(maxbytes)
   p_nbytes_dummy = Ref{Int32}(0)
@@ -21088,11 +21128,11 @@ function XPRSgetnamelist(prob::XPRSprob, type, first, last)::Tuple{AbstractVecto
   end
   names = names_array
   p_nbytes = p_nbytes_dummy[]
-  names, p_nbytes
+  return names, p_nbytes
 end
 
 """
-    XPRSaddmipsol(prob, len, solval, colind, name)::prob
+    XPRSaddmipsol(prob, len, solval, colind, name)::XPRSprob
 
 Adds a new feasible, infeasible or partial MIP solution for the problem to the Optimizer.
 
@@ -21134,11 +21174,11 @@ function XPRSaddmipsol(prob::XPRSprob, len, solval, colind, name::Union{Nothing,
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSgetcutslack(prob, cutind)::slack
+    XPRSgetcutslack(prob, cutind)::Float64
 
 Used to calculate the slack value of a cut with respect to the current LP relaxation solution.
 
@@ -21161,11 +21201,11 @@ function XPRSgetcutslack(prob::XPRSprob, cutind)::Float64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_slack = p_slack_dummy[]
-  p_slack
+  return p_slack
 end
 
 """
-    XPRSgetcutmap(prob, ncuts, cutind, cutmap)::cutmap
+    XPRSgetcutmap(prob, ncuts, cutind, cutmap)::AbstractVector{Int32}
 
 Used to return in which rows a list of cuts are currently loaded into the Optimizer.
 
@@ -21204,11 +21244,11 @@ function XPRSgetcutmap(prob::XPRSprob, ncuts, cutind, cutmap::Union{XPRSallocata
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  cutmap
+  return cutmap
 end
 
 """
-    XPRSgetpresolvesol(prob, x, slack, duals, djs)::x, slack, duals, djs
+    XPRSgetpresolvesol(prob, x, slack, duals, djs)::Tuple{Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}}}
 
 Returns the solution for the presolved problem from memory.
 
@@ -21269,11 +21309,11 @@ function XPRSgetpresolvesol(prob::XPRSprob, x::Union{XPRSallocatable,Nothing,Abs
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  x, slack, duals, djs
+  return x, slack, duals, djs
 end
 
 """
-    XPRSgetsolution(prob, x, first, last)::status, x
+    XPRSgetsolution(prob, x, first, last)::Tuple{Int32,AbstractVector{Float64}}
 
 Returns the incumbent solution during or after optimization with XPRSoptimize, XPRSmipoptimize, XPRSlpoptimize or XPRSnlpoptimize.
 
@@ -21307,11 +21347,11 @@ function XPRSgetsolution(prob::XPRSprob, x::Union{XPRSallocatable,AbstractVector
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   status = status_dummy[]
-  status, x
+  return status, x
 end
 
 """
-    XPRSgetslacks(prob, slacks, first, last)::status, slacks
+    XPRSgetslacks(prob, slacks, first, last)::Tuple{Int32,AbstractVector{Float64}}
 
 Returns the slack values from the incumbent solution during or after optimization with XPRSoptimize, XPRSmipoptimize, XPRSlpoptimize or XPRSnlpoptimize.
 
@@ -21345,11 +21385,11 @@ function XPRSgetslacks(prob::XPRSprob, slacks::Union{XPRSallocatable,AbstractVec
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   status = status_dummy[]
-  status, slacks
+  return status, slacks
 end
 
 """
-    XPRSgetduals(prob, duals, first, last)::status, duals
+    XPRSgetduals(prob, duals, first, last)::Tuple{Int32,AbstractVector{Float64}}
 
 Returns the dual values from the incumbent solution during or after optimization of a continuous problem with XPRSoptimize, XPRSlpoptimize or XPRSnlpoptimize.
 
@@ -21383,11 +21423,11 @@ function XPRSgetduals(prob::XPRSprob, duals::Union{XPRSallocatable,AbstractVecto
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   status = status_dummy[]
-  status, duals
+  return status, duals
 end
 
 """
-    XPRSgetredcosts(prob, djs, first, last)::status, djs
+    XPRSgetredcosts(prob, djs, first, last)::Tuple{Int32,AbstractVector{Float64}}
 
 Returns the reduced costs from the incumbent solution during or after optimization of a continuous problem with XPRSoptimize, XPRSlpoptimize or XPRSnlpoptimize.
 
@@ -21421,11 +21461,11 @@ function XPRSgetredcosts(prob::XPRSprob, djs::Union{XPRSallocatable,AbstractVect
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   status = status_dummy[]
-  status, djs
+  return status, djs
 end
 
 """
-    XPRSgetlpsol(prob, x, slack, duals, djs)::x, slack, duals, djs
+    XPRSgetlpsol(prob, x, slack, duals, djs)::Tuple{Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}}}
 
 Used to obtain the LP solution values following optimization.
 
@@ -21486,7 +21526,7 @@ function XPRSgetlpsol(prob::XPRSprob, x::Union{XPRSallocatable,Nothing,AbstractV
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  x, slack, duals, djs
+  return x, slack, duals, djs
 end
 
 """
@@ -21509,11 +21549,11 @@ function XPRSgetlpsolval(prob::XPRSprob, col, row)::Tuple{Float64,Float64,Float6
   p_slack = p_slack_dummy[]
   p_dual = p_dual_dummy[]
   p_dj = p_dj_dummy[]
-  p_x, p_slack, p_dual, p_dj
+  return p_x, p_slack, p_dual, p_dj
 end
 
 """
-    XPRSgetmipsol(prob, x, slack)::x, slack
+    XPRSgetmipsol(prob, x, slack)::Tuple{Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}}}
 
 **Deprecated**Use XPRSgetsolution and XPRSgetslacks instead.
 
@@ -21554,7 +21594,7 @@ function XPRSgetmipsol(prob::XPRSprob, x::Union{XPRSallocatable,Nothing,Abstract
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  x, slack
+  return x, slack
 end
 
 """
@@ -21573,11 +21613,11 @@ function XPRSgetmipsolval(prob::XPRSprob, col, row)::Tuple{Float64,Float64}
   end
   p_x = p_x_dummy[]
   p_slack = p_slack_dummy[]
-  p_x, p_slack
+  return p_x, p_slack
 end
 
 """
-    XPRSgetcallbacksolution(prob, x, first, last)::available, x
+    XPRSgetcallbacksolution(prob, x, first, last)::Tuple{Int32,AbstractVector{Float64}}
 
 Returns the primal values from the solution associated with the current callback.
 
@@ -21611,11 +21651,11 @@ function XPRSgetcallbacksolution(prob::XPRSprob, x::Union{XPRSallocatable,Abstra
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_available = p_available_dummy[]
-  p_available, x
+  return p_available, x
 end
 
 """
-    XPRSgetcallbackslacks(prob, slacks, first, last)::available, slacks
+    XPRSgetcallbackslacks(prob, slacks, first, last)::Tuple{Int32,AbstractVector{Float64}}
 
 Returns the slack values from the solution associated with the current callback.
 
@@ -21649,11 +21689,11 @@ function XPRSgetcallbackslacks(prob::XPRSprob, slacks::Union{XPRSallocatable,Abs
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_available = p_available_dummy[]
-  p_available, slacks
+  return p_available, slacks
 end
 
 """
-    XPRSgetcallbackduals(prob, duals, first, last)::available, duals
+    XPRSgetcallbackduals(prob, duals, first, last)::Tuple{Int32,AbstractVector{Float64}}
 
 Returns the dual values from the solution associated with the current callback.
 
@@ -21687,11 +21727,11 @@ function XPRSgetcallbackduals(prob::XPRSprob, duals::Union{XPRSallocatable,Abstr
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_available = p_available_dummy[]
-  p_available, duals
+  return p_available, duals
 end
 
 """
-    XPRSgetcallbackredcosts(prob, djs, first, last)::available, djs
+    XPRSgetcallbackredcosts(prob, djs, first, last)::Tuple{Int32,AbstractVector{Float64}}
 
 Returns the reduced costs from the solution associated with the current callback.
 
@@ -21725,11 +21765,11 @@ function XPRSgetcallbackredcosts(prob::XPRSprob, djs::Union{XPRSallocatable,Abst
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_available = p_available_dummy[]
-  p_available, djs
+  return p_available, djs
 end
 
 """
-    XPRSgetcallbackpresolvesolution(prob, x, first, last)::available, x
+    XPRSgetcallbackpresolvesolution(prob, x, first, last)::Tuple{Int32,AbstractVector{Float64}}
 
 Returns the solution to the presolved problem associated with the current callback.
 
@@ -21763,11 +21803,11 @@ function XPRSgetcallbackpresolvesolution(prob::XPRSprob, x::Union{XPRSallocatabl
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_available = p_available_dummy[]
-  p_available, x
+  return p_available, x
 end
 
 """
-    XPRSgetcallbackpresolveslacks(prob, slacks, first, last)::available, slacks
+    XPRSgetcallbackpresolveslacks(prob, slacks, first, last)::Tuple{Int32,AbstractVector{Float64}}
 
 Returns the slack values from the solution to the presolved problem associated with the current callback.
 
@@ -21801,11 +21841,11 @@ function XPRSgetcallbackpresolveslacks(prob::XPRSprob, slacks::Union{XPRSallocat
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_available = p_available_dummy[]
-  p_available, slacks
+  return p_available, slacks
 end
 
 """
-    XPRSgetcallbackpresolveduals(prob, duals, first, last)::available, duals
+    XPRSgetcallbackpresolveduals(prob, duals, first, last)::Tuple{Int32,AbstractVector{Float64}}
 
 Returns the dual values from the solution to the presolved problem associated with the current callback.
 
@@ -21839,11 +21879,11 @@ function XPRSgetcallbackpresolveduals(prob::XPRSprob, duals::Union{XPRSallocatab
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_available = p_available_dummy[]
-  p_available, duals
+  return p_available, duals
 end
 
 """
-    XPRSgetcallbackpresolveredcosts(prob, djs, first, last)::available, djs
+    XPRSgetcallbackpresolveredcosts(prob, djs, first, last)::Tuple{Int32,AbstractVector{Float64}}
 
 Returns the reduced costs from the solution to the presolved problem associated with the current callback.
 
@@ -21877,11 +21917,11 @@ function XPRSgetcallbackpresolveredcosts(prob::XPRSprob, djs::Union{XPRSallocata
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_available = p_available_dummy[]
-  p_available, djs
+  return p_available, djs
 end
 
 """
-    XPRSchgobj(prob, ncols, colind, objcoef)::prob
+    XPRSchgobj(prob, ncols, colind, objcoef)::XPRSprob
 
 Used to change the objective function coefficients.
 
@@ -21917,7 +21957,7 @@ function XPRSchgobj(prob::XPRSprob, ncols, colind, objcoef)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
@@ -21933,7 +21973,7 @@ end
 
 
 """
-    XPRSchgcoef(prob, row, col, coef)::prob
+    XPRSchgcoef(prob, row, col, coef)::XPRSprob
 
 Used to change a single coefficient in the matrix.
 
@@ -21958,11 +21998,11 @@ function XPRSchgcoef(prob::XPRSprob, row, col, coef)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSchgmcoef(prob, ncoefs, rowind, colind, rowcoef)::prob
+    XPRSchgmcoef(prob, ncoefs, rowind, colind, rowcoef)::XPRSprob
 
 Used to change multiple coefficients in the matrix.
 
@@ -22008,11 +22048,11 @@ function XPRSchgmcoef(prob::XPRSprob, ncoefs, rowind, colind, rowcoef)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSchgmcoef64(prob, ncoefs, rowind, colind, rowcoef)::prob
+    XPRSchgmcoef64(prob, ncoefs, rowind, colind, rowcoef)::XPRSprob
 
 Used to change multiple coefficients in the matrix.
 
@@ -22058,11 +22098,11 @@ function XPRSchgmcoef64(prob::XPRSprob, ncoefs, rowind, colind, rowcoef)::XPRSpr
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSchgmqobj(prob, ncoefs, objqcol1, objqcol2, objqcoef)::prob
+    XPRSchgmqobj(prob, ncoefs, objqcol1, objqcol2, objqcoef)::XPRSprob
 
 Used to change multiple quadratic coefficients in the objective function.
 
@@ -22108,11 +22148,11 @@ function XPRSchgmqobj(prob::XPRSprob, ncoefs, objqcol1, objqcol2, objqcoef)::XPR
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSchgmqobj64(prob, ncoefs, objqcol1, objqcol2, objqcoef)::prob
+    XPRSchgmqobj64(prob, ncoefs, objqcol1, objqcol2, objqcoef)::XPRSprob
 
 Used to change multiple quadratic coefficients in the objective function.
 
@@ -22158,11 +22198,11 @@ function XPRSchgmqobj64(prob::XPRSprob, ncoefs, objqcol1, objqcol2, objqcoef)::X
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSchgqobj(prob, objqcol1, objqcol2, objqcoef)::prob
+    XPRSchgqobj(prob, objqcol1, objqcol2, objqcoef)::XPRSprob
 
 Used to change a single quadratic coefficient in the objective function corresponding to the variable pair `(objqcol1,objqcol2)` of the Hessian matrix.
 
@@ -22185,11 +22225,11 @@ function XPRSchgqobj(prob::XPRSprob, objqcol1, objqcol2, objqcoef)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSchgrhs(prob, nrows, rowind, rhs)::prob
+    XPRSchgrhs(prob, nrows, rowind, rhs)::XPRSprob
 
 Used to change righthand side values of the problem.
 
@@ -22225,7 +22265,7 @@ function XPRSchgrhs(prob::XPRSprob, nrows, rowind, rhs)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
@@ -22241,7 +22281,7 @@ end
 
 
 """
-    XPRSchgrhsrange(prob, nrows, rowind, rng)::prob
+    XPRSchgrhsrange(prob, nrows, rowind, rng)::XPRSprob
 
 Used to change the range for a row of the problem matrix.
 
@@ -22277,7 +22317,7 @@ function XPRSchgrhsrange(prob::XPRSprob, nrows, rowind, rng)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
@@ -22293,7 +22333,7 @@ end
 
 
 """
-    XPRSchgrowtype(prob, nrows, rowind, rowtype)::prob
+    XPRSchgrowtype(prob, nrows, rowind, rowtype)::XPRSprob
 
 Used to change the type of a row in the matrix.
 
@@ -22329,11 +22369,11 @@ function XPRSchgrowtype(prob::XPRSprob, nrows, rowind, rowtype)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSmsaddjob(prob, description, ninitial, colind, initial, nintcontrols, intcontrolid, intcontrolval, ndblcontrols, dblcontrolid, dblcontrolval, data)::prob
+    XPRSmsaddjob(prob, description, ninitial, colind, initial, nintcontrols, intcontrolid, intcontrolval, ndblcontrols, dblcontrolid, dblcontrolval, data)::XPRSprob
 
 Adds a multistart job to the multistart pool
 
@@ -22420,11 +22460,11 @@ function XPRSmsaddjob(prob::XPRSprob, description::Union{Nothing,AbstractString}
     data_node.callback = Int32(1)
     linkMultistart(prob, data_node)
   end
-  prob
+  return prob
 end
 
 """
-    XPRSmsaddpreset(prob, description, preset, maxjobs, data)::prob
+    XPRSmsaddpreset(prob, description, preset, maxjobs, data)::XPRSprob
 
 Loads a preset of jobs into the multistart job pool.
 
@@ -22461,11 +22501,11 @@ function XPRSmsaddpreset(prob::XPRSprob, description::Union{Nothing,AbstractStri
     data_node.callback = Int32(1)
     linkMultistart(prob, data_node)
   end
-  prob
+  return prob
 end
 
 """
-    XPRSmsaddcustompreset(prob, description, preset, maxjobs, ninitial, colind, initial, nintcontrols, intcontrolid, intcontrolval, ndblcontrols, dblcontrolid, dblcontrolval, data)::prob
+    XPRSmsaddcustompreset(prob, description, preset, maxjobs, ninitial, colind, initial, nintcontrols, intcontrolid, intcontrolval, ndblcontrols, dblcontrolid, dblcontrolval, data)::XPRSprob
 
 A combined version of XSLPmsaddjob and XSLPmsaddpreset.
 
@@ -22558,11 +22598,11 @@ function XPRSmsaddcustompreset(prob::XPRSprob, description::Union{Nothing,Abstra
     data_node.callback = Int32(1)
     linkMultistart(prob, data_node)
   end
-  prob
+  return prob
 end
 
 """
-    XPRSnlpsetfunctionerror(prob)::prob
+    XPRSnlpsetfunctionerror(prob)::XPRSprob
 
 Set the function error flag for the problem
 
@@ -22580,11 +22620,11 @@ function XPRSnlpsetfunctionerror(prob::XPRSprob)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSnlpprintevalinfo(prob)::prob
+    XPRSnlpprintevalinfo(prob)::XPRSprob
 
 Print a summary of any evaluation errors that may have occurred during solving a problem
 
@@ -22602,11 +22642,11 @@ function XPRSnlpprintevalinfo(prob::XPRSprob)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSnlpvalidate(prob)::prob
+    XPRSnlpvalidate(prob)::XPRSprob
 
 Validate the feasibility of constraints in a converged solution
 
@@ -22624,11 +22664,11 @@ function XPRSnlpvalidate(prob::XPRSprob)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSnlpoptimize(prob, flags)::prob
+    XPRSnlpoptimize(prob, flags)::XPRSprob
 
 Maximize or minimize an SLP problem
 
@@ -22652,11 +22692,11 @@ function XPRSnlpoptimize(prob::XPRSprob, flags::Union{Nothing,AbstractString})::
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSgetnlpsol(prob, x, slack, duals, djs)::x, slack, duals, djs
+    XPRSgetnlpsol(prob, x, slack, duals, djs)::Tuple{Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}}}
 
 **Deprecated**Use XPRSgetsolution and related functions instead.
 
@@ -22719,11 +22759,11 @@ function XPRSgetnlpsol(prob::XPRSprob, x::Union{XPRSallocatable,Nothing,Abstract
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  x, slack, duals, djs
+  return x, slack, duals, djs
 end
 
 """
-    XPRSnlpsetcurrentiv(prob)::prob
+    XPRSnlpsetcurrentiv(prob)::XPRSprob
 
 Transfer the current solution to initial values
 
@@ -22741,11 +22781,11 @@ function XPRSnlpsetcurrentiv(prob::XPRSprob)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSnlpvalidaterow(prob, row)::prob
+    XPRSnlpvalidaterow(prob, row)::XPRSprob
 
 Prints an extensive analysis on a given constraint of the SLP problem
 
@@ -22765,11 +22805,11 @@ function XPRSnlpvalidaterow(prob::XPRSprob, row)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSnlpvalidatekkt(prob, mode, respectbasis, updatemult, violtarget)::prob
+    XPRSnlpvalidatekkt(prob, mode, respectbasis, updatemult, violtarget)::XPRSprob
 
 Validates the first order optimality conditions also known as the Karush-Kuhn-Tucker (KKT) conditions versus the currect solution
 
@@ -22794,11 +22834,11 @@ function XPRSnlpvalidatekkt(prob::XPRSprob, mode, respectbasis, updatemult, viol
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSmsclear(prob)::prob
+    XPRSmsclear(prob)::XPRSprob
 
 Removes all scheduled jobs from the multistart job pool
 
@@ -22818,11 +22858,11 @@ function XPRSmsclear(prob::XPRSprob)::XPRSprob
   end
   prob.multistartsHead.next = prob.multistartsTail
   prob.multistartsTail.prev = prob.multistartsHead
-  prob
+  return prob
 end
 
 """
-    XPRSnlpevaluateformula(prob, parsed, type, values)::value
+    XPRSnlpevaluateformula(prob, parsed, type, values)::Float64
 
 Evaluate a formula using the current values of the variables
 
@@ -22860,11 +22900,11 @@ function XPRSnlpevaluateformula(prob::XPRSprob, parsed, type, values)::Float64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_value = p_value_dummy[]
-  p_value
+  return p_value
 end
 
 """
-    XPRSnlpvalidatevector(prob, solution)::suminf, sumscaledinf, objval
+    XPRSnlpvalidatevector(prob, solution)::Tuple{Float64,Float64,Float64}
 
 Validate the feasibility of constraints for a given solution
 
@@ -22898,11 +22938,11 @@ function XPRSnlpvalidatevector(prob::XPRSprob, solution)::Tuple{Float64,Float64,
   p_suminf = p_suminf_dummy[]
   p_sumscaledinf = p_sumscaledinf_dummy[]
   p_objval = p_objval_dummy[]
-  p_suminf, p_sumscaledinf, p_objval
+  return p_suminf, p_sumscaledinf, p_objval
 end
 
 """
-    XPRSnlpadduserfunctionmap(prob, funcname, options, func)::type
+    XPRSnlpadduserfunctionmap(prob, funcname, options, func)::Int32
 
 Add user function definitions to an SLP problem.
 
@@ -22948,11 +22988,11 @@ function XPRSnlpadduserfunctionmap(prob::XPRSprob, funcname::Union{Nothing,Abstr
   jcbnode.callback = Int32(2)
   linkCallback(prob, jcbnode)
   p_type = p_type_dummy[]
-  p_type
+  return p_type
 end
 
 """
-    XPRSnlpadduserfunctionmapdelta(prob, funcname, options, func)::type
+    XPRSnlpadduserfunctionmapdelta(prob, funcname, options, func)::Int32
 
 Add user function definitions to an SLP problem.
 
@@ -22998,11 +23038,11 @@ function XPRSnlpadduserfunctionmapdelta(prob::XPRSprob, funcname::Union{Nothing,
   jcbnode.callback = Int32(2)
   linkCallback(prob, jcbnode)
   p_type = p_type_dummy[]
-  p_type
+  return p_type
 end
 
 """
-    XPRSnlpadduserfunctionmultimap(prob, funcname, nin, nout, options, func)::type
+    XPRSnlpadduserfunctionmultimap(prob, funcname, nin, nout, options, func)::Int32
 
 Add user function definitions to an SLP problem.
 
@@ -23050,11 +23090,11 @@ function XPRSnlpadduserfunctionmultimap(prob::XPRSprob, funcname::Union{Nothing,
   jcbnode.callback = Int32(2)
   linkCallback(prob, jcbnode)
   p_type = p_type_dummy[]
-  p_type
+  return p_type
 end
 
 """
-    XPRSnlpadduserfunctionmultimapdelta(prob, funcname, nin, nout, options, func)::type
+    XPRSnlpadduserfunctionmultimapdelta(prob, funcname, nin, nout, options, func)::Int32
 
 Add user function definitions to an SLP problem.
 
@@ -23102,11 +23142,11 @@ function XPRSnlpadduserfunctionmultimapdelta(prob::XPRSprob, funcname::Union{Not
   jcbnode.callback = Int32(2)
   linkCallback(prob, jcbnode)
   p_type = p_type_dummy[]
-  p_type
+  return p_type
 end
 
 """
-    XPRSnlpadduserfunctionvecmap(prob, funcname, nin, options, func)::type
+    XPRSnlpadduserfunctionvecmap(prob, funcname, nin, options, func)::Int32
 
 Add user function definitions to an SLP problem.
 
@@ -23153,11 +23193,11 @@ function XPRSnlpadduserfunctionvecmap(prob::XPRSprob, funcname::Union{Nothing,Ab
   jcbnode.callback = Int32(2)
   linkCallback(prob, jcbnode)
   p_type = p_type_dummy[]
-  p_type
+  return p_type
 end
 
 """
-    XPRSnlpadduserfunctionvecmapdelta(prob, funcname, nin, options, func)::type
+    XPRSnlpadduserfunctionvecmapdelta(prob, funcname, nin, options, func)::Int32
 
 Add user function definitions to an SLP problem.
 
@@ -23204,11 +23244,11 @@ function XPRSnlpadduserfunctionvecmapdelta(prob::XPRSprob, funcname::Union{Nothi
   jcbnode.callback = Int32(2)
   linkCallback(prob, jcbnode)
   p_type = p_type_dummy[]
-  p_type
+  return p_type
 end
 
 """
-    XPRSnlpdeluserfunction(prob, type)::prob
+    XPRSnlpdeluserfunction(prob, type)::XPRSprob
 
 Delete a user function from the current problem
 
@@ -23228,11 +23268,11 @@ function XPRSnlpdeluserfunction(prob::XPRSprob, type)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSnlpaddformulas(prob, ncoefs, rowind, formulastart, parsed, type, value)::prob
+    XPRSnlpaddformulas(prob, ncoefs, rowind, formulastart, parsed, type, value)::XPRSprob
 
 Add non-linear formulas to the SLP problem.
 
@@ -23286,11 +23326,11 @@ function XPRSnlpaddformulas(prob::XPRSprob, ncoefs, rowind, formulastart, parsed
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSnlpchgformulastring(prob, row, formula)::prob
+    XPRSnlpchgformulastring(prob, row, formula)::XPRSprob
 
 **Deprecated**Use XPRSnlpchgformulastr instead.
 
@@ -23318,11 +23358,11 @@ function XPRSnlpchgformulastring(prob::XPRSprob, row, formula::Union{Nothing,Abs
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSnlpchgformulastr(prob, row, formula)::prob
+    XPRSnlpchgformulastr(prob, row, formula)::XPRSprob
 
 Add or replace a single matrix formula using a character string for the formula.
 
@@ -23348,11 +23388,11 @@ function XPRSnlpchgformulastr(prob::XPRSprob, row, formula::Union{Nothing,Abstra
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSnlpchgformula(prob, row, parsed, type, value)::prob
+    XPRSnlpchgformula(prob, row, parsed, type, value)::XPRSprob
 
 Add or replace a single matrix formula using a parsed or unparsed formula
 
@@ -23390,11 +23430,11 @@ function XPRSnlpchgformula(prob::XPRSprob, row, parsed, type, value)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSnlpgetformula(prob, row, parsed, maxtypes, type, value)::ntypes, type, value
+    XPRSnlpgetformula(prob, row, parsed, maxtypes, type, value)::Tuple{Int32,Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Float64}}}
 
 Retrieve a single matrix formula as a formula split into tokens.
 
@@ -23442,11 +23482,11 @@ function XPRSnlpgetformula(prob::XPRSprob, row, parsed, maxtypes, type::Union{XP
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_ntypes = p_ntypes_dummy[]
-  p_ntypes, type, value
+  return p_ntypes, type, value
 end
 
 """
-    XPRSnlpgetformularows(prob, rowind)::nformulas, rowind
+    XPRSnlpgetformularows(prob, rowind)::Tuple{Int32,AbstractVector{Int32}}
 
 Retrieve the list of positions of the nonlinear formulas in the problem
 
@@ -23496,11 +23536,11 @@ function XPRSnlpgetformularows(prob::XPRSprob, rowind::Union{XPRSallocatable,Abs
     end
   end
   p_nformulas = p_nformulas_dummy[]
-  p_nformulas, rowind
+  return p_nformulas, rowind
 end
 
 """
-    XPRSnlploadformulas(prob, nnlpcoefs, rowind, formulastart, parsed, type, value)::prob
+    XPRSnlploadformulas(prob, nnlpcoefs, rowind, formulastart, parsed, type, value)::XPRSprob
 
 Load non-linear formulas into the SLP problem
 
@@ -23554,11 +23594,11 @@ function XPRSnlploadformulas(prob::XPRSprob, nnlpcoefs, rowind, formulastart, pa
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSnlpdelformulas(prob, nformulas, rowind)::prob
+    XPRSnlpdelformulas(prob, nformulas, rowind)::XPRSprob
 
 Delete nonlinear formulas from the current problem
 
@@ -23586,11 +23626,11 @@ function XPRSnlpdelformulas(prob::XPRSprob, nformulas, rowind)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSnlpgetformulastring(prob, row, maxbytes)::formula
+    XPRSnlpgetformulastring(prob, row, maxbytes)::String
 
 **Deprecated**Use XPRSnlpgetformulastr instead.
 
@@ -23601,11 +23641,11 @@ Retrieve a single matrix formula in a character string.
 - `row::Integer`: Integer holding the row index for the formula.
 - `maxbytes::Integer`: Maximum length of returned formula.
 # Return value
-- `formula::AbstractString`: Character buffer in which the formula will be placed in the same format as used for input from a file.
+- `formula::String`: Character buffer in which the formula will be placed in the same format as used for input from a file.
 
 See also the documentation of the correponding function [XPRSnlpgetformulastring](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpgetformulastring.html) in the C API.
 """
-function XPRSnlpgetformulastring(prob::XPRSprob, row, maxbytes)::AbstractString
+function XPRSnlpgetformulastring(prob::XPRSprob, row, maxbytes)::String
   rowxx = Int32(row)
   formula_buffer = Vector{Cchar}(undef, maxbytes)
   maxbytesxx = Int32(maxbytes)
@@ -23616,11 +23656,11 @@ function XPRSnlpgetformulastring(prob::XPRSprob, row, maxbytes)::AbstractString
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   formula = GC.@preserve formula_buffer unsafe_string(pointer(formula_buffer))
-  formula
+  return formula
 end
 
 """
-    XPRSnlpgetformulastr(prob, row, maxbytes)::formula, nbytes
+    XPRSnlpgetformulastr(prob, row, maxbytes)::Tuple{String,Int32}
 
 Retrieve a single matrix formula in a character string.
 
@@ -23629,12 +23669,12 @@ Retrieve a single matrix formula in a character string.
 - `row::Integer`: Integer holding the row index for the formula.
 - `maxbytes::Integer`: Length of the `formula` buffer.
 # Return values
-- `formula::AbstractString`: Character buffer in which the formula will be placed in the same format as used for input from a file.
+- `formula::String`: Character buffer in which the formula will be placed in the same format as used for input from a file.
 - `nbytes::Int32`: Will be set to the length of the formula, not including the null terminator.
 
 See also the documentation of the correponding function [XPRSnlpgetformulastr](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpgetformulastr.html) in the C API.
 """
-function XPRSnlpgetformulastr(prob::XPRSprob, row, maxbytes)::Tuple{AbstractString,Int32}
+function XPRSnlpgetformulastr(prob::XPRSprob, row, maxbytes)::Tuple{String,Int32}
   rowxx = Int32(row)
   formula_buffer = Vector{Cchar}(undef, maxbytes)
   maxbytesxx = Int32(maxbytes)
@@ -23647,11 +23687,11 @@ function XPRSnlpgetformulastr(prob::XPRSprob, row, maxbytes)::Tuple{AbstractStri
   end
   formula = GC.@preserve formula_buffer unsafe_string(pointer(formula_buffer))
   p_nbytes = p_nbytes_dummy[]
-  formula, p_nbytes
+  return formula, p_nbytes
 end
 
 """
-    XPRSnlpsetinitval(prob, nvars, colind, initial)::prob
+    XPRSnlpsetinitval(prob, nvars, colind, initial)::XPRSprob
 
 Set the initial value of columns
 
@@ -23687,7 +23727,7 @@ function XPRSnlpsetinitval(prob::XPRSprob, nvars, colind, initial)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
@@ -23703,7 +23743,7 @@ end
 
 
 """
-    XPRSslpgetcoefformula(prob, row, col, parsed, maxtypes, type, value)::factor, ntypes, type, value
+    XPRSslpgetcoefformula(prob, row, col, parsed, maxtypes, type, value)::Tuple{Float64,Int32,Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Float64}}}
 
 Retrieve a single matrix coefficient as a formula split into tokens.
 
@@ -23758,11 +23798,11 @@ function XPRSslpgetcoefformula(prob::XPRSprob, row, col, parsed, maxtypes, type:
   end
   p_factor = p_factor_dummy[]
   p_ntypes = p_ntypes_dummy[]
-  p_factor, p_ntypes, type, value
+  return p_factor, p_ntypes, type, value
 end
 
 """
-    XPRSslpgetcoefs(prob, rowind, colind)::ncoefs, rowind, colind
+    XPRSslpgetcoefs(prob, rowind, colind)::Tuple{Int32,Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}}}
 
 Retrieve the list of positions of the nonlinear coefficients in the problem.
 
@@ -23826,11 +23866,11 @@ function XPRSslpgetcoefs(prob::XPRSprob, rowind::Union{XPRSallocatable,Nothing,A
     end
   end
   p_ncoefs = p_ncoefs_dummy[]
-  p_ncoefs, rowind, colind
+  return p_ncoefs, rowind, colind
 end
 
 """
-    XPRSslploadcoefs(prob, ncoefs, rowind, colind, factor, formulastart, parsed, type, coef)::prob
+    XPRSslploadcoefs(prob, ncoefs, rowind, colind, factor, formulastart, parsed, type, coef)::XPRSprob
 
 Load non-linear coefficients into the SLP problem.
 
@@ -23902,11 +23942,11 @@ function XPRSslploadcoefs(prob::XPRSprob, ncoefs, rowind, colind, factor, formul
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSslpdelcoefs(prob, ncoefs, rowind, colind)::prob
+    XPRSslpdelcoefs(prob, ncoefs, rowind, colind)::XPRSprob
 
 Delete coefficients from the current problem.
 
@@ -23944,11 +23984,11 @@ function XPRSslpdelcoefs(prob::XPRSprob, ncoefs, rowind, colind)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSslpgetccoef(prob, row, col, maxbytes)::factor, formula
+    XPRSslpgetccoef(prob, row, col, maxbytes)::Tuple{Float64,String}
 
 **Deprecated**Use XPRSslpgetcoefstr instead.
 
@@ -23961,11 +24001,11 @@ Retrieve a single matrix coefficient as a formula in a character string. For a s
 - `maxbytes::Integer`: Maximum length of returned formula.
 # Return values
 - `factor::Float64`: Address of a double precision variable to receive the value of the constant factor multiplying the formula in the coefficient.
-- `formula::AbstractString`: Character buffer in which the formula will be placed in the same format as used for input from a file.
+- `formula::String`: Character buffer in which the formula will be placed in the same format as used for input from a file.
 
 See also the documentation of the correponding function [XPRSslpgetccoef](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpgetccoef.html) in the C API.
 """
-function XPRSslpgetccoef(prob::XPRSprob, row, col, maxbytes)::Tuple{Float64,AbstractString}
+function XPRSslpgetccoef(prob::XPRSprob, row, col, maxbytes)::Tuple{Float64,String}
   rowxx = Int32(row)
   colxx = Int32(col)
   p_factor_dummy = Ref{Float64}(0)
@@ -23979,11 +24019,11 @@ function XPRSslpgetccoef(prob::XPRSprob, row, col, maxbytes)::Tuple{Float64,Abst
   end
   p_factor = p_factor_dummy[]
   formula = GC.@preserve formula_buffer unsafe_string(pointer(formula_buffer))
-  p_factor, formula
+  return p_factor, formula
 end
 
 """
-    XPRSslpgetcoefstr(prob, row, col, maxbytes)::factor, formula, nbytes
+    XPRSslpgetcoefstr(prob, row, col, maxbytes)::Tuple{Float64,String,Int32}
 
 Retrieve a single matrix coefficient as a formula in a character string.
 
@@ -23996,12 +24036,12 @@ For a simpler version of this function see XPRSnlpgetformulastr.
 - `maxbytes::Integer`: Length of the `formula` buffer.
 # Return values
 - `factor::Float64`: Address of a double precision variable to receive the value of the constant factor multiplying the formula in the coefficient.
-- `formula::AbstractString`: Character buffer in which the formula will be placed in the same format as used for input from a file.
+- `formula::String`: Character buffer in which the formula will be placed in the same format as used for input from a file.
 - `nbytes::Int32`: Will be set to the length of the formula, not including the null terminator.
 
 See also the documentation of the correponding function [XPRSslpgetcoefstr](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpgetcoefstr.html) in the C API.
 """
-function XPRSslpgetcoefstr(prob::XPRSprob, row, col, maxbytes)::Tuple{Float64,AbstractString,Int32}
+function XPRSslpgetcoefstr(prob::XPRSprob, row, col, maxbytes)::Tuple{Float64,String,Int32}
   rowxx = Int32(row)
   colxx = Int32(col)
   p_factor_dummy = Ref{Float64}(0)
@@ -24017,11 +24057,11 @@ function XPRSslpgetcoefstr(prob::XPRSprob, row, col, maxbytes)::Tuple{Float64,Ab
   p_factor = p_factor_dummy[]
   formula = GC.@preserve formula_buffer unsafe_string(pointer(formula_buffer))
   p_nbytes = p_nbytes_dummy[]
-  p_factor, formula, p_nbytes
+  return p_factor, formula, p_nbytes
 end
 
 """
-    XPRSslpsetdetrow(prob, nvars, colind, rowind)::prob
+    XPRSslpsetdetrow(prob, nvars, colind, rowind)::XPRSprob
 
 Set the determining row of a variable
 
@@ -24057,11 +24097,11 @@ function XPRSslpsetdetrow(prob::XPRSprob, nvars, colind, rowind)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSslpaddcoefs(prob, ncoefs, rowind, colind, factor, formulastart, parsed, type, value)::prob
+    XPRSslpaddcoefs(prob, ncoefs, rowind, colind, factor, formulastart, parsed, type, value)::XPRSprob
 
 Add non-linear coefficients to the SLP problem.
 
@@ -24133,11 +24173,11 @@ function XPRSslpaddcoefs(prob::XPRSprob, ncoefs, rowind, colind, factor, formula
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSslpchgccoef(prob, row, col, factor, formula)::prob
+    XPRSslpchgccoef(prob, row, col, factor, formula)::XPRSprob
 
 **Deprecated**Use XPRSslpchgcoefstr instead.
 
@@ -24173,11 +24213,11 @@ function XPRSslpchgccoef(prob::XPRSprob, row, col, factor::Union{Nothing,Float64
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSslpchgcoefstr(prob, row, col, factor, formula)::prob
+    XPRSslpchgcoefstr(prob, row, col, factor, formula)::XPRSprob
 
 Add or change a single matrix coefficient using a character string for the formula.
 
@@ -24213,11 +24253,11 @@ function XPRSslpchgcoefstr(prob::XPRSprob, row, col, factor::Union{Nothing,Float
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSslpchgcoef(prob, row, col, factor, parsed, type, value)::prob
+    XPRSslpchgcoef(prob, row, col, factor, parsed, type, value)::XPRSprob
 
 Add or change a single matrix coefficient using a parsed or unparsed formula.
 
@@ -24265,11 +24305,11 @@ function XPRSslpchgcoef(prob::XPRSprob, row, col, factor::Union{Nothing,Float64}
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSslpgetcolinfoint(prob, type, col)::info
+    XPRSslpgetcolinfoint(prob, type, col)::Int32
 
 Get current column information.
 
@@ -24293,11 +24333,11 @@ function XPRSslpgetcolinfoint(prob::XPRSprob, type, col)::Int32
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_info = p_info_dummy[]
-  p_info
+  return p_info
 end
 
 """
-    XPRSslpgetcolinfodouble(prob, type, col)::info
+    XPRSslpgetcolinfodouble(prob, type, col)::Float64
 
 Get current column information.
 
@@ -24321,11 +24361,11 @@ function XPRSslpgetcolinfodouble(prob::XPRSprob, type, col)::Float64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_info = p_info_dummy[]
-  p_info
+  return p_info
 end
 
 """
-    XPRSslpgetrowinfoint(prob, type, row)::info
+    XPRSslpgetrowinfoint(prob, type, row)::Int32
 
 Get current row information.
 
@@ -24349,11 +24389,11 @@ function XPRSslpgetrowinfoint(prob::XPRSprob, type, row)::Int32
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_info = p_info_dummy[]
-  p_info
+  return p_info
 end
 
 """
-    XPRSslpgetrowinfodouble(prob, type, row)::info
+    XPRSslpgetrowinfodouble(prob, type, row)::Float64
 
 Get current row information.
 
@@ -24377,11 +24417,11 @@ function XPRSslpgetrowinfodouble(prob::XPRSprob, type, row)::Float64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_info = p_info_dummy[]
-  p_info
+  return p_info
 end
 
 """
-    XPRSslpcascade(prob)::prob
+    XPRSslpcascade(prob)::XPRSprob
 
 Re-calculate consistent values for SLP variables based on the current values of the remaining variables.
 
@@ -24399,11 +24439,11 @@ function XPRSslpcascade(prob::XPRSprob)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSslpcascadeorder(prob)::prob
+    XPRSslpcascadeorder(prob)::XPRSprob
 
 Establish a re-calculation sequence for SLP variables with determining rows.
 
@@ -24421,11 +24461,11 @@ function XPRSslpcascadeorder(prob::XPRSprob)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSslpchgrowstatus(prob, row, status)::prob
+    XPRSslpchgrowstatus(prob, row, status)::XPRSprob
 
 Change the status setting of a constraint
 
@@ -24451,11 +24491,11 @@ function XPRSslpchgrowstatus(prob::XPRSprob, row, status::Union{Nothing,Int32}):
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSslpchgrowwt(prob, row, weight)::prob
+    XPRSslpchgrowwt(prob, row, weight)::XPRSprob
 
 Set or change the initial penalty error weight for a row
 
@@ -24481,11 +24521,11 @@ function XPRSslpchgrowwt(prob::XPRSprob, row, weight::Union{Nothing,Float64})::X
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSslpchgdeltatype(prob, nvars, varind, deltatypes, values)::prob
+    XPRSslpchgdeltatype(prob, nvars, varind, deltatypes, values)::XPRSprob
 
 Changes the type of the delta assigned to a nonlinear variable
 
@@ -24529,11 +24569,11 @@ function XPRSslpchgdeltatype(prob::XPRSprob, nvars, varind, deltatypes, values):
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSslpchgcascadenlimit(prob, col, limit)::prob
+    XPRSslpchgcascadenlimit(prob, col, limit)::XPRSprob
 
 Set a variable specific cascade iteration limit
 
@@ -24555,11 +24595,11 @@ function XPRSslpchgcascadenlimit(prob::XPRSprob, col, limit)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSslpconstruct(prob)::prob
+    XPRSslpconstruct(prob)::XPRSprob
 
 Create the full augmented SLP matrix and data structures, ready for optimization
 
@@ -24577,11 +24617,11 @@ function XPRSslpconstruct(prob::XPRSprob)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSslpgetrowstatus(prob, row)::status
+    XPRSslpgetrowstatus(prob, row)::Int32
 
 Retrieve the status setting of a constraint
 
@@ -24603,11 +24643,11 @@ function XPRSslpgetrowstatus(prob::XPRSprob, row)::Int32
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_status = p_status_dummy[]
-  p_status
+  return p_status
 end
 
 """
-    XPRSslpgetrowwt(prob, row)::weight
+    XPRSslpgetrowwt(prob, row)::Float64
 
 Get the initial penalty error weight for a row
 
@@ -24629,11 +24669,11 @@ function XPRSslpgetrowwt(prob::XPRSprob, row)::Float64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_weight = p_weight_dummy[]
-  p_weight
+  return p_weight
 end
 
 """
-    XPRSslpevaluatecoef(prob, row, col)::value
+    XPRSslpevaluatecoef(prob, row, col)::Float64
 
 Evaluate a coefficient using the current values of the variables
 
@@ -24657,11 +24697,11 @@ function XPRSslpevaluatecoef(prob::XPRSprob, row, col)::Float64
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_value = p_value_dummy[]
-  p_value
+  return p_value
 end
 
 """
-    XPRSslpreinitialize(prob)::prob
+    XPRSslpreinitialize(prob)::XPRSprob
 
 Reset the SLP problem to match a just augmented system
 
@@ -24679,11 +24719,11 @@ function XPRSslpreinitialize(prob::XPRSprob)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSslpunconstruct(prob)::prob
+    XPRSslpunconstruct(prob)::XPRSprob
 
 Removes the augmentation and returns the problem to its pre-linearization state
 
@@ -24701,11 +24741,11 @@ function XPRSslpunconstruct(prob::XPRSprob)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSslpupdatelinearization(prob)::prob
+    XPRSslpupdatelinearization(prob)::XPRSprob
 
 Updates the current linearization
 
@@ -24723,11 +24763,11 @@ function XPRSslpupdatelinearization(prob::XPRSprob)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSslpfixpenalties(prob)::status
+    XPRSslpfixpenalties(prob)::Int32
 
 Fixe the values of the error vectors
 
@@ -24747,11 +24787,11 @@ function XPRSslpfixpenalties(prob::XPRSprob)::Int32
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   p_status = p_status_dummy[]
-  p_status
+  return p_status
 end
 
 """
-    XPRSnlppostsolve(prob)::prob
+    XPRSnlppostsolve(prob)::XPRSprob
 
 Restores the problem to its pre-solve state
 
@@ -24769,11 +24809,11 @@ function XPRSnlppostsolve(prob::XPRSprob)::XPRSprob
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
-    XPRSnlpcalcslacks(prob, solution, slack)::slack
+    XPRSnlpcalcslacks(prob, solution, slack)::AbstractVector{Float64}
 
 Calculate the slack values for the provided solution in the non-linear problem
 
@@ -24808,11 +24848,11 @@ function XPRSnlpcalcslacks(prob::XPRSprob, solution, slack::Union{XPRSallocatabl
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  slack
+  return slack
 end
 
 """
-    XPRSslpsetinitstepbounds(prob, ncols, colind, initial)::prob
+    XPRSslpsetinitstepbounds(prob, ncols, colind, initial)::XPRSprob
 
 Set the initial step bounds of columns
 
@@ -24848,7 +24888,7 @@ function XPRSslpsetinitstepbounds(prob::XPRSprob, ncols, colind, initial)::XPRSp
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
-  prob
+  return prob
 end
 
 """
@@ -24864,7 +24904,7 @@ end
 
 
 """
-    XPRS_bo_store(bo)::status
+    XPRS_bo_store(bo)::Int32
 
 Adds a new user branching object to the Optimizer's list of candidates for branching.
 
@@ -24885,7 +24925,7 @@ function XPRS_bo_store(bo::XPRSbranchobject)::Int32
     throw(XPRSexception("Xpress error " * string(retcode), nothing))
   end
   p_status = p_status_dummy[]
-  p_status
+  return p_status
 end
 
 """
@@ -24906,11 +24946,11 @@ function XPRS_bo_addbranches(bo::XPRSbranchobject, nbranches)::Nothing
   if retcode != 0
     throw(XPRSexception("Xpress error " * string(retcode), nothing))
   end
-  nothing
+  return nothing
 end
 
 """
-    XPRS_bo_getbranches(bo)::nbranches
+    XPRS_bo_getbranches(bo)::Int32
 
 Returns the number of branches of a branching object.
 
@@ -24929,7 +24969,7 @@ function XPRS_bo_getbranches(bo::XPRSbranchobject)::Int32
     throw(XPRSexception("Xpress error " * string(retcode), nothing))
   end
   p_nbranches = p_nbranches_dummy[]
-  p_nbranches
+  return p_nbranches
 end
 
 """
@@ -24950,7 +24990,7 @@ function XPRS_bo_setpriority(bo::XPRSbranchobject, priority)::Nothing
   if retcode != 0
     throw(XPRSexception("Xpress error " * string(retcode), nothing))
   end
-  nothing
+  return nothing
 end
 
 """
@@ -24971,7 +25011,7 @@ function XPRS_bo_setpreferredbranch(bo::XPRSbranchobject, branch)::Nothing
   if retcode != 0
     throw(XPRSexception("Xpress error " * string(retcode), nothing))
   end
-  nothing
+  return nothing
 end
 
 """
@@ -25018,11 +25058,11 @@ function XPRS_bo_addbounds(bo::XPRSbranchobject, branch, nbounds, bndtype, colin
   if retcode != 0
     throw(XPRSexception("Xpress error " * string(retcode), nothing))
   end
-  nothing
+  return nothing
 end
 
 """
-    XPRS_bo_getbounds(bo, branch, maxbounds, bndtype, colind, bndval)::nbounds, bndtype, colind, bndval
+    XPRS_bo_getbounds(bo, branch, maxbounds, bndtype, colind, bndval)::Tuple{Int32,Union{Nothing,AbstractVector{Cchar}},Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Float64}}}
 
 Returns the bounds for a branch of a user branching object.
 
@@ -25078,7 +25118,7 @@ function XPRS_bo_getbounds(bo::XPRSbranchobject, branch, maxbounds, bndtype::Uni
     throw(XPRSexception("Xpress error " * string(retcode), nothing))
   end
   p_nbounds = p_nbounds_dummy[]
-  p_nbounds, bndtype, colind, bndval
+  return p_nbounds, bndtype, colind, bndval
 end
 
 """
@@ -25143,11 +25183,11 @@ function XPRS_bo_addrows(bo::XPRSbranchobject, branch, nrows, ncoefs, rowtype, r
   if retcode != 0
     throw(XPRSexception("Xpress error " * string(retcode), nothing))
   end
-  nothing
+  return nothing
 end
 
 """
-    XPRS_bo_getrows(bo, branch, maxrows, maxcoefs, rowtype, rhs, start, colind, rowcoef)::nrows, ncoefs, rowtype, rhs, start, colind, rowcoef
+    XPRS_bo_getrows(bo, branch, maxrows, maxcoefs, rowtype, rhs, start, colind, rowcoef)::Tuple{Int32,Int32,Union{Nothing,AbstractVector{Cchar}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Float64}}}
 
 Returns the constraints for a branch of a user branching object.
 
@@ -25230,7 +25270,7 @@ function XPRS_bo_getrows(bo::XPRSbranchobject, branch, maxrows, maxcoefs, rowtyp
   end
   p_nrows = p_nrows_dummy[]
   p_ncoefs = p_ncoefs_dummy[]
-  p_nrows, p_ncoefs, rowtype, rhs, start, colind, rowcoef
+  return p_nrows, p_ncoefs, rowtype, rhs, start, colind, rowcoef
 end
 
 """
@@ -25261,11 +25301,11 @@ function XPRS_bo_addcuts(bo::XPRSbranchobject, branch, ncuts, cutind)::Nothing
   if retcode != 0
     throw(XPRSexception("Xpress error " * string(retcode), nothing))
   end
-  nothing
+  return nothing
 end
 
 """
-    XPRS_bo_getid(bo)::id
+    XPRS_bo_getid(bo)::Int32
 
 Returns the unique identifier assigned to a branching object.
 
@@ -25284,11 +25324,11 @@ function XPRS_bo_getid(bo::XPRSbranchobject)::Int32
     throw(XPRSexception("Xpress error " * string(retcode), nothing))
   end
   p_id = p_id_dummy[]
-  p_id
+  return p_id
 end
 
 """
-    XPRS_bo_getlasterror(bo, maxbytes)::msgcode, msg, nbytes
+    XPRS_bo_getlasterror(bo, maxbytes)::Tuple{Int32,String,Int32}
 
 Returns the last error encountered during a call to the given branch object.
 
@@ -25297,12 +25337,12 @@ Returns the last error encountered during a call to the given branch object.
 - `maxbytes::Integer`: The size of the character buffer `msg`.
 # Return values
 - `msgcode::Int32`: Location where the error code will be returned.
-- `msg::AbstractString`: A character buffer of size `maxbytes` in which the last error message relating to the given branching object will be returned.
+- `msg::String`: A character buffer of size `maxbytes` in which the last error message relating to the given branching object will be returned.
 - `nbytes::Int32`: The size of the required character buffer to fully return the error string.
 
 See also the documentation of the correponding function [XPRS_bo_getlasterror](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRS_bo_getlasterror.html) in the C API.
 """
-function XPRS_bo_getlasterror(bo::XPRSbranchobject, maxbytes)::Tuple{Int32,AbstractString,Int32}
+function XPRS_bo_getlasterror(bo::XPRSbranchobject, maxbytes)::Tuple{Int32,String,Int32}
   p_msgcode_dummy = Ref{Int32}(0)
   msg_buffer = Vector{Cchar}(undef, maxbytes)
   maxbytesxx = Int32(maxbytes)
@@ -25315,11 +25355,11 @@ function XPRS_bo_getlasterror(bo::XPRSbranchobject, maxbytes)::Tuple{Int32,Abstr
   p_msgcode = p_msgcode_dummy[]
   msg = GC.@preserve msg_buffer unsafe_string(pointer(msg_buffer))
   p_nbytes = p_nbytes_dummy[]
-  p_msgcode, msg, p_nbytes
+  return p_msgcode, msg, p_nbytes
 end
 
 """
-    XPRS_bo_validate(bo)::status
+    XPRS_bo_validate(bo)::Int32
 
 Verifies that a given branching object is valid for branching on the current branch-and-bound node of a MIP solve.
 
@@ -25340,14 +25380,14 @@ function XPRS_bo_validate(bo::XPRSbranchobject)::Int32
     throw(XPRSexception("Xpress error " * string(retcode), nothing))
   end
   p_status = p_status_dummy[]
-  p_status
+  return p_status
 end
 
 function cblplog(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid})::Cint
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     ret = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     ret = jcbnode.closure(prob_for_cb)
     end
   catch ex
@@ -25406,7 +25446,7 @@ function cbmiplog(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid})::Cint
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     ret = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     ret = jcbnode.closure(prob_for_cb)
     end
   catch ex
@@ -25465,7 +25505,7 @@ function cbcutlog(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid})::Cint
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     ret = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     ret = jcbnode.closure(prob_for_cb)
     end
   catch ex
@@ -25524,7 +25564,7 @@ function cbbarlog(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid})::Cint
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     ret = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     ret = jcbnode.closure(prob_for_cb)
     end
   catch ex
@@ -25583,7 +25623,7 @@ function cboptnode(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, p_infeasible::Ptr{Cin
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     p_infeasible_out = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     p_infeasible_in = unsafe_load(p_infeasible)
     p_infeasible_out = jcbnode.closure(prob_for_cb)
     end
@@ -25645,7 +25685,7 @@ function cbprenode(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, p_infeasible::Ptr{Cin
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     p_infeasible_out = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     p_infeasible_in = unsafe_load(p_infeasible)
     p_infeasible_out = jcbnode.closure(prob_for_cb)
     end
@@ -25706,7 +25746,7 @@ end
 function cbinfnode(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid})::Nothing
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     jcbnode.closure(prob_for_cb)
     end
   catch ex
@@ -25764,7 +25804,7 @@ end
 function cbnodecutoff(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, node::Cint)::Nothing
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     jcbnode.closure(prob_for_cb, node)
     end
   catch ex
@@ -25823,7 +25863,7 @@ end
 function cbintsol(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid})::Nothing
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     jcbnode.closure(prob_for_cb)
     end
   catch ex
@@ -25883,7 +25923,7 @@ function cbpreintsol(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, soltype::Cint, p_re
   try
     p_reject_out = nothing
     p_cutoff_out = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     p_reject_in = unsafe_load(p_reject)
     p_cutoff_in = unsafe_load(p_cutoff)
     p_reject_out, p_cutoff_out = jcbnode.closure(prob_for_cb, soltype, p_cutoff_in)
@@ -25948,7 +25988,7 @@ end
 function cbmessage(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, msg::Ptr{Cchar}, msglen::Cint, msgtype::Cint)::Nothing
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     msg_for_cb = msg != C_NULL ? unsafe_string(msg) : ""
     jcbnode.closure(prob_for_cb, msg_for_cb, msglen, msgtype)
     end
@@ -26010,8 +26050,8 @@ end
 function cbmipthread(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, threadprob::Ptr{Cvoid})::Nothing
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
-    callbackProb(cbprob) do prob_for_cb
-    callbackProb(threadprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
+    callbackProb(threadprob, jcbnode) do prob_for_cb
     jcbnode.closure(prob_for_cb, prob_for_cb)
     end
     end
@@ -26071,7 +26111,7 @@ end
 function cbdestroymt(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid})::Nothing
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     jcbnode.closure(prob_for_cb)
     end
   catch ex
@@ -26130,7 +26170,7 @@ function cbbariteration(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, p_action::Ptr{Ci
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     p_action_out = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     p_action_in = unsafe_load(p_action)
     p_action_out = jcbnode.closure(prob_for_cb)
     end
@@ -26191,7 +26231,7 @@ end
 function cbpresolve(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid})::Nothing
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     jcbnode.closure(prob_for_cb)
     end
   catch ex
@@ -26249,7 +26289,7 @@ end
 function cbnewnode(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, parentnode::Cint, node::Cint, branch::Cint)::Nothing
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     jcbnode.closure(prob_for_cb, parentnode, node, branch)
     end
   catch ex
@@ -26311,7 +26351,7 @@ function cbchgbranchobject(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, branch::Ptr{C
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     p_newbranch_out = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     branch_in = XPRSbranchobject(branch, false)
     p_newbranch_in = Ref{Ptr{Cvoid}}(C_NULL)
     p_newbranch_out = jcbnode.closure(prob_for_cb, branch_in)
@@ -26381,7 +26421,7 @@ function cbgapnotify(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, p_relgapnotifytarge
     p_absgapnotifytarget_out = nothing
     p_absgapnotifyobjtarget_out = nothing
     p_absgapnotifyboundtarget_out = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     p_relgapnotifytarget_in = unsafe_load(p_relgapnotifytarget)
     p_absgapnotifytarget_in = unsafe_load(p_absgapnotifytarget)
     p_absgapnotifyobjtarget_in = unsafe_load(p_absgapnotifyobjtarget)
@@ -26451,7 +26491,7 @@ end
 function cbusersolnotify(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, solname::Ptr{Cchar}, status::Cint)::Nothing
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     solname_for_cb = solname != C_NULL ? unsafe_string(solname) : ""
     jcbnode.closure(prob_for_cb, solname_for_cb, status)
     end
@@ -26512,7 +26552,7 @@ end
 function cbnodelpsolved(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid})::Nothing
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     jcbnode.closure(prob_for_cb)
     end
   catch ex
@@ -26570,7 +26610,7 @@ end
 function cbcomputerestart(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid})::Nothing
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     jcbnode.closure(prob_for_cb)
     end
   catch ex
@@ -26629,7 +26669,7 @@ function cbstrongbranchsolve(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, bndidx::Cin
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     ret = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     ret = jcbnode.closure(prob_for_cb, bndidx)
     end
   catch ex
@@ -26685,7 +26725,7 @@ end
 function cbbeforeobjective(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid})::Nothing
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     jcbnode.closure(prob_for_cb)
     end
   catch ex
@@ -26743,7 +26783,7 @@ end
 function cbafterobjective(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid})::Nothing
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     jcbnode.closure(prob_for_cb)
     end
   catch ex
@@ -26802,7 +26842,7 @@ function cbchecktime(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid})::Cint
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     ret = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     ret = jcbnode.closure(prob_for_cb)
     end
   catch ex
@@ -26861,7 +26901,7 @@ function cbcutround(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, ifxpresscuts::Cint, 
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     p_action_out = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     p_action_in = unsafe_load(p_action)
     p_action_out = jcbnode.closure(prob_for_cb, ifxpresscuts)
     end
@@ -26924,7 +26964,7 @@ function cbslpcascadeend(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid})::Cint
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     ret = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     ret = jcbnode.closure(prob_for_cb)
     end
   catch ex
@@ -26983,7 +27023,7 @@ function cbslpcascadestart(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid})::Cint
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     ret = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     ret = jcbnode.closure(prob_for_cb)
     end
   catch ex
@@ -27042,7 +27082,7 @@ function cbslpcascadevar(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, col::Cint)::Cin
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     ret = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     ret = jcbnode.closure(prob_for_cb, col)
     end
   catch ex
@@ -27102,7 +27142,7 @@ function cbslpcascadevarfail(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, col::Cint):
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     ret = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     ret = jcbnode.closure(prob_for_cb, col)
     end
   catch ex
@@ -27162,7 +27202,7 @@ function cbslpconstruct(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid})::Cint
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     ret = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     ret = jcbnode.closure(prob_for_cb)
     end
   catch ex
@@ -27221,7 +27261,7 @@ function cbslpintsol(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid})::Cint
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     ret = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     ret = jcbnode.closure(prob_for_cb)
     end
   catch ex
@@ -27280,7 +27320,7 @@ function cbslpiterend(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid})::Cint
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     ret = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     ret = jcbnode.closure(prob_for_cb)
     end
   catch ex
@@ -27339,7 +27379,7 @@ function cbslpiterstart(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid})::Cint
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     ret = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     ret = jcbnode.closure(prob_for_cb)
     end
   catch ex
@@ -27398,7 +27438,7 @@ function cbslpitervar(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, col::Cint)::Cint
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     ret = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     ret = jcbnode.closure(prob_for_cb, col)
     end
   catch ex
@@ -27459,7 +27499,7 @@ function cbslpdrcol(cbprob::Ptr{Cvoid}, data::Ptr{Cvoid}, col::Cint, detcol::Cin
   try
     ret = nothing
     p_value_out = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     p_value_in = unsafe_load(p_value)
     ret, p_value_out = jcbnode.closure(prob_for_cb, col, detcol, detval, lb, ub)
     end
@@ -27527,7 +27567,7 @@ function cbmsjobstart(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, jobdata::Ptr{Cvoid
   try
     ret = nothing
     p_status_out = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     jobdata_node = unsafe_pointer_to_objref(jobdata)::CallbackNode
     jobdesc_for_cb = jobdesc != C_NULL ? unsafe_string(jobdesc) : ""
     p_status_in = unsafe_load(p_status)
@@ -27594,7 +27634,7 @@ function cbmsjobend(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, jobdata::Ptr{Cvoid},
   try
     ret = nothing
     p_status_out = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     jobdata_node = unsafe_pointer_to_objref(jobdata)::CallbackNode
     jobdesc_for_cb = jobdesc != C_NULL ? unsafe_string(jobdesc) : ""
     p_status_in = unsafe_load(p_status)
@@ -27660,7 +27700,7 @@ function cbmswinner(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, jobdata::Ptr{Cvoid},
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     ret = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     jobdata_node = unsafe_pointer_to_objref(jobdata)::CallbackNode
     jobdesc_for_cb = jobdesc != C_NULL ? unsafe_string(jobdesc) : ""
     ret = jcbnode.closure(prob_for_cb, jobdata_node.closure, jobdesc_for_cb)
@@ -27723,7 +27763,7 @@ function cbnlpcoefevalerror(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, col::Cint, r
   jcbnode = unsafe_pointer_to_objref(cbdata)::CallbackNode
   try
     ret = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     ret = jcbnode.closure(prob_for_cb, col, row)
     end
   catch ex
@@ -27785,7 +27825,7 @@ function cbslppreupdatelinearization(cbprob::Ptr{Cvoid}, cbdata::Ptr{Cvoid}, ifr
   try
     ret = nothing
     ifrepeat_out = nothing
-    callbackProb(cbprob) do prob_for_cb
+    callbackProb(cbprob, jcbnode) do prob_for_cb
     ifrepeat_in = unsafe_load(ifrepeat)
     ret, ifrepeat_out = jcbnode.closure(prob_for_cb)
     end
