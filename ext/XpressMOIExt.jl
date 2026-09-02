@@ -206,6 +206,9 @@ import MathOptInterface as MOI
 
 function __init__()
     setglobal!(XpressAPI, :Optimizer, Optimizer)
+    # Expose the raw solver callback hook at the package root so users can reach
+    # it as `XpressAPI.CallbackFunction` (mirrors how `Optimizer` is exposed).
+    setglobal!(XpressAPI, :CallbackFunction, CallbackFunction)
     return
 end
 

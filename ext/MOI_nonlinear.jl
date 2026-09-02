@@ -457,9 +457,12 @@ function get_types_and_values(model, tokens)
 end
 
 # Non-Linear constraints
+# The set is bounded to `Precision` so the bridge layer does not route a
+# non-Float64 coefficient set (e.g. EqualTo{UInt8}) here via a
+# FunctionConversionBridge (see test_model_supports_constraint_*_EqualTo).
 function MOI.supports_constraint(model::Optimizer, ::Type{F}, ::Type{S})::Bool where {
         F <: MOI.ScalarNonlinearFunction,
-        S <: Union{MOI.GreaterThan, MOI.LessThan, MOI.EqualTo}
+        S <: Union{MOI.GreaterThan{Precision}, MOI.LessThan{Precision}, MOI.EqualTo{Precision}}
     }
     return true
 end
@@ -487,8 +490,8 @@ function MOI.add_constraint(model::Optimizer, func::F, set::S)::MOI.ConstraintIn
         MOI.Utilities.canonicalize!(_func)
     end
 
-    index = MOI.add_constraint(model, MOI.ScalarAffineFunction{Precision}([MOI.ScalarAffineTerm{Precision}(0.0, MOI.VariableIndex(1))], 0.0), set)
-    c = _XPRS_constraint_from_moi_index(model, index)
+    affine_index = MOI.add_constraint(model, MOI.ScalarAffineFunction{Precision}([MOI.ScalarAffineTerm{Precision}(0.0, MOI.VariableIndex(1))], 0.0), set)
+    c = _XPRS_constraint_from_moi_index(model, affine_index)
 
     # See https://www.fico.com/fico-xpress-optimization/docs/latest/solver/nonlinear/HTML/XSLPaddformulas.html
     # Transform the non-linear expression into a postfix (reverse Polish) stack
@@ -520,8 +523,14 @@ function MOI.add_constraint(model::Optimizer, func::F, set::S)::MOI.ConstraintIn
         value
     )
 
-    # Flag as NL constraint
-    return _XPRS_register_new_constraint_as(model, c, func, set)
+    # Flag as NL constraint. Re-file `c` under the ScalarNonlinearFunction bucket
+    # and drop the ScalarAffineFunction entry created above, otherwise the affine
+    # bucket keeps a phantom index whose function is nonlinear -- iterating it
+    # (e.g. the DualObjectiveValue fallback) throws converting the nonlinear
+    # function to affine.
+    nl_index = _XPRS_register_new_constraint_as(model, c, func, set)
+    _XPRS_unregister_constraint(model, affine_index)
+    return nl_index
 end
 
 # https://jump.dev/MathOptInterface.jl/stable/reference/models/#MathOptInterface.UserDefinedFunction
