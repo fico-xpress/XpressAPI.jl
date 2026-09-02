@@ -235,6 +235,13 @@ mutable struct Constraint
     # Index in the Xpress problem/matrix (row number)
     xprs_index::Int
 
+    # Index in the Xpress SOS-set table (set number), for SOS1/SOS2 constraints.
+    # -1 for every non-SOS constraint. Needed because SOS sets live in a separate
+    # Xpress index space from rows: deleting one of several sets must target the
+    # right set and renumber the survivors, and the -2 xprs_index sentinel shared
+    # by all non-row constraints cannot distinguish sets from one another.
+    xprs_set_index::Int
+
     # Store function type for problem type detection
     # A Constraint can have multiple types
     # For example, when adding a Quadratic constraint, Linear constraint 0x + 0 = 0 is added
@@ -244,9 +251,6 @@ mutable struct Constraint
     moi_set_type::Type{<: MOI.AbstractSet}
     moi_fct_value::MOI.AbstractFunction
     moi_set_value::MOI.AbstractSet
-
-    # Buffer to avoid allocation when retrieving solution from Xpress
-    solbuffer::Array{Precision, 1}
 
     # If the constraint generated subconstraints
     # Like VectorAffineFunction actually generates a set of ScalarAffineFunction
@@ -269,11 +273,11 @@ mutable struct Constraint
         return new(
             moi_index,
             xprs_index,
+            -1,
             moi_fct_type,
             moi_set_type,
             moi_fct_value,
             moi_set_value,
-            Precision[NaN],
             Vector{Constraint}(),
             nothing
         )
@@ -287,9 +291,19 @@ mutable struct IISData
     ncols::Int
     rowind
     colind
+    # Bound type of each column in the IIS, aligned with `colind`. Per
+    # XPRSgetiisdata these are 'L' (lower bound), 'U' (upper bound), 'F' (fixed
+    # column), 'B' (binary), 'I' (integer), 'P' (partial integer), 'S'
+    # (semi-continuous) and 'R' (semi-continuous integer). A variable can appear
+    # more than once (e.g. contradictory lower and upper bounds), so a bare
+    # column index is not enough to decide a bound/type constraint's
+    # participation
+    bndtype
+    # Sense of each row in the IIS, aligned with `rowind`: 'L'/'G'/'E'.
+    contype
 
     function IISData(iisnumber::Int, status::Int32)
-        return new(iisnumber, status, -1, -1, zeros(Int32, 0), zeros(Int32, 0))
+        return new(iisnumber, status, -1, -1, zeros(Int32, 0), zeros(Int32, 0), Cchar[], Cchar[])
     end
 end
 
@@ -334,8 +348,62 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     # List of IIS structures found so far
     iisdata::Vector{IISData}
 
+    # Outcome of the last `compute_conflict!` call, reported by `ConflictStatus`.
+    # Distinct from the per-IIS status: a feasible model or a pure-bound
+    # infeasibility (which Xpress IIS refuses to refine) records a conflict
+    # status here even though no IISData is produced.
+    conflict_status::MOI.ConflictStatusCode
+
     # Is the model MIP ?
     has_integer_variables::Bool
+
+    # Farkas (dual) certificate for an infeasible LP. `has_dual_ray` records
+    # whether the last solve produced a usable dual ray; `dual_ray` then holds
+    # that ray indexed by Xpress row (length ROWS). Populated by optimize! and
+    # consumed by the ConstraintDual getters -- see `_ensure_dual_ray!`.
+    has_dual_ray::Bool
+    dual_ray::Vector{Precision}
+
+    # Cached primal solution for the last solve. `has_primal_solution` records
+    # whether `primal_solution` holds the current incumbent (length ORIGINALCOLS,
+    # indexed by Xpress column); it is filled lazily on the first VariablePrimal query and
+    # reset by optimize! and empty!. Caching the whole vector once avoids the O(n)
+    # cost of one XPRSgetsolution call per variable. See `_ensure_primal_solution!`.
+    has_primal_solution::Bool
+    primal_solution::Vector{Precision}
+
+    # Cached solution vectors for the constraint getters, filled lazily on the
+    # first ConstraintPrimal / ConstraintDual query after a solve and reset by
+    # optimize! and empty!. Same rationale as `primal_solution`: avoid one C call
+    # per row/column. `slack_solution`/`rhs_values` (length ORIGINALROWS) back
+    # ConstraintPrimal; `row_dual_solution` (length ORIGINALROWS) and
+    # `reduced_cost_solution` (length ORIGINALCOLS) back ConstraintDual. The Farkas-ray
+    # dual path uses `dual_ray` above instead and does not touch these.
+    has_constraint_primal::Bool
+    slack_solution::Vector{Precision}
+    rhs_values::Vector{Precision}
+    has_row_dual::Bool
+    row_dual_solution::Vector{Precision}
+    has_reduced_cost::Bool
+    reduced_cost_solution::Vector{Precision}
+
+    # --- Lazy-constraint callback coordination (see MOI_callbacks.jl) ---
+    # The user's `LazyConstraintCallback`, or `nothing` if none is set.
+    lazy_callback::Union{Nothing, Function}
+    # Cut handles produced by `submit(LazyConstraint)` for candidates that are
+    # *not* the node relaxation (soltype != 0), stored via `XPRSstorecuts` and
+    # flushed into the tree by the optnode hook. Cuts are only locally valid, so
+    # they must not be shared between MIP threads: the buffer is keyed by the
+    # Xpress MIP thread id (`MIPTHREADID`) and each thread only ever touches its
+    # own entry. `lazy_lock` guards the Dict itself against concurrent insertion.
+    # Xpress cut handles are opaque `Ptr{Cvoid}`.
+    lazy_pending_cuts::Dict{Int, Vector{Ptr{Cvoid}}}
+    lazy_lock::ReentrantLock
+    # `soltype` of the `preintsol` callback currently executing, keyed by MIP
+    # thread id so concurrent threads do not clobber each other, so that
+    # `submit(LazyConstraint)` can branch on it (add cuts directly when it is 0,
+    # defer otherwise). A missing entry means "not inside a preintsol callback".
+    lazy_soltype::Dict{Int, Int}
 
     function Optimizer(; name::String = "", kwargs...)
         model = new(
@@ -353,7 +421,28 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             nothing,
             Dict{Symbol, Int}(),
             Vector{IISData}(),
-            false
+            MOI.COMPUTE_CONFLICT_NOT_CALLED,
+            false,
+            # No dual ray until a solve produces one.
+            false,
+            Precision[],
+            # No primal solution cached until a solve produces one.
+            false,
+            Precision[],
+            # No constraint-primal / dual / reduced-cost caches until a solve.
+            false,
+            Precision[],
+            Precision[],
+            false,
+            Precision[],
+            false,
+            Precision[],
+            # No lazy callback / no pending lazy cuts until one is set.
+            nothing,
+            Dict{Int, Vector{Ptr{Cvoid}}}(),
+            ReentrantLock(),
+            # Not inside a preintsol callback on any thread.
+            Dict{Int, Int}()
         )
 
         # MOI Advises for solvers to have verbosity ON by default
@@ -401,16 +490,19 @@ function MOI.empty!(model::Optimizer)
     empty!(model.variables)
     empty!(model.constraints)
     if !isnothing(model.nlp_model)
-        empty!(model.nlp_model)
+        # MOI.Nonlinear.Model implements MOI.empty!, not Base.empty!.
+        MOI.empty!(model.nlp_model)
     end
     empty!(model.user_func_mapping)
     empty!(model.iisdata)
+    model.conflict_status = MOI.COMPUTE_CONFLICT_NOT_CALLED
     empty!(model.objectives)
     # Reset states
     model.objective_type = MOI.ScalarAffineFunction{Precision}
     model.last_solve_status = XPRS_SOLVESTATUS_UNSTARTED
     model.last_solution_status = XPRS_SOLSTATUS_NOTFOUND
     model.has_integer_variables = false
+    _invalidate_solution_caches!(model)
     # Load an empty matrix into the inner problem
     XPRSloadlp(
         model.inner,
@@ -513,19 +605,34 @@ MOI.supports(::Optimizer, ::MOI.Silent)::Bool = true
 MOI.set(model::Optimizer, ::MOI.Silent, b::Bool) = b ? XPRSsetcontrol(model.inner, "OUTPUTLOG", XPRS_OUTPUTLOG_NO_OUTPUT) : XPRSsetcontrol(model.inner, "OUTPUTLOG", XPRS_OUTPUTLOG_FULL_OUTPUT)
 MOI.get(model::Optimizer, ::MOI.Silent)::Bool = XPRSgetcontrol(model.inner, "OUTPUTLOG") == XPRS_OUTPUTLOG_NO_OUTPUT
 
+# Xpress represents "no node limit" as MAXNODE == typemax(Int32); MOI represents
+# it as `nothing`. Translate both ways so that setting `nothing` clears the limit
+# and getting the default reports `nothing` (per the MOI NodeLimit contract).
+const _XPRS_NODELIMIT_UNLIMITED = typemax(Int32)
 MOI.supports(::Optimizer, ::MOI.NodeLimit)::Bool = true
-MOI.get(model::Optimizer, ::MOI.NodeLimit) = MOI.get(model, MOI.RawOptimizerAttribute("MAXNODE"))
+function MOI.get(model::Optimizer, ::MOI.NodeLimit)::Union{Nothing,Int}
+    limit = MOI.get(model, MOI.RawOptimizerAttribute("MAXNODE"))
+    return limit == _XPRS_NODELIMIT_UNLIMITED ? nothing : Int(limit)
+end
 function MOI.set(model::Optimizer, ::MOI.NodeLimit, limit::Union{Nothing,Int})::Nothing
-    if !isnothing(limit)
-        MOI.set(model, MOI.RawOptimizerAttribute("MAXNODE"), limit)
-    end
+    MOI.set(model, MOI.RawOptimizerAttribute("MAXNODE"),
+        isnothing(limit) ? _XPRS_NODELIMIT_UNLIMITED : limit)
     return nothing
 end
 
+# Xpress represents "no time limit" as TIMELIMIT >= 1e20; MOI represents it as
+# `nothing`. TIMELIMIT is the modern floating-point control (MAXTIME is the
+# deprecated integer one), so getting/setting it honours the MOI value type
+# Union{Nothing,Float64}.
+const _XPRS_TIMELIMIT_UNLIMITED = 1.0e20
 MOI.supports(::Optimizer, ::MOI.TimeLimitSec)::Bool = true
-MOI.get(model::Optimizer, ::MOI.TimeLimitSec) = MOI.get(model, MOI.RawOptimizerAttribute("MAXTIME"))
-function MOI.set(model::Optimizer, ::MOI.TimeLimitSec, limit::Union{Nothing,Int})::Nothing
-    MOI.set(model, MOI.RawOptimizerAttribute("MAXTIME"), isnothing(limit) ? 0 : limit)
+function MOI.get(model::Optimizer, ::MOI.TimeLimitSec)::Union{Nothing,Float64}
+    limit = MOI.get(model, MOI.RawOptimizerAttribute("TIMELIMIT"))
+    return limit >= _XPRS_TIMELIMIT_UNLIMITED ? nothing : Float64(limit)
+end
+function MOI.set(model::Optimizer, ::MOI.TimeLimitSec, limit::Union{Nothing,Real})::Nothing
+    MOI.set(model, MOI.RawOptimizerAttribute("TIMELIMIT"),
+        isnothing(limit) ? _XPRS_TIMELIMIT_UNLIMITED : Float64(limit))
     return nothing
 end
 
@@ -609,7 +716,11 @@ function MOI.get(model::Optimizer, ::MOI.NumberOfConstraints{F,S})::Int64 where 
     if !haskey(model.constraints[_F], _S)
         return 0
     end
-    return length(model.constraints[_F][_S])
+    # Count only user-added constraints. Children generated by an internal split
+    # (e.g. the GreaterThan/LessThan a VariableIndex-in-Interval decomposes into,
+    # or the scalar rows of a VectorAffineFunction) carry a non-nothing `parent`
+    # and are an implementation detail, not separate MOI constraints.
+    return count(c -> c.parent === nothing, values(model.constraints[_F][_S]))
 end
 
 # Return each (F, S) constraint-type tuple present in the model exactly once.
@@ -620,7 +731,10 @@ function MOI.get(model::Optimizer, ::MOI.ListOfConstraintTypesPresent)::Vector{T
     present = Tuple{Type,Type}[]
     for (F, inner) in model.constraints
         for (S, constraints) in inner
-            if length(constraints) > 0
+            # Skip a type present only through split children (parent !== nothing):
+            # those are an internal decomposition, not a distinct MOI constraint
+            # type the user added (see NumberOfConstraints / ListOfConstraintIndices).
+            if any(c -> c.parent === nothing, values(constraints))
                 push!(present, (F, S))
             end
         end
@@ -640,7 +754,12 @@ function MOI.get(model::Optimizer, ::MOI.ListOfConstraintIndices{F,S})::Vector{M
     if !haskey(model.constraints, _F) || !haskey(model.constraints[_F], _S)
         return MOI.ConstraintIndex{F,S}[]
     end
-    return [MOI.ConstraintIndex{F,S}(index.value) for index in keys(model.constraints[_F][_S])]
+    # Only user-added constraints are MOI constraints; split children (with a
+    # non-nothing `parent`) are internal rows and must not be enumerated, or a
+    # fallback that sums over constraints (e.g. DualObjectiveValue) double-counts
+    # the parent's contribution.
+    return [MOI.ConstraintIndex{F,S}(index.value)
+            for (index, c) in model.constraints[_F][_S] if c.parent === nothing]
 end
 
 # Termination status
@@ -652,7 +771,12 @@ end
 
 # https://jump.dev/MathOptInterface.jl/stable/reference/models/#ResultStatusCode
 function MOI.get(model::Optimizer, result_index::MOI.PrimalStatus)::MOI.ResultStatusCode
-    @assert result_index.result_index == 1
+    # A status query for a result beyond the (single) available solution is not
+    # an error; per the MOI contract it simply reports that no such solution
+    # exists (see test_solve_result_index).
+    if result_index.result_index != 1
+        return MOI.NO_SOLUTION
+    end
     if model.last_solution_status == XPRS_SOLSTATUS_NOTFOUND
         return MOI.NO_SOLUTION
     end
@@ -678,17 +802,61 @@ function _dual_multiplier(model::Optimizer)::Precision
     return MOI.get(model, MOI.ObjectiveSense()) == MOI.MIN_SENSE ? 1.0 : -1.0
 end
 
+# Populate `model.dual_ray` with a Farkas certificate for an infeasible LP, if
+# one is available, and return whether it now holds one. Idempotent: once a ray
+# is cached (or a solve has been shown to lack one) it is not recomputed.
+#
+# Xpress only produces a valid dual ray from the *original* (un-presolved) space.
+# When the solve ran with presolve on -- the harness default -- the ray Xpress
+# computes is invalid: XPRSgetdualray then reports hasray == 0 in a release build,
+# but in an assertions build the solver aborts (getrays.c asserts the ray is
+# valid, after warning "Ray not valid"). So we must NOT call XPRSgetdualray while
+# presolve is on. Instead, if presolve was enabled we re-solve the same problem
+# once with PRESOLVE = 0 (restoring the control afterwards) and only then ask for
+# the ray -- matching the reference Xpress.jl, which requires PRESOLVE = 0 for
+# Farkas duals. Non-LP models (MIP) have no dual ray.
+function _ensure_dual_ray!(model::Optimizer)::Bool
+    if model.has_dual_ray
+        return true
+    end
+    if is_mip(model) || MOI.get(model, MOI.TerminationStatus()) != MOI.INFEASIBLE
+        return false
+    end
+    # Ensure the solve whose ray we are about to read was presolve-free; re-solve
+    # with PRESOLVE = 0 first if it was not, so XPRSgetdualray never sees the
+    # invalid presolved-space ray that trips the assertions-build check.
+    prev_presolve = XPRSgetintcontrol(model.inner, XPRS_PRESOLVE)
+    if prev_presolve != 0
+        XPRSsetintcontrol(model.inner, XPRS_PRESOLVE, 0)
+        try
+            XPRSoptimize(model.inner, "")
+        finally
+            XPRSsetintcontrol(model.inner, XPRS_PRESOLVE, prev_presolve)
+        end
+    end
+    ray, hasray = XPRSgetdualray(model.inner, XPRS_ALLOC)
+    if hasray != 0
+        model.dual_ray = ray
+        model.has_dual_ray = true
+        return true
+    end
+    return false
+end
+
 function MOI.get(model::Optimizer, result_index::MOI.DualStatus)::MOI.ResultStatusCode
-    @assert result_index.result_index == 1
+    # As for PrimalStatus, an out-of-range result index reports no solution
+    # rather than erroring.
+    if result_index.result_index != 1
+        return MOI.NO_SOLUTION
+    end
     if is_mip(model)
         return MOI.NO_SOLUTION
     end
     if MOI.get(model, MOI.TerminationStatus()) in (MOI.OPTIMAL, MOI.LOCALLY_SOLVED, MOI.FEASIBLE_POINT)
         return MOI.FEASIBLE_POINT
     elseif MOI.get(model, MOI.TerminationStatus()) == MOI.INFEASIBLE
-        # Get dual ray from Xpress
-        ray = XPRSgetdualray(model.inner, XPRS_ALLOC)
-        if length(ray) > 0
+        # A Farkas dual ray is a valid infeasibility certificate.
+        if _ensure_dual_ray!(model)
             return MOI.INFEASIBILITY_CERTIFICATE
         end
     end
@@ -698,11 +866,34 @@ end
 # --------------- MathOptInterface.ObjectiveSense ---------------
 MOI.supports(::Optimizer, ::MOI.ObjectiveSense)::Bool = true
 function MOI.get(model::Optimizer, ::MOI.ObjectiveSense)::MOI.OptimizationSense
-    return XPRSgetattrib(model.inner, "OBJSENSE") == XPRS_OBJ_MAXIMIZE ? MOI.MAX_SENSE : MOI.MIN_SENSE
+    # OBJSENSE is a Float64 attribute (-1.0 maximize / +1.0 minimize), so it must
+    # be compared against the numeric value of XPRS_OBJ_MAXIMIZE, not the enum
+    # instance itself: `-1.0 == XPRS_OBJ_MAXIMIZE` is always false (Float vs Enum),
+    # which previously made this getter always report MIN_SENSE and flipped every
+    # MAX_SENSE dual sign (TXP-9316).
+    return XPRSgetattrib(model.inner, "OBJSENSE") == Integer(XPRS_OBJ_MAXIMIZE) ? MOI.MAX_SENSE : MOI.MIN_SENSE
 end
 function MOI.set(model::Optimizer, ::MOI.ObjectiveSense, sense::MOI.OptimizationSense)::Nothing
+    # Changing the sense flips which solution is optimal. A previously feasible
+    # point stays feasible, so we could in principle keep the cached solution,
+    # but a sense change is a model change and it is safer/more consistent to
+    # drop everything. The FEASIBILITY_SENSE branch also invalidates via
+    # _clear_objective!, but the MIN/MAX branches below do not, so invalidate
+    # once up front.
+    # TODO(TXP-9438): a MIN<->MAX sense change leaves every point's feasibility
+    # unchanged, so a future version could keep the cached primal/slack solution
+    # (only the optimality claim and the dual signs change) instead of dropping
+    # it wholesale. FEASIBILITY_SENSE still has to clear, as it discards the
+    # objective entirely.
+    _invalidate_solution_caches!(model)
     # Default for MOI is `FEASIBILITY_SENSE`, default for Xpress is `XPRS_OBJ_MINIMIZE`
-    if sense == MOI.FEASIBILITY_SENSE || sense == MOI.MIN_SENSE
+    if sense == MOI.FEASIBILITY_SENSE
+        # Per the MOI contract, switching to FEASIBILITY_SENSE discards the
+        # objective entirely (a subsequent ObjectiveValue must read 0), so clear
+        # the cached/Xpress objective rather than just flipping the sense.
+        XPRSchgobjsense(model.inner, XPRS_OBJ_MINIMIZE)
+        _clear_objective!(model)
+    elseif sense == MOI.MIN_SENSE
         XPRSchgobjsense(model.inner, XPRS_OBJ_MINIMIZE)
     elseif sense == MOI.MAX_SENSE
         XPRSchgobjsense(model.inner, XPRS_OBJ_MAXIMIZE)
@@ -733,7 +924,12 @@ end
 
 
 function MOI.get(model::Optimizer, result_index::MOI.ObjectiveValue)::Union{Precision, Vector{Precision}}
-    @assert result_index.result_index == 1 && length(model.objectives) > 0
+    MOI.check_result_index_bounds(model, result_index)
+    # With no objective set (e.g. FEASIBILITY_SENSE cleared it), the objective
+    # value is 0 per the MOI contract; there is no Xpress objective to evaluate.
+    if isempty(model.objectives)
+        return zero(Precision)
+    end
     #return Precision(XPRSgetobjdblattrib(model.inner, result_index.result_index-1, XPRS_OBJVAL))
     objs = map(i -> Precision(XPRScalcobjn(model.inner, i-1, nothing)), 1:length(model.objectives))
     return length(objs) > 1 ? objs : objs[1]
@@ -747,7 +943,7 @@ end
 # optimality strong duality makes the result match `ObjectiveValue` within
 # tolerance.
 function MOI.get(model::Optimizer, attr::MOI.DualObjectiveValue)::Precision
-    @assert attr.result_index == 1
+    MOI.check_result_index_bounds(model, attr)
     return MOI.Utilities.get_fallback(model, attr, Precision)
 end
 
@@ -778,18 +974,150 @@ function MOI.set(model::Optimizer, ::MOI.VariableName, index::MOI.VariableIndex,
     return
 end
 
-function MOI.get(model::Optimizer, result_index::MOI.VariablePrimal, index::MOI.VariableIndex)::Precision
-    @assert result_index.result_index == 1
-    v = _XPRS_variable_from_moi_index(model, index)
-    solstatus, solvec = XPRSgetsolution(model.inner, v.solbuffer, v.xprs_index, v.xprs_index)
+# Fetch the full primal solution once and cache it on the model, so that reading
+# back an n-variable solution costs a single XPRSgetsolution call rather than n.
+# Returns false (and leaves the cache empty) if no solution is available. The
+# cache is invalidated by optimize! and empty!. See TXP-9438.
+function _ensure_primal_solution!(model::Optimizer)::Bool
+    if model.has_primal_solution
+        return true
+    end
+    # Size by ORIGINALCOLS, not COLS: after a solve that leaves the problem
+    # presolved (e.g. a MIP that hit a node limit), COLS reports the reduced
+    # column count while MOI variable indices and XPRSgetsolution both address
+    # the original column space.
+    ncols = XPRSgetattrib(model.inner, "ORIGINALCOLS")
+    if ncols == 0
+        # No columns: nothing to read, but a solve may still have "succeeded".
+        model.primal_solution = Precision[]
+        model.has_primal_solution = true
+        return true
+    end
+    solstatus, solvec = XPRSgetsolution(model.inner, XPRS_ALLOC, 0, ncols - 1)
     if solstatus == XPRS_SOLAVAILABLE_NOTFOUND
+        return false
+    end
+    model.primal_solution = solvec
+    model.has_primal_solution = true
+    return true
+end
+
+# Drop every solution-derived cache: the primal vector, the constraint-primal
+# (slack/rhs), row-dual and reduced-cost vectors, and the Farkas dual ray. Called
+# from optimize! and empty! (a new or absent solution makes them stale) and from
+# every path that modifies the problem. The latter is required for correctness,
+# not just tidiness: Xpress invalidates its solution as soon as the problem is
+# changed, so a cached vector left in place would return values from a model that
+# no longer exists; worse, adding/removing rows or columns changes the vector
+# lengths, so an index read against a stale cache can walk off the end. Keeping a
+# single reset used by every mutator makes "any modification drops the cache" a
+# property that holds by construction rather than one to re-audit per call site.
+#
+# Every mutator calls this as its first statement (as MOI.add_variables does),
+# ahead of any input-validation or early-return guards, so the cache is dropped
+# unconditionally: even a modify with an empty change set, or a call that throws
+# on bad input after a partial mutation, cannot leave a stale cache behind.
+function _invalidate_solution_caches!(model::Optimizer)
+    model.has_primal_solution = false
+    empty!(model.primal_solution)
+    model.has_constraint_primal = false
+    empty!(model.slack_solution)
+    empty!(model.rhs_values)
+    model.has_row_dual = false
+    empty!(model.row_dual_solution)
+    model.has_reduced_cost = false
+    empty!(model.reduced_cost_solution)
+    model.has_dual_ray = false
+    empty!(model.dual_ray)
+    return
+end
+
+# Fetch the full slack vector (and rhs) once and cache them, so ConstraintPrimal
+# over m rows costs a single XPRSgetslacks + XPRSgetrhs rather than one pair per
+# row. Returns false (cache left empty) if no solution is available. See TXP-9438.
+function _ensure_slacks!(model::Optimizer)::Bool
+    if model.has_constraint_primal
+        return true
+    end
+    # Size by ORIGINALROWS (see _ensure_primal_solution!): row indices and the
+    # slack/rhs getters address the original row space, which can exceed ROWS
+    # when the problem is left presolved after a solve.
+    nrows = XPRSgetattrib(model.inner, "ORIGINALROWS")
+    if nrows == 0
+        model.slack_solution = Precision[]
+        model.rhs_values = Precision[]
+        model.has_constraint_primal = true
+        return true
+    end
+    solstatus, slacks = XPRSgetslacks(model.inner, XPRS_ALLOC, 0, nrows - 1)
+    if solstatus == XPRS_SOLAVAILABLE_NOTFOUND
+        return false
+    end
+    model.slack_solution = slacks
+    model.rhs_values = XPRSgetrhs(model.inner, XPRS_ALLOC, 0, nrows - 1)
+    model.has_constraint_primal = true
+    return true
+end
+
+# Fetch the full row-dual vector once and cache it, so ConstraintDual over m rows
+# costs a single XPRSgetduals rather than one call per row. Returns false (cache
+# left empty) if no dual solution is available.
+function _ensure_row_duals!(model::Optimizer)::Bool
+    if model.has_row_dual
+        return true
+    end
+    nrows = XPRSgetattrib(model.inner, "ORIGINALROWS")
+    if nrows == 0
+        model.row_dual_solution = Precision[]
+        model.has_row_dual = true
+        return true
+    end
+    solstatus, duals = XPRSgetduals(model.inner, XPRS_ALLOC, 0, nrows - 1)
+    if solstatus == XPRS_SOLAVAILABLE_NOTFOUND
+        return false
+    end
+    model.row_dual_solution = duals
+    model.has_row_dual = true
+    return true
+end
+
+# Fetch the full reduced-cost vector once and cache it, so variable-bound duals
+# over n columns cost a single XPRSgetredcosts rather than one call per bound.
+# Returns false (cache left empty) if no dual solution is available.
+function _ensure_redcosts!(model::Optimizer)::Bool
+    if model.has_reduced_cost
+        return true
+    end
+    ncols = XPRSgetattrib(model.inner, "ORIGINALCOLS")
+    if ncols == 0
+        model.reduced_cost_solution = Precision[]
+        model.has_reduced_cost = true
+        return true
+    end
+    solstatus, djs = XPRSgetredcosts(model.inner, XPRS_ALLOC, 0, ncols - 1)
+    if solstatus == XPRS_SOLAVAILABLE_NOTFOUND
+        return false
+    end
+    model.reduced_cost_solution = djs
+    model.has_reduced_cost = true
+    return true
+end
+
+function MOI.get(model::Optimizer, result_index::MOI.VariablePrimal, index::MOI.VariableIndex)::Precision
+    MOI.check_result_index_bounds(model, result_index)
+    v = _XPRS_variable_from_moi_index(model, index)
+    if !_ensure_primal_solution!(model)
         return NaN
     end
-    return v.solbuffer[1]
+    # `primal_solution` is indexed by Xpress column (0-based); Julia is 1-based.
+    return model.primal_solution[v.xprs_index + 1]
 end
 
 function MOI.add_variables(model::Optimizer, n::Int)::Vector{MOI.VariableIndex}
     _XPRS_throw_if_nothing(model)
+    # Adding columns changes the problem dimensions, so any cached solution (whose
+    # vectors are sized to the old column count) is stale.
+    _invalidate_solution_caches!(model)
     old_n = length(model.variables)
     indices = map(
         # Generate new MOI.VariableIndex
@@ -830,6 +1158,101 @@ end
 
 function MOI.add_variable(model::Optimizer)::MOI.VariableIndex
     return MOI.add_variables(model, 1)[1]
+end
+
+# --------------------------- Variable delete ---------------------------
+# MOI-contract note: we do NOT error when a deleted variable still appears in a
+# constraint row or the objective. Xpress drops the column (and its matrix
+# coefficients) itself; we mirror that by stripping the variable's terms from the
+# cached functions so ConstraintFunction/ObjectiveFunction getters never hand back
+# a term on a dead VariableIndex. Bound/type constraints on the variable (stored
+# with xprs_index == -2) are unregistered here; their Xpress state vanishes with
+# the column.
+
+# Remove every reference to the deleted variables from the cache: unregister the
+# VariableIndex bound/type/Interval constraints attached to them, and drop their
+# terms from cached ScalarAffineFunction rows and the objective. `deleted_values`
+# is the set of MOI variable index values being removed.
+function _XPRS_purge_variable_references!(model::Optimizer, deleted_values::Set{Int})
+    # Collect (then unregister) VariableIndex constraints on the deleted variables.
+    to_unregister = MOI.ConstraintIndex[]
+    for inner in values(model.constraints)
+        for constraints in values(inner)
+            for c in values(constraints)
+                if c.moi_fct_type <: MOI.VariableIndex &&
+                        c.moi_fct_value isa MOI.VariableIndex &&
+                        c.moi_fct_value.value in deleted_values
+                    push!(to_unregister,
+                        MOI.ConstraintIndex{c.moi_fct_type, c.moi_set_type}(c.moi_index))
+                end
+            end
+        end
+    end
+    for index in to_unregister
+        _XPRS_unregister_constraint(model, index)
+    end
+
+    # Strip deleted-variable terms from cached ScalarAffineFunction row functions.
+    for inner in values(model.constraints)
+        for constraints in values(inner)
+            for c in values(constraints)
+                if c.moi_fct_value isa MOI.ScalarAffineFunction
+                    filter!(t -> !(t.variable.value in deleted_values),
+                        c.moi_fct_value.terms)
+                end
+            end
+        end
+    end
+
+    # Strip deleted-variable terms from cached objective functions.
+    for i in eachindex(model.objectives)
+        obj = model.objectives[i]
+        if obj isa MOI.ScalarAffineFunction
+            filter!(t -> !(t.variable.value in deleted_values), obj.terms)
+        elseif obj isa MOI.ScalarQuadraticFunction
+            filter!(t -> !(t.variable.value in deleted_values), obj.affine_terms)
+            filter!(t -> !(t.variable_1.value in deleted_values ||
+                           t.variable_2.value in deleted_values),
+                obj.quadratic_terms)
+        end
+    end
+    return
+end
+
+function MOI.delete(model::Optimizer, indices::Vector{MOI.VariableIndex})
+    # Deleting columns changes the problem dimensions, so any cached solution is
+    # stale (and would be indexed with the pre-delete column numbering). Drop the
+    # caches first so an invalid index or an empty request below can never leave a
+    # stale cache in place.
+    _invalidate_solution_caches!(model)
+    # Validate all indices before mutating anything (MOI requires an all-or-nothing
+    # delete: a bad index leaves the model untouched).
+    for index in indices
+        if !MOI.is_valid(model, index)
+            throw(MOI.InvalidIndex(index))
+        end
+    end
+    isempty(indices) && return
+
+    # Snapshot the Xpress columns while the cached indices are still current.
+    cols = sort!([_XPRS_variable_from_moi_index(model, i).xprs_index for i in indices])
+    deleted_values = Set(i.value for i in indices)
+
+    _XPRS_purge_variable_references!(model, deleted_values)
+
+    # Drop the columns from Xpress in one call, then from the cache.
+    XPRSdelcols(model.inner, length(cols), cols)
+    for index in indices
+        delete!(model.variables, index)
+    end
+
+    # Renumber the surviving columns to account for the compaction.
+    _XPRS_shift_indices_after_col_delete!(model, cols)
+    return
+end
+
+function MOI.delete(model::Optimizer, index::MOI.VariableIndex)
+    return MOI.delete(model, [index])
 end
 
 
@@ -898,6 +1321,13 @@ end
 function _XPRS_register_new_constraint_as(model::Optimizer, c::Constraint, func::F, set::S)::MOI.ConstraintIndex{F,S} where {
         F <: MOI.AbstractFunction, S <: MOI.AbstractSet
     }
+    # Adding a constraint changes the problem (and, for real rows, its
+    # dimensions), so any cached solution is stale. The Xpress row was already
+    # added by the caller before we get here, so drop the caches first. Every
+    # constraint add funnels through here, so this is the single point that
+    # covers them all.
+    _invalidate_solution_caches!(model)
+
     # Here 'set' is generic and might be MOI.LessThan{Int64} (if ints where used when writting the constraint) when we actually want MOI.LessThan{P}
     # Same goes for 'func', so we need to convert template type to 'P' as we only store constraints for type 'P'
     _F = MOI_precision_type(F)
@@ -922,6 +1352,44 @@ function _XPRS_register_new_constraint_as(model::Optimizer, c::Constraint, func:
     c.moi_set_value = set
     # MOI requires us to return actual index for {F,S} without type {P} specifically
     return MOI.ConstraintIndex{F,S}(index.value)
+end
+
+# Remove a constraint entry from its (F, S) bucket. Mirrors the precision-
+# normalized 3-level lookup of `_XPRS_register_new_constraint_as`, but delete!
+# instead of add_item. Two callers rely on it:
+#   * Re-filing a constraint under a different function type: a
+#     ScalarQuadraticFunction constraint is first registered under
+#     ScalarAffineFunction to create the Xpress row, then re-registered under
+#     ScalarQuadraticFunction via `_XPRS_register_new_constraint_as`. The
+#     original affine entry must be dropped, or the affine bucket keeps a
+#     phantom index whose stored `moi_fct_value` is actually quadratic --
+#     iterating it (e.g. from the DualObjectiveValue fallback, which enumerates
+#     every ScalarAffineFunction constraint and reads its function) then throws
+#     an InexactError converting the quadratic function to affine.
+#   * MOI.delete, which drops the object from the cache before compacting the
+#     matrix.
+# The `haskey` guard makes the drop a no-op when the bucket was never created,
+# so a caller that unregisters an index whose (F, S) bucket is absent does not
+# hit a KeyError.
+function _XPRS_unregister_constraint(model::Optimizer, index::MOI.ConstraintIndex{F,S}) where {
+        F <: MOI.AbstractFunction, S <: MOI.AbstractSet
+    }
+    # A delete (or a re-file that drops a row) mutates the problem, so any cached
+    # solution is stale. This is the single point every constraint delete passes
+    # through. Note it also fires on the affine->quadratic re-file, which does not
+    # touch the matrix; that is harmless (the caches are empty before a solve, and
+    # the re-file only ever happens during add_constraint, which has already
+    # invalidated via _XPRS_register_new_constraint_as).
+    _invalidate_solution_caches!(model)
+    _F = MOI_precision_type(F)
+    _S = MOI_precision_type(S)
+    if haskey(model.constraints, _F) && haskey(model.constraints[_F], _S)
+        delete!(
+            model.constraints[_F][_S],
+            MOI.ConstraintIndex{_F,_S}(index.value)
+        )
+    end
+    return
 end
 
 # Add a new constraint and generate a MOI index for it
@@ -960,11 +1428,63 @@ function _XPRS_register_new_constraint_as_parent(
     return new_index
 end
 
+# ----------------------- Delete support helpers -----------------------
+# These back MOI.delete. Xpress compacts its matrix on every delete: removing
+# column/row/set index k shifts every higher index down by one. So a delete is
+# (1) drop the object(s) from Xpress, (2) drop them from the cache, (3) decrement
+# the surviving cached indices above each hole. Deletes are performed one index
+# at a time by the public methods, but the shift helpers accept a sorted vector
+# so a batched Xpress delete renumbers correctly in a single pass.
+
+# Decrement every surviving variable's xprs_index by the number of deleted columns
+# strictly below it. `deleted` must be sorted ascending. Variables never carry a
+# sentinel index, so no skip is needed here.
+function _XPRS_shift_indices_after_col_delete!(model::Optimizer, deleted::Vector{Int})
+    isempty(deleted) && return
+    for v in values(model.variables)
+        v.xprs_index -= count(<(v.xprs_index), deleted)
+    end
+    return
+end
+
+# Decrement every surviving constraint's xprs_index by the number of deleted rows
+# strictly below it. `deleted` must be sorted ascending. Constraints with
+# xprs_index < 0 are not real Xpress rows (parents, variable bounds/types, SOS
+# sets); the < 0 skip is load-bearing -- shifting a sentinel corrupts bookkeeping.
+function _XPRS_shift_indices_after_row_delete!(model::Optimizer, deleted::Vector{Int})
+    isempty(deleted) && return
+    for inner in values(model.constraints)
+        for constraints in values(inner)
+            for c in values(constraints)
+                c.xprs_index < 0 && continue
+                c.xprs_index -= count(<(c.xprs_index), deleted)
+            end
+        end
+    end
+    return
+end
+
+# Decrement every surviving SOS constraint's xprs_set_index by the number of
+# deleted sets strictly below it. `deleted` must be sorted ascending. Non-SOS
+# constraints carry xprs_set_index == -1 and are skipped.
+function _XPRS_shift_sos_indices_after_delete!(model::Optimizer, deleted::Vector{Int})
+    isempty(deleted) && return
+    for inner in values(model.constraints)
+        for constraints in values(inner)
+            for c in values(constraints)
+                c.xprs_set_index < 0 && continue
+                c.xprs_set_index -= count(<(c.xprs_set_index), deleted)
+            end
+        end
+    end
+    return
+end
+
 
 function MOI.get(model::Optimizer, result_index::MOI.ConstraintPrimal, indices::Vector{MOI.ConstraintIndex{F,S}}) where {
         F <: MOI.AbstractFunction, S <: MOI.AbstractSet
     }
-    @assert result_index.result_index == 1
+    MOI.check_result_index_bounds(model, result_index)
     return map(index -> begin
             c = _XPRS_constraint_from_moi_index(model, index)
             if length(c.subconstraints) > 0
@@ -976,31 +1496,36 @@ function MOI.get(model::Optimizer, result_index::MOI.ConstraintPrimal, indices::
                 if c.moi_set_type <: Union{MOI.SOS1, MOI.SOS2}
                     throw(MOI.GetAttributeNotAllowed(result_index, "Cannot retrieve `ConstraintPrimal` for SOS constraints"))
                 end
-                # For variable bound constraints, return NaN
-                return [NaN]
+                # The `ConstraintPrimal` of a variable-bound constraint (e.g.
+                # x >= 1) is the value of the constrained variable itself, which
+                # for a bound is just its primal solution value.
+                return MOI.get(model, MOI.VariablePrimal(result_index.result_index), c.moi_fct_value)
             end
 
-            # Get the slack variable value associated with the constraint
-            solstatus, solvec = XPRSgetslacks(model.inner, c.solbuffer, c.xprs_index, c.xprs_index)
-            if solstatus == XPRS_SOLAVAILABLE_NOTFOUND
-                return [NaN]
+            # Slack and rhs come from the cached full vectors (indexed by Xpress
+            # row, 0-based -> 1-based Julia), filled once per solve.
+            if !_ensure_slacks!(model)
+                return Precision(NaN)
             end
-            slack = solvec[1]
-            # Get the rhs of the constraint to evaluate the constraint
-            rhs = XPRSgetrhs(model.inner, c.solbuffer, c.xprs_index, c.xprs_index)[1]
+            slack = model.slack_solution[c.xprs_index + 1]
+            rhs = model.rhs_values[c.xprs_index + 1]
             if S <: MOI.EqualTo
                 return Precision(rhs)
             end
 
+            # Xpress defines the row slack as (rhs - activity) regardless of the
+            # row sense, so the row activity is (rhs - slack) uniformly. (Using
+            # rhs + slack for LessThan happens to match only when the row is
+            # binding, i.e. slack == 0.)
             if S <: MOI.GreaterThan
                 return Precision(rhs - slack)
             end
 
             if S <: MOI.LessThan
-                return Precision(rhs + slack)
+                return Precision(rhs - slack)
             end
             # Can't evaluate constraint
-            return [NaN]
+            return Precision(NaN)
         end,
         indices
     )
@@ -1013,17 +1538,53 @@ function MOI.get(model::Optimizer, result_index::MOI.ConstraintPrimal, index::MO
     return MOI.get(model, result_index, [index])[1]
 end
 
+# Farkas dual associated with the bounds of Xpress column `col`, derived from the
+# cached dual ray: it is lambda' * A_col == sum over the column's matrix entries
+# of (coefficient * ray[row]). The value applies to the upper bound when it is
+# negative and to the lower bound when positive. Matches the reference Xpress.jl
+# `_farkas_variable_dual`.
+function _farkas_variable_dual(model::Optimizer, col::Integer)::Precision
+    nrows = Int(XPRSgetattrib(model.inner, "ROWS"))
+    # XPRSgetcols needs preallocated arrays (no XPRS_ALLOC support); a column has
+    # at most `nrows` nonzeros.
+    mstart = Vector{Int32}(undef, 2)
+    mrwind = Vector{Int32}(undef, nrows)
+    dmatval = Vector{Precision}(undef, nrows)
+    _, mrwind, dmatval, ncoefs = XPRSgetcols(model.inner, mstart, mrwind, dmatval, nrows, col, col)
+    total = zero(Precision)
+    for k in 1:ncoefs
+        total += dmatval[k] * model.dual_ray[mrwind[k] + 1]
+    end
+    return total
+end
+
 # Reduced cost of a single variable-bound constraint, in the MOI convention.
 # Xpress exposes reduced costs per column via XPRSgetredcosts; the sign is
 # clamped by bound sense so a LessThan (upper) bound has a non-positive dual and
 # a GreaterThan (lower) bound a non-negative one, matching Xpress.jl (issue #9).
+#
+# When the last solve produced a Farkas certificate (infeasible LP), the "dual"
+# of a bound is instead the Farkas variable dual derived from the ray, returned
+# raw (no _dual_multiplier flip) as MOI's infeasibility-certificate contract
+# expects. It is clamped to the side the bound acts on: a LessThan (upper) bound
+# takes the non-positive part, a GreaterThan (lower) bound the non-negative part.
 function _variable_bound_dual(model::Optimizer, c::Constraint)::Precision
     col = _XPRS_variable_from_moi_index(model, c.moi_fct_value).xprs_index
-    solstatus, djs = XPRSgetredcosts(model.inner, c.solbuffer, col, col)
-    if solstatus == XPRS_SOLAVAILABLE_NOTFOUND
+    if model.has_dual_ray
+        dual = -_farkas_variable_dual(model, col)
+        if c.moi_set_type <: MOI.LessThan
+            return min(dual, 0.0)
+        elseif c.moi_set_type <: MOI.GreaterThan
+            return max(dual, 0.0)
+        else # EqualTo / Interval: the ray fixes the sign
+            return dual
+        end
+    end
+    if !_ensure_redcosts!(model)
         return NaN
     end
-    rc = _dual_multiplier(model) * djs[1]
+    # `reduced_cost_solution` is indexed by Xpress column (0-based -> 1-based).
+    rc = _dual_multiplier(model) * model.reduced_cost_solution[col + 1]
     if c.moi_set_type <: MOI.LessThan
         return min(0.0, rc)
     elseif c.moi_set_type <: MOI.GreaterThan
@@ -1043,24 +1604,41 @@ function _constraint_dual(model::Optimizer, c::Constraint)::Precision
         end
         return _variable_bound_dual(model, c)
     end
-    solstatus, solvec = XPRSgetduals(model.inner, c.solbuffer, c.xprs_index, c.xprs_index)
-    if solstatus == XPRS_SOLAVAILABLE_NOTFOUND
+    # Under a Farkas certificate the row dual is the ray component directly, in
+    # the MOI convention (no _dual_multiplier flip).
+    if model.has_dual_ray
+        return model.dual_ray[c.xprs_index + 1]
+    end
+    if !_ensure_row_duals!(model)
         return NaN
     end
-    return _dual_multiplier(model) * solvec[1]
+    # `row_dual_solution` is indexed by Xpress row (0-based -> 1-based).
+    return _dual_multiplier(model) * model.row_dual_solution[c.xprs_index + 1]
 end
 
 function MOI.get(model::Optimizer, result_index::MOI.ConstraintDual, indices::Vector{MOI.ConstraintIndex{F,S}})::Vector{Precision} where {
         F <: MOI.AbstractFunction, S <: MOI.AbstractSet
     }
-    @assert result_index.result_index == 1
+    MOI.check_result_index_bounds(model, result_index)
     return map(index -> MOI.get(model, result_index, index), indices)
 end
 
-function MOI.get(model::Optimizer, result_index::MOI.ConstraintDual, index::MOI.ConstraintIndex{F,S})::Precision where {
-        F <: MOI.AbstractFunction, S <: MOI.AbstractSet
+# Dual of a vector-valued constraint (VectorAffineFunction/VectorOfVariables in
+# Nonnegatives/Nonpositives/Zeros/...). Its scalar rows are the parent's
+# subconstraints, so the dual is the per-row vector -- MOI compares it against a
+# vector, so a scalar (as the AbstractSet method below returns) would not type-check.
+function MOI.get(model::Optimizer, result_index::MOI.ConstraintDual, index::MOI.ConstraintIndex{F,S})::Vector{Precision} where {
+        F <: MOI.AbstractFunction, S <: MOI.AbstractVectorSet
     }
-    @assert result_index.result_index == 1
+    MOI.check_result_index_bounds(model, result_index)
+    c = _XPRS_constraint_from_moi_index(model, index)
+    return map(subc -> _constraint_dual(model, subc), c.subconstraints)
+end
+
+function MOI.get(model::Optimizer, result_index::MOI.ConstraintDual, index::MOI.ConstraintIndex{F,S})::Precision where {
+        F <: MOI.AbstractFunction, S <: MOI.AbstractScalarSet
+    }
+    MOI.check_result_index_bounds(model, result_index)
     c = _XPRS_constraint_from_moi_index(model, index)
     # A parent constraint (e.g. a split Interval bound) delegates to the child
     # carrying the binding dual: report the child with the largest-magnitude
@@ -1145,6 +1723,9 @@ function MOI.set(model::Optimizer, ::MOI.ConstraintSet, index::MOI.ConstraintInd
         F <: MOI.VariableIndex,
         S <: Union{MOI.GreaterThan, MOI.LessThan, MOI.EqualTo}
     }
+    # Changing a bound invalidates the current solution (Xpress drops it), so any
+    # cached solution vectors are stale.
+    _invalidate_solution_caches!(model)
     c = _XPRS_constraint_from_moi_index(model, index)
     col = _XPRS_variable_from_moi_index(model, c.moi_fct_value).xprs_index
     XPRSchgbounds(model.inner, 1, [col], [_xprs_bound_sense(set)], [Precision(_xprs_set_value(set))])
@@ -1179,6 +1760,8 @@ function MOI.set(model::Optimizer, ::MOI.ConstraintSet, index::MOI.ConstraintInd
         F <: MOI.VariableIndex,
         S <: MOI.Interval
     }
+    # Changing bounds invalidates the current solution, so drop stale caches.
+    _invalidate_solution_caches!(model)
     c = _XPRS_constraint_from_moi_index(model, index)
     col = _XPRS_variable_from_moi_index(model, c.moi_fct_value).xprs_index
     XPRSchgbounds(model.inner, 2, [col, col], ['L', 'U'], [Precision(set.lower), Precision(set.upper)])
@@ -1199,21 +1782,32 @@ function MOI.set(model::Optimizer, ::MOI.ConstraintSet, index::MOI.ConstraintInd
         F <: MOI.ScalarAffineFunction,
         S <: Union{MOI.GreaterThan, MOI.LessThan, MOI.EqualTo}
     }
+    # Changing a right-hand side invalidates the current solution, so drop stale
+    # caches.
+    _invalidate_solution_caches!(model)
     c = _XPRS_constraint_from_moi_index(model, index)
     XPRSchgrhs(model.inner, 1, [c.xprs_index], [Precision(_xprs_set_value(set))])
     c.moi_set_value = set
     return
 end
 
-# Any other variable-bound set type (e.g. Semicontinuous / Semiinteger, which
-# `supports_constraint` accepts at add time) has no in-place set(ConstraintSet)
-# path yet: report it as unsupported rather than surfacing a raw MethodError.
-function MOI.set(model::Optimizer, attr::MOI.ConstraintSet, index::MOI.ConstraintIndex{F,S}, ::S) where {
+# Variable bound Semicontinuous / Semiinteger: the column takes values in
+# {0} u [lower, upper]. It carries two pieces of state -- the upper bound
+# ('U' via XPRSchgbounds) and the semi-continuous activation threshold (via
+# XPRSchgglblimit) -- so both are re-applied here, mirroring exactly what the
+# add path does when such a constraint is first loaded (see MOI_linear.jl).
+function MOI.set(model::Optimizer, ::MOI.ConstraintSet, index::MOI.ConstraintIndex{F,S}, set::S) where {
         F <: MOI.VariableIndex,
         S <: Union{MOI.Semicontinuous, MOI.Semiinteger}
     }
-    throw(MOI.SetAttributeNotAllowed(attr,
-        "In-place modification of $(S) bounds is not supported; delete and re-add the constraint."))
+    # Changing a bound invalidates the current solution, so drop stale caches.
+    _invalidate_solution_caches!(model)
+    c = _XPRS_constraint_from_moi_index(model, index)
+    col = _XPRS_variable_from_moi_index(model, c.moi_fct_value).xprs_index
+    XPRSchgbounds(model.inner, 1, [col], ['U'], [Precision(set.upper)])
+    XPRSchgglblimit(model.inner, 1, [col], [Precision(set.lower)])
+    c.moi_set_value = set
+    return
 end
 
 function MOI.get(model::Optimizer, ::MOI.ConstraintFunction, index::MOI.ConstraintIndex{F,S})::F where {
@@ -1263,6 +1857,15 @@ end
 # --------------- MathOptInterface.optimize! ---------------
 
 function MOI.optimize!(model::Optimizer)
+    # Any cached solution (primal, slacks, duals, reduced costs) or Farkas ray from
+    # a previous solve is stale now. This also resets has_dual_ray/dual_ray.
+    _invalidate_solution_caches!(model)
+    # Drop any lazy cuts left pending from a previous solve (they were loaded
+    # into that solve's search tree, not this one).
+    lock(model.lazy_lock) do
+        empty!(model.lazy_pending_cuts)
+        empty!(model.lazy_soltype)
+    end
     primal_starts = filter(v -> !isnothing(v.primal_start), collect(values(model.variables)))
     if length(primal_starts) > 0
         if !isnothing(model.nlp_model)
@@ -1308,61 +1911,151 @@ function MOI.optimize!(model::Optimizer)
 end
 
 # --------------- MathOptInterface.Conflict-Status ---------------
+# Xpress `XPRSiisfirst` status codes: 0 success (an IIS was identified);
+# 1 the problem is feasible; 2 an error occurred; 3 timeout/interruption. Note
+# that 2 is an *error*, not "no conflict found" -- in particular Xpress reports
+# 2 when the infeasibility is a pure bound contradiction (lb > ub on a column),
+# which it declines to refine into an IIS (see the bound-scan fallback below).
+#
+# Status 3 (timeout/interruption) is NOT a failure: Xpress documents that "the
+# IIS approximation and the IISs generated so far are always available", so an
+# interrupted refinement still yields a usable -- just not guaranteed-minimal --
+# IIS. We therefore treat it as CONFLICT_FOUND and read the IIS out as usual;
+# only a genuine error (2) or feasibility (1) suppresses it. If a timeout
+# happened to produce no IIS at all, the caller's `niis == 0` check falls
+# through to the bound scan, so nothing is lost.
 function _XPRS_to_MOI_IISStatus(xprs_iisstatus)::MOI.ConflictStatusCode
-    if xprs_iisstatus == -1
-        return MOI.COMPUTE_CONFLICT_NOT_CALLED
-    end
-    if xprs_iisstatus == 0
+    if xprs_iisstatus == 0 || xprs_iisstatus == 3
         return MOI.CONFLICT_FOUND
     end
     if xprs_iisstatus == 1
         return MOI.NO_CONFLICT_EXISTS
     end
-    if xprs_iisstatus == 2
-        return MOI.NO_CONFLICT_FOUND
+    # 2 (error) and anything else: no usable IIS was produced.
+    return MOI.NO_CONFLICT_FOUND
+end
+
+# The `-2` xprs_index marks a variable-bound (or SOS/parent) constraint, which
+# Xpress represents as a column bound rather than a matrix row. `colind` in an
+# IIS holds such columns; return that variable's Xpress column, else `nothing`.
+function _XPRS_conflict_bound_column(model::Optimizer, c::Constraint)::Union{Int, Nothing}
+    if c.xprs_index != -2
+        return nothing
     end
-    return MOI.CONFLICT_FOUND
+    if c.moi_fct_type <: MOI.VariableIndex
+        return _XPRS_variable_from_moi_index(model, c.moi_fct_value).xprs_index
+    end
+    return nothing
+end
+
+# Which IIS `bndtype` characters mark a given variable-bound/type constraint's
+# participation. XPRSgetiisdata documents these bound-type codes:
+#   'L' lower bound          'U' upper bound        'F' fixed column
+#   'B' binary column        'I' integer column     'P' partial-integer column
+#   'S' semi-continuous      'R' semi-continuous integer column
+# A plain bound conflicts only on its own side ('L'/'U'); a fixing set ('F') or
+# an integrality/semi-continuity restriction ('B'/'I'/'P'/'S'/'R') conflicts by
+# virtue of the variable's *type*, so the corresponding MOI set matches that
+# type code (as well as 'F', which Xpress may report for a fixed column) rather
+# than a directional bound.
+function _XPRS_conflict_bound_senses(::MOI.GreaterThan)
+    return ('L',)
+end
+function _XPRS_conflict_bound_senses(::MOI.LessThan)
+    return ('U',)
+end
+function _XPRS_conflict_bound_senses(::Union{MOI.EqualTo, MOI.Interval})
+    return ('L', 'U', 'F')
+end
+function _XPRS_conflict_bound_senses(::MOI.ZeroOne)
+    return ('L', 'U', 'F', 'B')
+end
+function _XPRS_conflict_bound_senses(::MOI.Integer)
+    return ('L', 'U', 'F', 'I', 'P')
+end
+function _XPRS_conflict_bound_senses(::MOI.Semicontinuous)
+    return ('L', 'U', 'F', 'S')
+end
+function _XPRS_conflict_bound_senses(::MOI.Semiinteger)
+    return ('L', 'U', 'F', 'R')
+end
+
+# Scan the current variable bounds for a direct lb > ub contradiction. Xpress'
+# IIS machinery refuses to refine pure-bound infeasibility (XPRSiisfirst returns
+# status 2), so when no IIS is available we still need to report the conflicting
+# columns for `bound_bound` / `invalid_interval`. Returns the set of Xpress
+# columns whose lower bound exceeds their upper bound.
+function _XPRS_infeasible_bound_columns(model::Optimizer)::Set{Int}
+    ncols = length(model.variables)
+    result = Set{Int}()
+    if ncols == 0
+        return result
+    end
+    lb = XPRSgetlb(model.inner, XPRS_ALLOC, 0, ncols - 1)
+    ub = XPRSgetub(model.inner, XPRS_ALLOC, 0, ncols - 1)
+    for col in 0:(ncols - 1)
+        if lb[col + 1] > ub[col + 1]
+            push!(result, col)
+        end
+    end
+    return result
 end
 
 # https://jump.dev/MathOptInterface.jl/stable/reference/models/#Conflict-Status
 function MOI.compute_conflict!(model::Optimizer)
-    # mode: The IIS search mode: 0 stops after finding the initial infeasible subproblem; 1 find an IIS, emphasizing simplicity of the IIS; 2 find an IIS, emphasizing a quick result.
-    iisnumber = length(model.iisdata)  # 0-based IIS indexing in Xpress C API
-    # Use XPRSiisfirst for first IIS, XPRSiisnext for subsequent IIS
-    iistatus = if iisnumber == 0
-        XPRSiisfirst(model.inner, 0)  # mode 0: initial infeasible subproblem
-    else
-        XPRSiisnext(model.inner)
-    end
-
-    # Stops if no IIS could be found
-    if _XPRS_to_MOI_IISStatus(iistatus) != MOI.CONFLICT_FOUND
+    # A feasible problem has no conflict to compute.
+    if MOI.get(model, MOI.TerminationStatus()) != MOI.INFEASIBLE
+        model.conflict_status = MOI.NO_CONFLICT_EXISTS
         return
     end
 
-    iisdata = IISData(iisnumber, iistatus)
-    # Use XPRS_ALLOC to let the wrapper handle two-call pattern: query sizes then retrieve data
-    iisdata.nrows, iisdata.ncols, iisdata.rowind, iisdata.colind = XPRSgetiisdata(
-        model.inner,
-        iisdata.iisnumber,
-        XPRS_ALLOC,  # rowind - wrapper will allocate based on queried size
-        XPRS_ALLOC,  # colind - wrapper will allocate based on queried size
-        nothing, nothing, nothing, nothing, nothing, nothing
-    )
-    push!(model.iisdata, iisdata)
+    # mode 1: find a minimal IIS. Mode 0 only isolates the initial (non-minimal)
+    # infeasible subproblem, which over-reports constraint participation.
+    iistatus = XPRSiisfirst(model.inner, 1)
+
+    # The IIS just found is the last one; XPRSiisstatus reports how many exist so
+    # we read that trailing index (IIS numbering is 1-based here). A timeout
+    # (status 3) can report CONFLICT_FOUND yet have produced no IIS, so guard on
+    # niis > 0 and otherwise fall through to the bound scan below.
+    niis = 0
+    if _XPRS_to_MOI_IISStatus(iistatus) == MOI.CONFLICT_FOUND
+        niis, = XPRSiisstatus(model.inner, XPRS_ALLOC, XPRS_ALLOC, nothing, nothing)
+    end
+
+    if niis > 0
+        iisdata = IISData(Int(niis), iistatus)
+        # Two-call XPRS_ALLOC pattern: query sizes, then retrieve rows, columns
+        # and their bound/row senses so ConstraintConflictStatus can match both.
+        iisdata.nrows, iisdata.ncols, iisdata.rowind, iisdata.colind,
+            iisdata.contype, iisdata.bndtype = XPRSgetiisdata(
+            model.inner,
+            iisdata.iisnumber,
+            XPRS_ALLOC,  # rowind
+            XPRS_ALLOC,  # colind
+            XPRS_ALLOC,  # contype (row senses)
+            XPRS_ALLOC,  # bndtype (bound senses)
+            nothing, nothing, nothing, nothing
+        )
+        push!(model.iisdata, iisdata)
+        model.conflict_status = MOI.CONFLICT_FOUND
+        return
+    end
+
+    # No IIS was produced. This happens for a pure-bound contradiction, which
+    # Xpress declines to refine: fall back to scanning the bounds directly.
+    if !isempty(_XPRS_infeasible_bound_columns(model))
+        model.conflict_status = MOI.CONFLICT_FOUND
+    else
+        # Infeasible but no conflict could be isolated (e.g. numerical or an
+        # integer-only infeasibility Xpress could not reduce).
+        model.conflict_status = MOI.NO_CONFLICT_FOUND
+    end
+    return
 end
 
 
 function MOI.get(model::Optimizer, ::MOI.ConflictStatus)::MOI.ConflictStatusCode
-    status = MOI.COMPUTE_CONFLICT_NOT_CALLED
-    for iisdata in model.iisdata
-        if _XPRS_to_MOI_IISStatus(iisdata.status) == MOI.CONFLICT_FOUND
-            return MOI.CONFLICT_FOUND
-        else
-            status = MOI.NO_CONFLICT_EXISTS
-        end
-    end
-    return status
+    return model.conflict_status
 end
 
 function MOI.get(
@@ -1373,11 +2066,36 @@ function MOI.get(
     F <: MOI.AbstractFunction, S <: MOI.AbstractSet
 }
     if !MOI.is_valid(model, index)
-        return MOI.NOT_IN_CONFLICT#MOI.MAYBE_IN_CONFLICT
+        return MOI.NOT_IN_CONFLICT
     end
 
-    # Check if `c` is in one of the IISData
     c = _XPRS_constraint_from_moi_index(model, index)
+
+    # A variable-bound constraint is a column bound, matched against the IIS
+    # `colind`/`bndtype` (or the direct bound-scan when no IIS exists). The bound
+    # type must match: a lower bound only conflicts on an 'L' entry, an upper
+    # bound on a 'U' entry, and an integrality/semi-continuity or fixing set on
+    # its own type code (see `_XPRS_conflict_bound_senses`).
+    bound_col = _XPRS_conflict_bound_column(model, c)
+    if bound_col !== nothing
+        senses = _XPRS_conflict_bound_senses(c.moi_set_value)
+        for iisdata in model.iisdata
+            for (i, col) in enumerate(iisdata.colind)
+                bsense = Char(iisdata.bndtype[i])
+                if col == bound_col && bsense in senses
+                    return MOI.IN_CONFLICT
+                end
+            end
+        end
+        # Pure-bound infeasibility fallback: no IIS, but the column's own bounds
+        # are contradictory.
+        if isempty(model.iisdata) && bound_col in _XPRS_infeasible_bound_columns(model)
+            return MOI.IN_CONFLICT
+        end
+        return MOI.NOT_IN_CONFLICT
+    end
+
+    # A row constraint is matched against the IIS `rowind`.
     for iisdata in model.iisdata
         if c.xprs_index in iisdata.rowind
             return MOI.IN_CONFLICT

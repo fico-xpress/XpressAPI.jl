@@ -252,14 +252,14 @@ XpressAPI supports MOI callbacks for customizing the branch-and-bound process:
 
 | Callback Type | MOI Type | Description | When Called |
 |--------------|----------|-------------|-------------|
-| **User Cuts** | `MOI.UserCutCallback` | Add cutting planes | At fractional LP solutions |
+| **User Cuts** | `MOI.UserCutCallback` | Add cutting planes (must not cut off integer-feasible solutions) | At fractional LP solutions |
+| **Lazy Constraints** | `MOI.LazyConstraintCallback` | Add constraints that may cut off integer-feasible solutions | At branch-and-bound nodes |
+| **Heuristic** | `MOI.HeuristicCallback` | Supply candidate MIP solutions | At branch-and-bound nodes |
 
-### Not Yet Supported
-
-| Callback Type | MOI Type | Status |
-|--------------|----------|--------|
-| **Lazy Constraints** | `MOI.LazyConstraintCallback` | Not implemented (`MOI.supports` returns `false`) |
-| **Heuristic** | `MOI.HeuristicCallback` | Not implemented (`MOI.supports` returns `false`) |
+A solver-specific escape hatch, `Xpress.CallbackFunction`, is also provided: it
+registers a raw callback on the node-LP-solved hook and hands it the underlying
+`XPRSprob`, so advanced users can drive the Xpress callback directly while still
+using the MOI in-callback getters below.
 
 ### Callback Functions
 
@@ -282,17 +282,20 @@ function my_callback(cb_data::XPRSprob)
 end
 ```
 
-#### Submit Cuts
+#### Submit Cuts, Lazy Constraints and Heuristic Solutions
 
 ```julia
 # Submit a user cut (must not cut off integer feasible solutions)
 MOI.submit(model, MOI.UserCut(cb_data), func, set)
+
+# Submit a lazy constraint (may cut off an integer-feasible candidate)
+MOI.submit(model, MOI.LazyConstraint(cb_data), func, set)
+
+# Submit a candidate MIP solution from a heuristic
+MOI.submit(model, MOI.HeuristicSolution(cb_data), variables, values)
 ```
 
-Submitting lazy constraints (`MOI.LazyConstraint`) and heuristic solutions
-(`MOI.HeuristicSolution`) is not yet supported.
-
-**Supported Callback Constraint Types**:
+**Supported Callback Constraint Types** (UserCut / LazyConstraint):
 - `MOI.ScalarAffineFunction` with `MOI.LessThan`, `MOI.GreaterThan`, or `MOI.EqualTo`
 
 ---
@@ -353,6 +356,7 @@ You can:
 - ✅ Add constraints incrementally
 - ✅ Modify objective function
 - ✅ Change variable bounds and affine right-hand sides in place
+- ✅ Change objective and affine constraint coefficients in place
 - ✅ Solve multiple times with modifications
 
 ### Modification Operations
@@ -365,16 +369,21 @@ You can:
 | Delete constraints | ❌ | `MOI.delete` is not yet implemented |
 | Modify constraint function | ✅ | `MOI.set(MOI.ConstraintFunction(), ...)` |
 | Modify constraint set (bounds / RHS) | ✅ | `MOI.set(MOI.ConstraintSet(), ...)` -- see below |
+| Modify coefficients in place | ✅ | `MOI.modify(..., MOI.ScalarCoefficientChange(...))` -- see below |
 | Modify objective | ✅ | `MOI.set(MOI.ObjectiveFunction(), ...)` |
+| Modify quadratic objective coefficient | ✅ | `MOI.modify(..., MOI.ScalarQuadraticCoefficientChange)` -- scalar and vector; routes through `XPRSchgqobj` / `XPRSchgmqobj` |
+| Modify quadratic constraint coefficient | ✅ | `MOI.modify(ci, MOI.ScalarQuadraticCoefficientChange)` -- scalar and vector; routes through `XPRSchgqrowcoeff` (stores `0.5*coef`) |
 | Modify objective sense | ✅ | `MOI.set(MOI.ObjectiveSense(), ...)` |
 | Set starting values | ✅ | `MOI.set(MOI.VariablePrimalStart(), ...)` |
 
 #### In-place `set(MOI.ConstraintSet)`
 
-Variable bounds (`GreaterThan`, `LessThan`, `EqualTo`, `Interval`) and affine
-constraint right-hand sides can be modified in place without rebuilding the
-model. The change routes through `XPRSchgbounds` / `XPRSchgrhs`, so a subsequent
-`optimize!` (a re-solve or warm-start loop) reflects the new set.
+Variable bounds (`GreaterThan`, `LessThan`, `EqualTo`, `Interval`,
+`Semicontinuous`, `Semiinteger`) and affine constraint right-hand sides can be
+modified in place without rebuilding the model. The change routes through
+`XPRSchgbounds` / `XPRSchgrhs` (and, for the semi-continuous activation
+threshold, `XPRSchgglblimit`), so a subsequent `optimize!` (a re-solve or
+warm-start loop) reflects the new set.
 
 ```julia
 # Relax an upper bound in place, then re-solve.
@@ -384,9 +393,56 @@ optimize!(model)
 
 `Interval` bounds are stored internally as separate lower/upper bound
 constraints; setting either child bound refreshes the parent's cached
-`Interval`. In-place modification of `Semicontinuous` / `Semiinteger` bounds is
-**not** supported and throws `MOI.SetAttributeNotAllowed` -- delete and re-add
-the constraint instead.
+`Interval`. For `Semicontinuous` / `Semiinteger`, setting the constraint set
+re-applies both the upper bound and the semi-continuous activation threshold, so
+the whole `{0} u [lower, upper]` domain follows the new set.
+
+#### In-place `modify` with `ScalarCoefficientChange` / `ScalarConstantChange`
+
+Linear coefficients of the objective and of affine constraints can be changed in
+place, for a single coefficient or a batch, without rebuilding the model. Changes
+route through `XPRSchgobjn` (objective) and `XPRSchgcoef` / `XPRSchgmcoef`
+(constraints), so a subsequent `optimize!` reflects the new coefficients. Setting
+a coefficient to `0.0` removes the term. The objective's constant term can also be
+changed in place with `ScalarConstantChange` (routing through
+`XPRSsetobjdblcontrol` on `XPRS_OBJECTIVE_RHS`).
+
+```julia
+# Change one objective coefficient, then several at once.
+attr = MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Float64}}()
+MOI.modify(model, attr, MOI.ScalarCoefficientChange(x, 3.0))
+MOI.modify(model, attr, MOI.ScalarCoefficientChange.([x, y], [4.0, 1.0]))
+
+# Change the objective's constant term.
+MOI.modify(model, attr, MOI.ScalarConstantChange(5.0))
+
+# Change a coefficient in one affine constraint, or a batch across rows.
+MOI.modify(model, ci, MOI.ScalarCoefficientChange(x, 2.0))
+MOI.modify(model, [ci, ci], MOI.ScalarCoefficientChange.([x, y], [3.0, 2.0]))
+```
+
+`ScalarCoefficientChange` and `ScalarConstantChange` target a scalar affine
+objective; a `VectorOfVariables` multiobjective is not modifiable this way (use
+`set(MOI.ObjectiveFunction(), ...)` to replace it).
+
+#### In-place `modify` with `MultirowChange`
+
+`MOI.MultirowChange` changes one variable's coefficient across several rows of a
+single `VectorAffineFunction`-in-set constraint in one batched `XPRSchgmcoef`
+call. `VectorAffineFunction` constraints in `MOI.Nonnegatives`,
+`MOI.Nonpositives`, and `MOI.Zeros` are supported natively (added as one
+constraint whose rows map directly to Xpress rows), so JuMP hands these to
+XpressAPI directly instead of scalarizing them. Each `(output_row, new_coef)`
+pair uses a 1-based `output_row` into the vector function; setting a coefficient
+to `0.0` removes the term from that row. If the same `output_row` appears more
+than once, the pairs are applied in list order and the last value wins.
+
+```julia
+# c is a VectorAffineFunction-in-Nonnegatives constraint with several rows.
+# Change variable x's coefficient in rows 1 and 3 in one call.
+MOI.modify(model, c, MOI.MultirowChange(x, [(1, 2.0), (3, 5.0)]))
+optimize!(model)
+```
 
 ---
 
@@ -491,15 +547,25 @@ The following MOI features are **not yet supported** in XpressAPI:
 **Workaround**: Use MOI bridges to reformulate conic constraints as quadratic constraints.
 
 #### Advanced Features
-- ❌ `MOI.LazyConstraintCallback` / `MOI.LazyConstraint` (not implemented)
-- ❌ `MOI.HeuristicCallback` / `MOI.HeuristicSolution` (not implemented)
 - ❌ Multiple solutions / Solution pool access (Xpress has solution pools but not exposed via MOI)
 - ❌ Sensitivity analysis via MOI (use Xpress API directly)
 - ❌ Parameter tuning hints
 
 #### Modifications
 - ❌ `MOI.delete` for variables and constraints (not yet implemented)
-- ❌ `MOI.modify` (e.g. `MOI.ScalarCoefficientChange`) (not yet implemented)
+- ✅ `MOI.modify` with `MOI.ScalarQuadraticCoefficientChange` (quadratic
+  objective coefficients, scalar and vector)
+- ✅ `MOI.modify` with `MOI.ScalarQuadraticCoefficientChange` for quadratic
+  constraints (`ScalarQuadraticFunction`-in-set, scalar and vector; stores
+  `0.5*coef` to match the add path)
+- ✅ `MOI.modify` with `MOI.ScalarCoefficientChange` for objective and affine
+  constraint coefficients (scalar and vector forms) -- see below
+- ✅ `MOI.modify` with `MOI.ScalarConstantChange` for the objective constant --
+  see below
+- ✅ `MOI.modify` with `MOI.MultirowChange` for `VectorAffineFunction`-in-set
+  constraints (one variable's coefficients across several rows in one call) --
+  see below
+- ❌ `MOI.modify` with other changes (not yet implemented)
 - ❌ Modifying variable domains after creation (e.g., continuous -> integer)
 - ❌ Column generation within MOI (use Xpress API directly)
 - ❌ Constraint modification for nonlinear constraints (limited support)

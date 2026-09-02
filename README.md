@@ -326,11 +326,12 @@ model-introspection queries:
 ---
 ## Model Modification
 
-Variable bounds (`GreaterThan`, `LessThan`, `EqualTo`, `Interval`) and affine
-constraint right-hand sides can be modified in place via
-`MOI.set(model, MOI.ConstraintSet(), ci, new_set)`, without rebuilding the
-model, so a re-solve or warm-start loop picks up the change on the next
-`optimize!`.
+Variable bounds (`GreaterThan`, `LessThan`, `EqualTo`, `Interval`,
+`Semicontinuous`, `Semiinteger`) and affine constraint right-hand sides can be
+modified in place via `MOI.set(model, MOI.ConstraintSet(), ci, new_set)`,
+without rebuilding the model, so a re-solve or warm-start loop picks up the
+change on the next `optimize!`. For `Semicontinuous` / `Semiinteger` this
+re-applies both the upper bound and the semi-continuous activation threshold.
 
 ```julia
 using JuMP, XpressAPI
@@ -347,10 +348,9 @@ MOI.set(model, MOI.ConstraintSet(), ci, MOI.LessThan(6.0))
 optimize!(model)          # x = 6
 ```
 
-Note that `MOI.delete` (removing variables or constraints) and `MOI.modify`
-(e.g. changing individual coefficients) are **not yet implemented**. In-place
-modification of `Semicontinuous` / `Semiinteger` bounds is also unsupported and
-throws `MOI.SetAttributeNotAllowed`.
+`MOI.delete` (removing variables or constraints) and `MOI.modify` (e.g.
+changing individual coefficients in place) are also supported; see
+[MOI_FEATURES.md](MOI_FEATURES.md) for the full list.
 
 ---
 ## Callbacks
@@ -361,7 +361,12 @@ XpressAPI supports MOI callbacks for customizing the branch-and-bound process:
 
 | Callback Type | MOI Type | Description | When Called |
 |--------------|----------|-------------|-------------|
-| **User Cuts** | `MOI.UserCutCallback` | Add cutting planes | At fractional LP solutions |
+| **User Cuts** | `MOI.UserCutCallback` | Add cutting planes (must not cut off integer-feasible solutions) | At fractional LP solutions |
+| **Lazy Constraints** | `MOI.LazyConstraintCallback` | Add constraints that may cut off integer-feasible solutions | At branch-and-bound nodes |
+| **Heuristic** | `MOI.HeuristicCallback` | Supply candidate MIP solutions | At branch-and-bound nodes |
+
+The raw `XpressAPI.CallbackFunction` hook exposes the underlying `XPRSprob` for
+solver-specific callback use.
 
 ---
 ## Conflict Analysis (IIS)

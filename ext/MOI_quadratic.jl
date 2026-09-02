@@ -214,9 +214,29 @@ function MOI.set(model::Optimizer, ::MOI.ObjectiveFunction{F}, set::F) where {
         F <: MOI.ScalarQuadraticFunction
     }
 
-    # Add the linear part of the objective
+    # Replace any previously-set objective rather than accumulating.
+    _clear_objective!(model)
+
+    # Sum duplicate terms before handing them to Xpress (XPRSchgobjn /
+    # XPRSchgmqobj64 overwrite rather than accumulate), and cache the canonical
+    # form so the getter matches what Xpress holds.
+    if !MOI.Utilities.is_canonical(set)
+        set = MOI.Utilities.canonical(set)
+    end
+
+    # Add the linear part of the objective directly on Xpress objective 0.
+    # We do not delegate to the ScalarAffineFunction setter here: that would push
+    # a second entry onto model.objectives (on top of the ScalarQuadraticFunction
+    # cached below), so the objective would look like a multi-objective and
+    # ObjectiveValue would return a vector.
     if length(set.affine_terms) > 0
-        MOI.set(model, MOI.ObjectiveFunction{MOI.ScalarAffineFunction{Precision}}(), MOI.ScalarAffineFunction{Precision}(set.affine_terms, 0.0))
+        XPRSchgobjn(
+            model.inner,
+            0,
+            length(set.affine_terms),
+            map(t -> _XPRS_variable_from_moi_index(model, t.variable).xprs_index, set.affine_terms),
+            map(t -> Precision(t.coefficient), set.affine_terms)
+        )
     end
 
     # Add the quadratic part to the objective
@@ -241,13 +261,105 @@ function MOI.set(model::Optimizer, ::MOI.ObjectiveFunction{F}, set::F) where {
     return MOI.VariableIndex(-1)
 end
 
+# In-place modification of quadratic objective coefficients.
+#
+# The coefficients are passed to Xpress DIRECTLY (no 0.5 factor), mirroring the
+# quadratic objective setter above: both MOI's ScalarQuadraticFunction and the
+# Xpress objective use the 1/2 xᵀQx convention, so the MOI coefficient equals
+# the stored Q entry (unlike the quadratic *constraint* path, which halves).
+#
+# The objective-type guard rejects any non-quadratic current objective (affine,
+# unset, or VectorOfVariables) before touching the problem or the cache.
+# Column indices are canonicalized to col1 <= col2 because XPRSchgmqobj stores
+# the upper-triangular Q matrix and the ordering of the two variable arguments
+# in a ScalarQuadraticCoefficientChange is not guaranteed.
+#
+# The single-change form delegates to the batched form with a one-element vector.
+function MOI.modify(model::Optimizer, attr::MOI.ObjectiveFunction{F}, change::MOI.ScalarQuadraticCoefficientChange) where {
+        F <: MOI.ScalarQuadraticFunction
+    }
+    return MOI.modify(model, attr, [change])
+end
+
+function MOI.modify(model::Optimizer, ::MOI.ObjectiveFunction{F}, changes::AbstractVector{<:MOI.ScalarQuadraticCoefficientChange}) where {
+        F <: MOI.ScalarQuadraticFunction
+    }
+    # Any modification drops the solution caches; do it first so an early return
+    # or a failing precondition below can never leave a stale cache in place.
+    _invalidate_solution_caches!(model)
+    isempty(changes) && return
+    if model.objective_type != MOI.ScalarQuadraticFunction{Precision}
+        throw(MOI.ModifyObjectiveNotAllowed(first(changes),
+            "in-place objective modification requires a ScalarQuadraticFunction objective"))
+    end
+    col1 = map(c -> min(_XPRS_variable_from_moi_index(model, c.variable_1).xprs_index,
+                        _XPRS_variable_from_moi_index(model, c.variable_2).xprs_index), changes)
+    col2 = map(c -> max(_XPRS_variable_from_moi_index(model, c.variable_1).xprs_index,
+                        _XPRS_variable_from_moi_index(model, c.variable_2).xprs_index), changes)
+    coef = map(c -> Precision(c.new_coefficient), changes)
+    XPRSchgmqobj(model.inner, length(changes), col1, col2, coef)
+    for change in changes
+        model.objectives[end] = MOI.Utilities.modify_function(model.objectives[end], change)
+    end
+    return
+end
+
 
 # Quadratic constraints
+# Bounded to `Precision`: a non-Float64 coefficient type must be rejected so the
+# bridge layer does not route e.g. VariableIndex-in-EqualTo{UInt8} here through a
+# FunctionConversionBridge (see test_model_supports_constraint_*_EqualTo).
 function MOI.supports_constraint(model::Optimizer, ::Type{F}, ::Type{S})::Bool where {
+        F <: MOI.ScalarQuadraticFunction{Precision},
+        S <: Union{MOI.GreaterThan{Precision}, MOI.LessThan{Precision}, MOI.EqualTo{Precision}}
+    }
+    return true
+end
+
+# In-place modification of a quadratic constraint's Q coefficients.
+#
+# Unlike the quadratic objective modify above, the coefficient is halved before
+# being stored: the quadratic-constraint add path stores 0.5*coef in the Q matrix
+# (MOI doubles quadratic constraint coefficients under the 1/2 xᵀQx convention,
+# see the XPRSaddqmatrix64 call below), so the modify applies the same 0.5 factor
+# to stay consistent with the stored matrix. The cached constraint function keeps
+# the undoubled MOI coefficient.
+#
+# No objective-type guard is needed: dispatch on ConstraintIndex{ScalarQuadraticFunction}
+# already restricts to quadratic constraints, and _XPRS_constraint_from_moi_index
+# resolves the specific Xpress row.
+#
+# Column indices are canonicalized to col1 <= col2 because Xpress stores the
+# upper-triangular Q matrix and the ordering of the two variable arguments in a
+# ScalarQuadraticCoefficientChange is not guaranteed.
+#
+# The single-change form delegates to the batched form with a one-element vector.
+# There is no batched XPRSchgmqrowcoeff API, so the vector form loops XPRSchgqrowcoeff.
+function MOI.modify(model::Optimizer, ci::MOI.ConstraintIndex{F,S}, change::MOI.ScalarQuadraticCoefficientChange) where {
         F <: MOI.ScalarQuadraticFunction,
         S <: Union{MOI.GreaterThan, MOI.LessThan, MOI.EqualTo}
     }
-    return true
+    return MOI.modify(model, ci, [change])
+end
+
+function MOI.modify(model::Optimizer, ci::MOI.ConstraintIndex{F,S}, changes::AbstractVector{<:MOI.ScalarQuadraticCoefficientChange}) where {
+        F <: MOI.ScalarQuadraticFunction,
+        S <: Union{MOI.GreaterThan, MOI.LessThan, MOI.EqualTo}
+    }
+    # Any modification drops the solution caches; do it first so an early return
+    # below can never leave a stale cache in place.
+    _invalidate_solution_caches!(model)
+    isempty(changes) && return
+    c = _XPRS_constraint_from_moi_index(model, ci)
+    for change in changes
+        i1 = _XPRS_variable_from_moi_index(model, change.variable_1).xprs_index
+        i2 = _XPRS_variable_from_moi_index(model, change.variable_2).xprs_index
+        col1 = min(i1, i2)
+        col2 = max(i1, i2)
+        XPRSchgqrowcoeff(model.inner, c.xprs_index, col1, col2, 0.5 * Precision(change.new_coefficient))
+        c.moi_fct_value = MOI.Utilities.modify_function(c.moi_fct_value, change)
+    end
+    return
 end
 
 function MOI.add_constraints(model::Optimizer, func::Vector{F}, set::Vector{S})::Vector{MOI.ConstraintIndex{F,S}} where {
@@ -279,9 +391,17 @@ function MOI.add_constraints(model::Optimizer, func::Vector{F}, set::Vector{S}):
     # Now add all quadratic part to the newlly created constraints
     indices = map(
         i -> begin
-            c = _XPRS_constraint_from_moi_index(model, indices[i])
+            affine_index = indices[i]
+            c = _XPRS_constraint_from_moi_index(model, affine_index)
             # Reverse mapping, also flag this constraint as quadratic
             index = _XPRS_register_new_constraint_as(model, c, func[i], set[i])
+            # `_XPRS_register_new_constraint_as` re-filed `c` under the
+            # ScalarQuadraticFunction bucket and mutated its `moi_fct_value` to
+            # the quadratic function. Drop the original ScalarAffineFunction
+            # entry created above, otherwise the affine bucket retains a phantom
+            # index whose function is quadratic -- iterating it (e.g. the
+            # DualObjectiveValue fallback) throws converting quadratic to affine.
+            _XPRS_unregister_constraint(model, affine_index)
             # Add the quadratic matrix in Xpress
             if length(func[i].quadratic_terms) > 0
                 XPRSaddqmatrix64(
@@ -307,4 +427,44 @@ function MOI.add_constraint(model::Optimizer, func::F, set::S)::MOI.ConstraintIn
         S <: Union{MOI.GreaterThan, MOI.LessThan, MOI.EqualTo}
     }
     return MOI.add_constraints(model, [func], [set])[1]
+end
+
+# Delete a quadratic constraint. The add path registers ONE Constraint object in
+# TWO buckets (ScalarAffineFunction, from the dummy linear row, and
+# ScalarQuadraticFunction) sharing a single Xpress row plus one Q matrix, and does
+# NOT unregister the affine entry. Deleting the quadratic constraint therefore
+# drops the Q matrix (guarded: an all-linear quadratic constraint has no Q entry),
+# deletes the shared row, unregisters BOTH bucket entries (the affine one located
+# by object identity, since its cache key differs from the quadratic one), then
+# renumbers survivors.
+function MOI.delete(model::Optimizer, ci::MOI.ConstraintIndex{F,S}) where {
+        F <: MOI.ScalarQuadraticFunction,
+        S <: Union{MOI.GreaterThan, MOI.LessThan, MOI.EqualTo}
+    }
+    c = _XPRS_constraint_from_moi_index(model, ci)
+    row = c.xprs_index
+
+    # Drop the Q matrix only if one was added (empty-Q constraints skip it).
+    if length(c.moi_fct_value.quadratic_terms) > 0
+        XPRSdelqmatrix(model.inner, row)
+    end
+    XPRSdelrows(model.inner, 1, [row])
+
+    # Unregister the twin ScalarAffineFunction entry (same Constraint object, but a
+    # different cache key) by identity, then the quadratic entry.
+    _P = Precision
+    _S = MOI_precision_type(S)
+    aff_key = MOI.ScalarAffineFunction{_P}
+    if haskey(model.constraints, aff_key) && haskey(model.constraints[aff_key], _S)
+        for (key, other) in model.constraints[aff_key][_S]
+            if other === c
+                delete!(model.constraints[aff_key][_S], key)
+                break
+            end
+        end
+    end
+    _XPRS_unregister_constraint(model, ci)
+
+    _XPRS_shift_indices_after_row_delete!(model, [row])
+    return
 end

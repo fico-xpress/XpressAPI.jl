@@ -939,10 +939,10 @@ export XPVERSION_MAJOR
 const XPVERSION_MINOR::Int32 = Int32(1)
 export XPVERSION_MINOR
 """ `XPVERSION_BUILD` - Build version number of Xpress optimizer library."""
-const XPVERSION_BUILD::Int32 = Int32(5)
+const XPVERSION_BUILD::Int32 = Int32(99)
 export XPVERSION_BUILD
 """ `XPVERSION_FULL` - Full version number of Xpress optimizer library."""
-const XPVERSION_FULL::Int32 = Int32(470105)
+const XPVERSION_FULL::Int32 = Int32(470199)
 export XPVERSION_FULL
 const XPRS_DEL_COLON::Int32 = Int32(2)
 
@@ -3034,7 +3034,9 @@ const XPRS_ALTERNATIVELPSOLS::Int32 = Int32(8523)
 
 """
     XPRS_ALTERNATIVEREDCOSTS
-Controls aggressiveness of searching for alternative reduced cost (integer)
+**Deprecated**Controls aggressiveness of searching for alternative reduced cost. (integer)
+
+This control is deprecated, please use NODEREDCOSTTIGHTEN instead.
 
 Default value: `-1`
 
@@ -4401,8 +4403,6 @@ bit 15
 : Lifted GUB cover cuts.
 bit 16
 : Zero-half cuts.
-bit 17
-: Indicator constraint cuts.
 bit 18
 : Strong Chvatal-Gomory cuts.
 bit 20
@@ -4840,9 +4840,9 @@ const XPRS_FEASTOLTARGET::Int32 = Int32(7121)
 
 """
     XPRS_FORCEOUTPUT
-Certain names in the problem object may be incompatible with different file formats (such as names containing spaces for LP files). (integer)
+**Deprecated**This control no longer has any effect. (integer)
 
-If the Optimizer might be unable to read back a problem because of non-standard names, it will first attempt to write it out using an extended naming convention. If the names would not be possible to extend so that they would be reproducible and recognizable, it will give an error message and won't create the file. If the Optimizer might be unable to read back a problem because of non-standard names, it will give an error message and won't create the file. This option may be used to force output anyway.
+Use ESCAPENAMES instead. Certain names in the problem object may be incompatible with different file formats (such as names containing spaces for LP files). If the Optimizer might be unable to read back a problem because of non-standard names, it will first attempt to write it out using an extended naming convention. If the names would not be possible to extend so that they would be reproducible and recognizable, it will give an error message and won't create the file. If the Optimizer might be unable to read back a problem because of non-standard names, it will give an error message and won't create the file. This option may be used to force output anyway.
 
 Default value: `0`
 
@@ -6096,13 +6096,13 @@ const XPRS_MAXIIS::Int32 = Int32(8131)
 
 """
     XPRS_MAXIMPLIEDBOUND
-Presolve: When tighter bounds are calculated during MIP preprocessing, only bounds whose absolute value are smaller than `MAXIMPLIEDBOUND` will be applied to the problem. (double)
+Presolve: When tighter bounds are calculated during MIP or nonlinear preprocessing, only bounds whose absolute value are smaller than `MAXIMPLIEDBOUND` will be applied to the problem. (double)
 
 Default value: `1.0E+08`
 
 Values:
 [0,inf)
-: The maximum size of implied bounds during MIP presolve.
+: The maximum size of implied bounds during MIP presolve and nonlinear presolve.
 """
 const XPRS_MAXIMPLIEDBOUND::Int32 = Int32(7120)
 
@@ -6252,7 +6252,7 @@ const XPRS_MAXSTALLTIME::Int32 = Int32(8443)
     XPRS_MAXTIME
 **Deprecated**The maximum time in seconds that the Optimizer will run before it terminates, including the problem setup time and solution time. (integer)
 
-For MIP problems, this is the total time taken to solve all nodes.
+For MIP problems, this is the total time taken to solve all nodes. This control has been deprecated; the double control TIMELIMIT should be used instead.
 
 Default value: `0`
 
@@ -6450,7 +6450,7 @@ Values:
 1
 : Allow all dual reductions.
 2
-: Allow dual reductions on continuous variables only.
+: Allow dual reductions on non MIP entities only.
 """
 const XPRS_MIPDUALREDUCTIONS::Int32 = Int32(8392)
 
@@ -6512,7 +6512,7 @@ const XPRS_MIPLOG::Int32 = Int32(8028)
 
 """
     XPRS_MIPPRESOLVE
-Branch and Bound: Type of integer processing to be performed. (integer)
+Branch and Bound: Type of integer processing to be performed at nodes. (integer)
 
 If set to `0`, no processing will be performed. This is a bit-vector control (see Section ).
 
@@ -6520,13 +6520,13 @@ Default value: -1
 
 Values are a bitset:
 bit 0
-: Reduced cost fixing will be performed at each node. This can simplify the node before it is solved, by deducing that certain variables' values can be fixed based on additional bounds imposed on other variables at this node.
+: Reduced cost fixing will be performed at each node. This can simplify the node before it is solved, by deducing that certain variables' values can be fixed based on additional bounds imposed on other variables at this node. This bit is deprecated, use NODEREDCOSTTIGHTEN instead.
 bit 1
-: Primal reductions will be performed at each node. Uses constraints of the node to tighten the range of variables, often resulting in fixing their values. This greatly simplifies the problem and may even determine optimality or infeasibility of the node before the simplex method commences.
+: Primal reductions will be performed at each node. Uses constraints of the node to tighten the range of variables, often resulting in fixing their values. This greatly simplifies the problem and may even determine optimality or infeasibility of the node before the simplex method commences. This bit is deprecated, use NODEAPPLIEDBOUNDS instead.
 bit 3
-: If node preprocessing is allowed to change bounds on continuous columns.
+: If node preprocessing is allowed to change bounds on non MIP entities (e.g., continuous) columns. This bit is deprecated, use NODEAPPLIEDBOUNDS instead.
 bit 4
-: Dual reductions will be performed at each node.
+: Dual reductions will be performed at each node. This bit is deprecated, use NODEDUALREDUCTIONS instead.
 bit 5
 : Allow global (non-bound) tightening of the problem during the tree search.
 bit 6
@@ -8863,8 +8863,6 @@ bit 15
 : Lifted GUB cover cuts.
 bit 16
 : Zero-half cuts.
-bit 17
-: Indicator constraint cuts.
 bit 18
 : Strong Chvatal-Gomory cuts.
 bit 20
@@ -13574,7 +13572,7 @@ Reads an ASCII solution file `.slx` created by the XPRSwriteslxsol function.
 # Arguments
 - `prob::XPRSprob`: The current problem.
 - `filename::Union{Nothing,AbstractString}`: A string of up to MAXPROBNAMELENGTH characters containing the file name to which the solution is to be read.
-- `flags::Union{Nothing,AbstractString}`: Flags to pass to `XPRSreadslxsol` (`READSLXSOL`): non-breaking-whitespace conversion; lread the solution as an LP solution in case of a MIP problem; mread the solution as a solution for the MIP problem; aread multiple MIP solutions from the `.slx` file and add them to the MIP problem; vuse the provided filename verbatim, without appending the `.slx` extension; zread a compressed input file.
+- `flags::Union{Nothing,AbstractString}`: Flags to pass to `XPRSreadslxsol` (`READSLXSOL`): non-breaking-whitespace conversion; aread multiple MIP solutions from the `.slx` file and add them to the MIP problem; lread the solution as an LP solution in case of a MIP problem; mread the solution as a solution for the MIP problem; pinterpret the solution as partial: use XPRSaddmipsol for solutions with undefined column values, potentially triggering a local search to complete the solution.
 # Return value
 - `prob::XPRSprob`: The current problem.
 
@@ -19057,7 +19055,7 @@ Writes the current basis to a file for later input into the Optimizer.
 # Arguments
 - `prob::XPRSprob`: The current problem.
 - `filename::Union{Nothing,AbstractString}`: A string of up to MAXPROBNAMELENGTH characters containing the file name from which the basis is to be written.
-- `flags::Union{Nothing,AbstractString}`: Flags to pass to `XPRSwritebasis` (`WRITEBASIS`): scrambled vector names; output values in hexadecimal; output in a format compatible with CPLEX; ioutput the internal presolved basis; toutput a compact advanced form of the basis; noutput basis file containing current solution values; houtput values in single precision; poutput values in full precision (obsolete as this is now default behavior); vuse the provided filename verbatim, without appending the `.bss` extension; zcompress the output file.
+- `flags::Union{Nothing,AbstractString}`: Flags to pass to `XPRSwritebasis` (`WRITEBASIS`): scrambled vector names; output values in hexadecimal; output in a format compatible with CPLEX; ioutput the internal presolved basis; toutput a compact advanced form of the basis; noutput basis file containing current solution values; houtput values in single precision; output values in full precision (obsolete, now default); vuse the provided filename verbatim, without appending the `.bss` extension; zcompress the output file.
 # Return value
 - `prob::XPRSprob`: The current problem.
 
@@ -20462,7 +20460,7 @@ Writes the current problem to an MPS or LP file.
 # Arguments
 - `prob::XPRSprob`: The current problem.
 - `filename::Union{Nothing,AbstractString}`: A string of up to MAXPROBNAMELENGTH characters to contain the file name to which the problem is to be written.
-- `flags::Union{Nothing,AbstractString}`: Flags, which can be one or more of the following: output in a format compatible with CPLEX; oone element per line; noutput the scaled problem; sscrambled vector names; loutput in LP format; poutput values in full precision (obsolete as this is now default behavior); tomit the Xpress header in LP or MPS format; vuse the provided filename verbatim, without appending the `.mps` or `.lp` extension; zcompress the output file.
+- `flags::Union{Nothing,AbstractString}`: Flags, which can be one or more of the following: output in a format compatible with CPLEX; oone element per line; noutput the scaled problem; sscrambled vector names; loutput in LP format; output values in full precision (obsolete, now default); tomit the Xpress header in LP or MPS format; vuse the provided filename verbatim, without appending the `.mps` or `.lp` extension; zcompress the output file.
 # Return value
 - `prob::XPRSprob`: The current problem.
 

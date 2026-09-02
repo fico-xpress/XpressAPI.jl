@@ -213,6 +213,13 @@ function MOI.supports_constraint(model::Optimizer, ::Type{F}, ::Type{S})::Bool w
 end
 
 
+# Constant term of an indicator sub-constraint body, folded into its RHS above.
+# Affine/quadratic scalar functions expose `.constant`; a nonlinear body has no
+# separable constant to move (the row builder handles it), so treat it as zero.
+_indicator_constraint_constant(f::MOI.ScalarAffineFunction) = f.constant
+_indicator_constraint_constant(f::MOI.ScalarQuadraticFunction) = f.constant
+_indicator_constraint_constant(f) = zero(Precision)
+
 function MOI.add_constraint(model::Optimizer, func::F, set::S)::MOI.ConstraintIndex{F,S} where {
         F <: Union{<: MOI.VectorAffineFunction,<: MOI.VectorQuadraticFunction,<: MOI.VectorNonlinearFunction},
         # MOI.EqualTo/LessThan/GreaterThan{Bool} is required by MOI.VectorNonlinearFunction
@@ -278,11 +285,16 @@ function MOI.add_constraint(model::Optimizer, func::F, set::S)::MOI.ConstraintIn
         rhs = Precision(set.set.upper)
     end
 
-    # Add the indicator constraints part as normal constraints in Xpress
+    # Add the indicator constraints part as normal constraints in Xpress.
+    # The scalar body may carry a constant term (e.g. `x + 1 <= 10`); the affine
+    # constraint builder puts only the variable terms into the matrix row and
+    # reads the bound straight from the set, so the constant has to be folded
+    # into the right-hand side here (`expr + c ~ rhs` becomes `expr ~ rhs - c`).
+    # Without this the constant is silently dropped and a wrong optimum results.
     indicator_constraints_ind = MOI.add_constraints(
         model,
         indicator_constraints,
-        map(i -> S2(rhs), 1:length(indicator_constraints))
+        map(c -> S2(rhs - Precision(_indicator_constraint_constant(c))), indicator_constraints)
     )
     # Get related variable constraint object
     indicator_constraints_obj = map(i -> _XPRS_constraint_from_moi_index(model, i), indicator_constraints_ind)
@@ -297,4 +309,37 @@ function MOI.add_constraint(model::Optimizer, func::F, set::S)::MOI.ConstraintIn
     )
     # Flag as parent constraint
     return _XPRS_register_new_constraint_as_parent(model, func, set, indicator_constraints_ind)
+end
+
+# Delete an indicator constraint. The add path stores it as a parent constraint
+# (xprs_index = -2) whose children are the inner rows, each flagged as an indicator
+# in Xpress via XPRSsetindicators. XPRSdelindicators only clears that flag (turning
+# the row back into a normal row); the row itself must then be removed with
+# XPRSdelrows. So: clear the indicator flag on each inner row, delete the rows in
+# one batched call, unregister the children and parent, then renumber survivors.
+function MOI.delete(model::Optimizer, ci::MOI.ConstraintIndex{F,S}) where {
+        F <: Union{<: MOI.VectorAffineFunction,<: MOI.VectorQuadraticFunction,<: MOI.VectorNonlinearFunction},
+        P2 <: Union{Precision, Bool},
+        S2 <: Union{MOI.GreaterThan{P2}, MOI.LessThan{P2}, MOI.EqualTo{P2}},
+        S <: Union{
+            MOI.Indicator{MOI.ACTIVATE_ON_ONE,  S2},
+            MOI.Indicator{MOI.ACTIVATE_ON_ZERO, S2}
+        }
+    }
+    c = _XPRS_constraint_from_moi_index(model, ci)
+    rows = sort!([subc.xprs_index for subc in c.subconstraints])
+    # Clear the indicator flag on each inner row before deleting it.
+    for row in rows
+        XPRSdelindicators(model.inner, row, row)
+    end
+    if !isempty(rows)
+        XPRSdelrows(model.inner, length(rows), rows)
+    end
+    for subc in c.subconstraints
+        _XPRS_unregister_constraint(model,
+            MOI.ConstraintIndex{subc.moi_fct_type, subc.moi_set_type}(subc.moi_index))
+    end
+    _XPRS_unregister_constraint(model, ci)
+    _XPRS_shift_indices_after_row_delete!(model, rows)
+    return
 end

@@ -204,19 +204,22 @@
 const CallbackArg = XPRSprob
 
 # --------------- MathOptInterface.Callback getters ---------------
-# Advertise support per callback type. Only UserCutCallback is implemented
-# (see MOI.set / MOI.submit below); LazyConstraintCallback and
-# HeuristicCallback are not, so we must report `false` for them rather than a
-# blanket `true`. A blanket `true` makes JuMP offer callbacks that then fail
-# with a MethodError when set/submit is called.
+# Advertise support per callback type. UserCut, LazyConstraint and Heuristic
+# callbacks are all implemented below (MOI.set / MOI.submit). We report support
+# per type rather than as a blanket `true`: a blanket `true` would also claim
+# callback types we do not implement, making JuMP offer them and then fail with
+# a MethodError when set/submit is called.
 MOI.supports(::Optimizer, ::MOI.UserCutCallback) = true
-MOI.supports(::Optimizer, ::MOI.LazyConstraintCallback) = false
-MOI.supports(::Optimizer, ::MOI.HeuristicCallback) = false
+MOI.supports(::Optimizer, ::MOI.LazyConstraintCallback) = true
+MOI.supports(::Optimizer, ::MOI.HeuristicCallback) = true
 
 
 function MOI.get(model::Optimizer, cb::MOI.CallbackVariablePrimal{CallbackArg}, index::MOI.VariableIndex)
     v = _XPRS_variable_from_moi_index(model, index)
-    solstatus, solvec = XPRSgetsolution(cb.callback_data, v.solbuffer, v.xprs_index, v.xprs_index)
+    # Inside a callback the node/candidate solution must be read with
+    # XPRSgetcallbacksolution: plain XPRSgetsolution returns uninitialised
+    # memory in every callback context (optnode / nodelpsolved / preintsol).
+    solstatus, solvec = XPRSgetcallbacksolution(cb.callback_data, v.solbuffer, v.xprs_index, v.xprs_index)
     if solstatus == XPRS_SOLAVAILABLE_NOTFOUND
         return NaN
     end
@@ -232,15 +235,64 @@ function MOI.get(model::Optimizer, cb::MOI.CallbackNodeStatus{CallbackArg})::MOI
     return MOI.CALLBACK_NODE_STATUS_FRACTIONAL
 end
 
+# Presolve a single MOI affine row (func-in-set) from the original/input space
+# into the presolved space Xpress expects for XPRSaddcuts/XPRSstorecuts. Used
+# for lazy constraints, which submit through the preintsol/optnode hooks and so
+# must be translated into the search space (user cuts take a different path --
+# XPRSaddmanagedcuts consumes the original space directly).
+#
+# Lazy constraints are stated by the user against the original columns, but the
+# search operates on the presolved problem, so the row must be translated with
+# XPRSpresolverow first (see the els_usercuts.c example). The returned status is:
+#   == 0  the row was presolved exactly -- safe to add as a lazy constraint;
+#   >  0  the row had to be relaxed (weakened) to be expressed in the presolved
+#         space -- NOT safe for a lazy constraint (see the caller);
+#   <  0  presolving failed (row became nonlinear, needed relaxation of an
+#         equality, hit a dual/duplicate reduction, or errored).
+# `maxcoefs` bounds the presolved length; the presolved row can be denser than
+# the original, so we size it to the presolved column count (XPRS_COLS).
+function _XPRS_presolve_cut(prob::XPRSprob, model::Optimizer, func::F, set::S) where {
+        F <: MOI.ScalarAffineFunction,
+        S <: Union{MOI.GreaterThan, MOI.LessThan, MOI.EqualTo}
+    }
+    rowtype = only(rowtypes(model, [func], [set]))
+    origrhs = only(rhs(model, [func], [set]))
+    origcolind = colinds(model, [func], [set])
+    origrowcoef = rowcoeffs(model, [func], [set])
+    maxcoefs = Int(XPRSgetattrib(prob, "COLS"))
+    ncoefs, colind, rowcoef, prerhs, status = XPRSpresolverow(
+        prob,
+        rowtype,
+        length(origcolind),
+        origcolind,
+        origrowcoef,
+        origrhs,
+        maxcoefs,
+        XPRS_ALLOC, # colind (presolved, returned)
+        XPRS_ALLOC, # rowcoef (presolved, returned)
+    )
+    # Trim the returned buffers to the presolved nonzero count.
+    return rowtype, prerhs, colind[1:ncoefs], rowcoef[1:ncoefs], status
+end
+
 # --------------- MathOptInterface.UserCut ---------------
 
 # User Cuts
 #     Called on fractional solutions (LP relaxation solutions)
 #     Purpose: Tighten the LP relaxation to get better bounds
 #     Don't change the feasible region of the original problem
+#
+# Registered on the cutround callback -- the dedicated hook for injecting user
+# cuts during a round of cutting (see els_usercuts.c). Unlike nodelpsolved it
+# fires inside the separation loop, so a cut added here is used immediately and
+# triggers a further round automatically.
 function MOI.set(model::Optimizer, ::MOI.UserCutCallback, cb::Function)
-    # Declares a callback function, called during the branch and bound search, after the LP relaxation has been solved for the current node, but before any internal cuts and heuristics have been applied.
-    XPRSaddcbnodelpsolved(model.inner, cb, 1)
+    # cutround wrapper: (prob, ifxpresscuts) -> action. We do not override the
+    # default action, so return nothing.
+    XPRSaddcbcutround(model.inner, function (prob, ifxpresscuts)
+        cb(prob)
+        return nothing
+    end, 1)
     return nothing
 end
 
@@ -248,22 +300,218 @@ function MOI.submit(model::Optimizer, cb::MOI.UserCut{CallbackArg}, func::F, set
         F <: MOI.ScalarAffineFunction,
         S <: Union{MOI.GreaterThan, MOI.LessThan, MOI.EqualTo}
     }
-    XPRSaddcuts(
+    # A user cut is stated by the user against the original columns. Rather than
+    # presolving it into the search space, submit it with XPRSaddmanagedcuts:
+    # this is the preferred mechanism for injecting cuts from the cutround
+    # callback and accepts the cut in the original space directly, so there is no
+    # XPRSpresolverow round-trip (and no presolve-failure case to handle). In
+    # MOI, a UserCut is guaranteed not to remove any integer-feasible point, so
+    # it is always globally valid. We pass globalvalid=1 below.
+    rowtype = only(rowtypes(model, [func], [set]))
+    rhsval = only(rhs(model, [func], [set]))
+    colind = colinds(model, [func], [set])
+    rowcoef = rowcoeffs(model, [func], [set])
+    XPRSaddmanagedcuts(
         cb.callback_data,
-        1, #ncuts
-        [1], #cuttype
-        rowtypes(model, [func], [set]),
-        rhs(model, [func], [set]),
-        starts(model, [func], [set]),
-        colinds(model, [func], [set]),
-        rowcoeffs(model, [func], [set])
+        1,        # globalvalid: MOI user cuts are globally valid
+        1,        # ncuts
+        [rowtype],
+        [rhsval],
+        [0, length(colind)], # start
+        colind,
+        rowcoef
     )
     return nothing
 end
 
 
-# --------------- Not yet implemented ---------------
-# MOI.LazyConstraintCallback / MOI.submit(::MOI.LazyConstraint, ...) and
-# MOI.HeuristicCallback / MOI.submit(::MOI.HeuristicSolution, ...) are not
-# implemented. `MOI.supports` reports `false` for them above so JuMP does not
-# offer them.
+# --------------- MathOptInterface.LazyConstraint ---------------
+
+# Lazy Constraints
+#     Called on integer-feasible candidate solutions. Purpose: cut off
+#     candidate solutions that violate a constraint that is too expensive to add
+#     up front. Unlike user cuts, lazy constraints DO change the feasible region.
+#
+# Xpress hook coordination. Integer-feasible candidates are seen in the
+# `preintsol` callback, whose `soltype` tells us where the candidate came from:
+#   * soltype == 0 -- the node relaxation itself is integer feasible. The current
+#                     node problem may be modified here, so `submit` adds the cut
+#                     *directly* with `XPRSaddcuts` (after presolving it). Adding
+#                     the cut implicitly rejects the candidate and makes the cut
+#                     available in child nodes. We deliberately do NOT flatly set
+#                     p_reject: rejecting the node drops any other object added
+#                     there (e.g. a heuristic MIP solution) and does not add the
+#                     cut to the tree.
+#   * soltype != 0 -- a MIP solution found by a heuristic or supplied by the user.
+#                     There is no node relaxation to attach a cut to, so `submit`
+#                     stores the (presolved) cut with `XPRSstorecuts` and we
+#                     reject the candidate. The stored cuts are flushed into the
+#                     tree with `XPRSloadcuts` from the `optnode` hook
+#                     (`XPRSloadcuts` is illegal in the preintsol context).
+#
+# Thread safety: a MIP solve runs preintsol/optnode concurrently on several
+# threads. Both `lazy_soltype` and `lazy_pending_cuts` are keyed by the Xpress
+# MIP thread id so threads never share state, and locally-valid cuts stored on
+# one thread are only ever loaded back on the same thread.
+function MOI.set(model::Optimizer, ::MOI.LazyConstraintCallback, cb::Function)
+    # Dual reductions must be disabled: the model is assumed incomplete while
+    # lazy constraints are being added, so presolve must not use dual reasoning
+    # that a not-yet-added constraint could invalidate.
+    XPRSsetcontrol(model.inner, "MIPDUALREDUCTIONS", 0)
+    model.lazy_callback = cb
+    # preintsol wrapper: (prob, soltype, cutoff) -> (reject, cutoff). Record this
+    # thread's soltype (so `submit` can branch on it), run the user callback,
+    # then reject the candidate if it produced any deferred lazy cut. When
+    # soltype == 0 the cut was added directly by `submit` (which already
+    # rejected the candidate), so no explicit reject is needed here.
+    XPRSaddcbpreintsol(model.inner, function (prob, soltype, cutoff)
+        tid = Int(XPRSgetattrib(prob, "MIPTHREADID"))
+        nbefore = lock(model.lazy_lock) do
+            model.lazy_soltype[tid] = Int(soltype)
+            length(get(model.lazy_pending_cuts, tid, Ptr{Cvoid}[]))
+        end
+        try
+            cb(prob)
+        finally
+            lock(model.lazy_lock) do
+                delete!(model.lazy_soltype, tid)
+            end
+        end
+        nafter = lock(model.lazy_lock) do
+            length(get(model.lazy_pending_cuts, tid, Ptr{Cvoid}[]))
+        end
+        reject = nafter > nbefore ? 1 : nothing
+        return reject, nothing
+    end, 1)
+    # optnode wrapper: load and clear any cuts this thread stored since the last
+    # flush. optnode (not nodelpsolved) is the context where XPRSloadcuts is
+    # legal.
+    XPRSaddcboptnode(model.inner, function (prob)
+        tid = Int(XPRSgetattrib(prob, "MIPTHREADID"))
+        cuts = lock(model.lazy_lock) do
+            pending = get(model.lazy_pending_cuts, tid, nothing)
+            if pending === nothing || isempty(pending)
+                return nothing
+            end
+            taken = copy(pending)
+            empty!(pending)
+            return taken
+        end
+        if cuts !== nothing
+            XPRSloadcuts(prob, 1, -1, length(cuts), cuts)
+        end
+        return nothing # do not declare the node infeasible
+    end, 1)
+    return nothing
+end
+
+function MOI.submit(model::Optimizer, cb::MOI.LazyConstraint{CallbackArg}, func::F, set::S) where {
+        F <: MOI.ScalarAffineFunction,
+        S <: Union{MOI.GreaterThan, MOI.LessThan, MOI.EqualTo}
+    }
+    prob = cb.callback_data
+    rowtype, prerhs, colind, rowcoef, status = _XPRS_presolve_cut(prob, model, func, set)
+    # A lazy constraint MUST be added exactly. The presolved row is only usable
+    # when status == 0: a status > 0 means the row had to be relaxed during
+    # presolve, so it no longer cuts off everything the user intended and an
+    # infeasible candidate could slip through, making the reported solution
+    # incorrect. status < 0 means presolving failed outright. Either way we
+    # cannot add the constraint faithfully, so this is a hard error rather than a
+    # skipped cut.
+    if status != 0
+        throw(XPRSexception(
+            "Failed to presolve lazy constraint exactly (XPRSpresolverow status $status); " *
+            "the constraint cannot be added faithfully, so the solve would be incorrect.",
+            nothing,
+        ))
+    end
+    tid = Int(XPRSgetattrib(prob, "MIPTHREADID"))
+    soltype = lock(model.lazy_lock) do
+        get(model.lazy_soltype, tid, -1)
+    end
+    if soltype == 0
+        # The candidate is the current node relaxation: add the cut directly to
+        # the node problem. This implicitly rejects the candidate and propagates
+        # the cut to child nodes.
+        XPRSaddcuts(
+            prob,
+            1,        # ncuts
+            [1],      # cuttype
+            [rowtype],
+            [prerhs],
+            [0, length(colind)], # start
+            colind,
+            rowcoef
+        )
+        return nothing
+    end
+    # soltype != 0 (heuristic / user solution): no node problem to attach to, so
+    # store the cut in the cut pool (nodups = 2: drop duplicates, ignoring cut
+    # type). The returned handle is buffered per thread and loaded into the tree
+    # from the optnode hook (XPRSloadcuts is illegal in the preintsol context).
+    cutind = XPRSstorecuts(
+        prob,
+        1,        # ncuts
+        2,        # nodups
+        [1],      # cuttype
+        [rowtype],
+        [prerhs],
+        [0, length(colind)], # start
+        XPRS_ALLOC, # cutind (returned handle)
+        colind,
+        rowcoef
+    )
+    lock(model.lazy_lock) do
+        append!(get!(model.lazy_pending_cuts, tid, Ptr{Cvoid}[]), cutind)
+    end
+    return nothing
+end
+
+# --------------- MathOptInterface.HeuristicSolution ---------------
+
+# Heuristic Solutions
+#     Called during branch and bound to let the user supply a candidate MIP
+#     solution (e.g. from a rounding/repair heuristic). Xpress checks and, if
+#     valid and improving, accepts it as a new incumbent. Registered on
+#     `nodelpsolved`, which fires reliably at the root LP (unlike optnode, which
+#     does not fire when Xpress solves the model at the root by heuristics).
+function MOI.set(model::Optimizer, ::MOI.HeuristicCallback, cb::Function)
+    XPRSaddcbnodelpsolved(model.inner, cb, 2)
+    return nothing
+end
+
+function MOI.submit(
+        model::Optimizer,
+        cb::MOI.HeuristicSolution{CallbackArg},
+        variables::Vector{MOI.VariableIndex},
+        values::Vector{<:Real}
+    )
+    columns = map(v -> _XPRS_variable_from_moi_index(model, v).xprs_index, variables)
+    XPRSaddmipsol(
+        cb.callback_data,
+        length(values),
+        convert(Vector{Precision}, values),
+        columns,
+        nothing
+    )
+    # Xpress does not report synchronously whether the solution was accepted;
+    # it is validated asynchronously during the search.
+    return MOI.HEURISTIC_SOLUTION_UNKNOWN
+end
+
+# --------------- Xpress.CallbackFunction (raw solver hook) ---------------
+
+# Solver-specific escape hatch: registers `cb` on the node-LP-solved callback and
+# hands it the raw `XPRSprob` (the same value MOI wraps as callback data), so
+# users can drive the underlying Xpress callback directly and still use the MOI
+# in-callback getters (`CallbackVariablePrimal`, `CallbackNodeStatus`). We use
+# `nodelpsolved` rather than optnode because optnode does not fire for models
+# Xpress solves at the root.
+struct CallbackFunction <: MOI.AbstractCallback end
+
+MOI.supports(::Optimizer, ::CallbackFunction) = true
+
+function MOI.set(model::Optimizer, ::CallbackFunction, cb::Function)
+    XPRSaddcbnodelpsolved(model.inner, cb, 0)
+    return nothing
+end
