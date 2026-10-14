@@ -269,7 +269,7 @@ mutable struct Constraint
         moi_set_type::Type{<: MOI.AbstractSet},
         moi_fct_value::MOI.AbstractFunction,
         moi_set_value::MOI.AbstractSet
-)
+    )
         return new(
             moi_index,
             xprs_index,
@@ -360,28 +360,33 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
     # Farkas (dual) certificate for an infeasible LP. `has_dual_ray` records
     # whether the last solve produced a usable dual ray; `dual_ray` then holds
     # that ray indexed by Xpress row (length ROWS). Populated by optimize! and
-    # consumed by the ConstraintDual getters -- see `_ensure_dual_ray!`.
+    # consumed by the ConstraintDual getters: see `_ensure_dual_ray!`.
     has_dual_ray::Bool
     dual_ray::Vector{Precision}
 
-    # Cached primal solution for the last solve. `has_primal_solution` records
-    # whether `primal_solution` holds the current incumbent (length ORIGINALCOLS,
-    # indexed by Xpress column); it is filled lazily on the first VariablePrimal query and
-    # reset by optimize! and empty!. Caching the whole vector once avoids the O(n)
-    # cost of one XPRSgetsolution call per variable. See `_ensure_primal_solution!`.
-    has_primal_solution::Bool
-    primal_solution::Vector{Precision}
+    # Cached primal / slack solution vectors, indexed by MOI result index (1-based).
+    # Slot 1 is the incumbent (XPRSgetsolution / XPRSgetslacks); slots 2.. are the
+    # additional solutions the solver collects during a MIP solve (solution
+    # enumeration), read via XPRSgetpoolsolution / XPRSgetpoolslacks with pool
+    # index `result_index - 1`. A slot holds `nothing` until that result is queried
+    # and then its whole vector (distinct from a genuinely empty solution of a
+    # zero-column/row model, which caches as `Precision[]`). Both maps are filled
+    # lazily by the VariablePrimal / ConstraintPrimal getters and reset by
+    # optimize! and empty!. Caching each result's whole vector once keeps a getter
+    # sweep to a single C call per result rather than one per variable/row.
+    # `pool_primal` vectors have length ORIGINALCOLS (indexed by Xpress column),
+    # `pool_slacks` length ORIGINALROWS (indexed by Xpress row): the incumbent and
+    # the pool getters alike report in the input space, even when the problem is
+    # left presolved after a solve. See TXP-9438, TXP-8504.
+    pool_primal::Vector{Union{Nothing, Vector{Precision}}}
+    pool_slacks::Vector{Union{Nothing, Vector{Precision}}}
 
-    # Cached solution vectors for the constraint getters, filled lazily on the
-    # first ConstraintPrimal / ConstraintDual query after a solve and reset by
-    # optimize! and empty!. Same rationale as `primal_solution`: avoid one C call
-    # per row/column. `slack_solution`/`rhs_values` (length ORIGINALROWS) back
-    # ConstraintPrimal; `row_dual_solution` (length ORIGINALROWS) and
-    # `reduced_cost_solution` (length ORIGINALCOLS) back ConstraintDual. The Farkas-ray
-    # dual path uses `dual_ray` above instead and does not touch these.
-    has_constraint_primal::Bool
-    slack_solution::Vector{Precision}
-    rhs_values::Vector{Precision}
+    # Cached dual vectors, filled lazily on the first ConstraintDual query after a
+    # solve and reset by optimize! and empty!, same rationale as above. Duals only
+    # exist for the incumbent; the solution pool carries none. `row_dual_solution`
+    # (length ORIGINALROWS) backs constraint duals, `reduced_cost_solution`
+    # (length ORIGINALCOLS) backs variable-bound duals. The Farkas-ray dual path
+    # uses `dual_ray` above instead and does not touch these.
     has_row_dual::Bool
     row_dual_solution::Vector{Precision}
     has_reduced_cost::Bool
@@ -426,13 +431,11 @@ mutable struct Optimizer <: MOI.AbstractOptimizer
             # No dual ray until a solve produces one.
             false,
             Precision[],
-            # No primal solution cached until a solve produces one.
-            false,
-            Precision[],
-            # No constraint-primal / dual / reduced-cost caches until a solve.
-            false,
-            Precision[],
-            Precision[],
+            # No primal / slack solutions cached until a solve; sized to the
+            # result count on first query.
+            Union{Nothing, Vector{Precision}}[],
+            Union{Nothing, Vector{Precision}}[],
+            # No dual / reduced-cost caches until a solve.
             false,
             Precision[],
             false,
@@ -502,6 +505,7 @@ function MOI.empty!(model::Optimizer)
     model.last_solve_status = XPRS_SOLVESTATUS_UNSTARTED
     model.last_solution_status = XPRS_SOLSTATUS_NOTFOUND
     model.has_integer_variables = false
+    # Also resets has_dual_ray/dual_ray.
     _invalidate_solution_caches!(model)
     # Load an empty matrix into the inner problem
     XPRSloadlp(
@@ -583,8 +587,18 @@ MOI.supports(::Optimizer, ::MOI.Name)::Bool = true
 MOI.get(model::Optimizer, ::MOI.Name)::String = XPRSgetprobname(model.inner)
 MOI.set(model::Optimizer, ::MOI.Name, name) = XPRSsetprobname(model.inner, name)
 
-# Xpress only stores one solution
-MOI.get(model::Optimizer, ::MOI.ResultCount) = 1
+# The number of solutions available. During a MIP solve Xpress collects several
+# solutions in its solution pool (and, with POOLENUMSTRATEGY, enumerates more);
+# each is exposed as a separate MOI result, read by the result_index > 1 branch
+# of the primal / objective getters. POOLSIZE counts the pooled solutions
+# (including the incumbent at index 0), so it is the result count directly. LP
+# solves and unsolved models have no pool, so report the single incumbent (1).
+function MOI.get(model::Optimizer, ::MOI.ResultCount)::Int
+    if !is_mip(model)
+        return 1
+    end
+    return max(1, Int(XPRSgetintattrib(model.inner, XPRS_POOLSIZE)))
+end
 
 
 function MOI.get(model::Optimizer, ::MOI.RawStatusString)::String
@@ -771,11 +785,16 @@ end
 
 # https://jump.dev/MathOptInterface.jl/stable/reference/models/#ResultStatusCode
 function MOI.get(model::Optimizer, result_index::MOI.PrimalStatus)::MOI.ResultStatusCode
-    # A status query for a result beyond the (single) available solution is not
-    # an error; per the MOI contract it simply reports that no such solution
-    # exists (see test_solve_result_index).
-    if result_index.result_index != 1
+    # A status query for a result beyond the available solutions is not an error;
+    # per the MOI contract it simply reports that no such solution exists (see
+    # test_solve_result_index).
+    if result_index.result_index < 1 || result_index.result_index > MOI.get(model, MOI.ResultCount())
         return MOI.NO_SOLUTION
+    end
+    # Every pooled solution (result_index > 1, reachable only for a MIP with a
+    # non-empty pool) is a genuine feasible point.
+    if result_index.result_index > 1
+        return MOI.FEASIBLE_POINT
     end
     if model.last_solution_status == XPRS_SOLSTATUS_NOTFOUND
         return MOI.NO_SOLUTION
@@ -930,6 +949,14 @@ function MOI.get(model::Optimizer, result_index::MOI.ObjectiveValue)::Union{Prec
     if isempty(model.objectives)
         return zero(Precision)
     end
+    # Results beyond the incumbent come from the solution pool. Pool solutions
+    # only arise for a single-objective MIP (enumeration collects them), so the
+    # pooled objective is a scalar read via XPRSgetpoolsolobjval with pool index
+    # result_index - 1 (MOI 1-based -> pool 0-based, index 0 the incumbent).
+    if result_index.result_index > 1
+        _, objval = XPRSgetpoolsolobjval(model.inner, result_index.result_index - 1)
+        return Precision(objval)
+    end
     #return Precision(XPRSgetobjdblattrib(model.inner, result_index.result_index-1, XPRS_OBJVAL))
     objs = map(i -> Precision(XPRScalcobjn(model.inner, i-1, nothing)), 1:length(model.objectives))
     return length(objs) > 1 ? objs : objs[1]
@@ -974,55 +1001,25 @@ function MOI.set(model::Optimizer, ::MOI.VariableName, index::MOI.VariableIndex,
     return
 end
 
-# Fetch the full primal solution once and cache it on the model, so that reading
-# back an n-variable solution costs a single XPRSgetsolution call rather than n.
-# Returns false (and leaves the cache empty) if no solution is available. The
-# cache is invalidated by optimize! and empty!. See TXP-9438.
-function _ensure_primal_solution!(model::Optimizer)::Bool
-    if model.has_primal_solution
-        return true
-    end
-    # Size by ORIGINALCOLS, not COLS: after a solve that leaves the problem
-    # presolved (e.g. a MIP that hit a node limit), COLS reports the reduced
-    # column count while MOI variable indices and XPRSgetsolution both address
-    # the original column space.
-    ncols = XPRSgetattrib(model.inner, "ORIGINALCOLS")
-    if ncols == 0
-        # No columns: nothing to read, but a solve may still have "succeeded".
-        model.primal_solution = Precision[]
-        model.has_primal_solution = true
-        return true
-    end
-    solstatus, solvec = XPRSgetsolution(model.inner, XPRS_ALLOC, 0, ncols - 1)
-    if solstatus == XPRS_SOLAVAILABLE_NOTFOUND
-        return false
-    end
-    model.primal_solution = solvec
-    model.has_primal_solution = true
-    return true
-end
-
-# Drop every solution-derived cache: the primal vector, the constraint-primal
-# (slack/rhs), row-dual and reduced-cost vectors, and the Farkas dual ray. Called
-# from optimize! and empty! (a new or absent solution makes them stale) and from
-# every path that modifies the problem. The latter is required for correctness,
-# not just tidiness: Xpress invalidates its solution as soon as the problem is
-# changed, so a cached vector left in place would return values from a model that
-# no longer exists; worse, adding/removing rows or columns changes the vector
-# lengths, so an index read against a stale cache can walk off the end. Keeping a
-# single reset used by every mutator makes "any modification drops the cache" a
-# property that holds by construction rather than one to re-audit per call site.
+# Drop every solution-derived cache: the per-result primal and slack vectors, the
+# row-dual and reduced-cost vectors, and the Farkas dual ray.
+# Called from optimize! and empty! (a new or absent solution makes them stale) and
+# from every path that modifies the problem. The latter is required for
+# correctness, not just tidiness: Xpress invalidates its solution as soon as the
+# problem is changed, so a cached vector left in place would return values from a
+# model that no longer exists; worse, adding/removing rows or columns changes the
+# vector lengths, so an index read against a stale cache can walk off the end.
+# Keeping a single reset used by every mutator makes "any modification drops the
+# cache" a property that holds by construction rather than one to re-audit per
+# call site.
 #
 # Every mutator calls this as its first statement (as MOI.add_variables does),
 # ahead of any input-validation or early-return guards, so the cache is dropped
 # unconditionally: even a modify with an empty change set, or a call that throws
 # on bad input after a partial mutation, cannot leave a stale cache behind.
 function _invalidate_solution_caches!(model::Optimizer)
-    model.has_primal_solution = false
-    empty!(model.primal_solution)
-    model.has_constraint_primal = false
-    empty!(model.slack_solution)
-    empty!(model.rhs_values)
+    empty!(model.pool_primal)
+    empty!(model.pool_slacks)
     model.has_row_dual = false
     empty!(model.row_dual_solution)
     model.has_reduced_cost = false
@@ -1032,31 +1029,75 @@ function _invalidate_solution_caches!(model::Optimizer)
     return
 end
 
-# Fetch the full slack vector (and rhs) once and cache them, so ConstraintPrimal
-# over m rows costs a single XPRSgetslacks + XPRSgetrhs rather than one pair per
-# row. Returns false (cache left empty) if no solution is available. See TXP-9438.
-function _ensure_slacks!(model::Optimizer)::Bool
-    if model.has_constraint_primal
-        return true
+# Grow a result-indexed cache so slot `i` exists, padding new slots with the
+# `nothing` "not cached yet" sentinel.
+function _grow_cache!(cache::Vector{Union{Nothing, Vector{Precision}}}, i::Int)
+    while length(cache) < i
+        push!(cache, nothing)
     end
-    # Size by ORIGINALROWS (see _ensure_primal_solution!): row indices and the
-    # slack/rhs getters address the original row space, which can exceed ROWS
-    # when the problem is left presolved after a solve.
+    return
+end
+
+# Return the primal solution vector for MOI result `result_index` (1-based;
+# 1 = incumbent, k>1 = pool index k-1), fetching and caching it on first use, so
+# that reading back an n-variable solution costs a single C call rather than n.
+# Returns `nothing` if that result has no available solution. Caches are
+# invalidated by optimize! and empty!. See TXP-9438, TXP-8504.
+function _ensure_primal_solution!(model::Optimizer, result_index::Int)::Union{Nothing, Vector{Precision}}
+    _grow_cache!(model.pool_primal, result_index)
+    cached = model.pool_primal[result_index]
+    if cached !== nothing
+        return cached
+    end
+    # Size by ORIGINALCOLS, not COLS: after a solve that leaves the problem
+    # presolved (e.g. a MIP that hit a node limit), COLS reports the reduced
+    # column count while MOI variable indices and the solution getters (both the
+    # incumbent and the pool ones) address the original column space.
+    ncols = XPRSgetattrib(model.inner, "ORIGINALCOLS")
+    if ncols == 0
+        # No columns: nothing to read, but a solve may still have "succeeded".
+        model.pool_primal[result_index] = Precision[]
+        return model.pool_primal[result_index]
+    end
+    if result_index == 1
+        solstatus, solvec = XPRSgetsolution(model.inner, XPRS_ALLOC, 0, ncols - 1)
+    else
+        solstatus, solvec = XPRSgetpoolsolution(model.inner, result_index - 1, XPRS_ALLOC, 0, ncols - 1)
+    end
+    if solstatus == XPRS_SOLAVAILABLE_NOTFOUND
+        return nothing
+    end
+    model.pool_primal[result_index] = solvec
+    return solvec
+end
+
+# Return the slack vector for MOI result `result_index` (1 = incumbent,
+# k>1 = pool index k-1), fetching and caching it on first use, so ConstraintPrimal
+# over m rows costs a single C call rather than one per row. Returns `nothing`
+# (cache left unset) if that result has no available solution. See TXP-9438,
+# TXP-8504.
+function _ensure_slacks!(model::Optimizer, result_index::Int)::Union{Nothing, Vector{Precision}}
+    _grow_cache!(model.pool_slacks, result_index)
+    cached = model.pool_slacks[result_index]
+    if cached !== nothing
+        return cached
+    end
+    # ORIGINALROWS, not ROWS: see _ensure_primal_solution!.
     nrows = XPRSgetattrib(model.inner, "ORIGINALROWS")
     if nrows == 0
-        model.slack_solution = Precision[]
-        model.rhs_values = Precision[]
-        model.has_constraint_primal = true
-        return true
+        model.pool_slacks[result_index] = Precision[]
+        return model.pool_slacks[result_index]
     end
-    solstatus, slacks = XPRSgetslacks(model.inner, XPRS_ALLOC, 0, nrows - 1)
+    if result_index == 1
+        solstatus, slacks = XPRSgetslacks(model.inner, XPRS_ALLOC, 0, nrows - 1)
+    else
+        solstatus, slacks = XPRSgetpoolslacks(model.inner, result_index - 1, XPRS_ALLOC, 0, nrows - 1)
+    end
     if solstatus == XPRS_SOLAVAILABLE_NOTFOUND
-        return false
+        return nothing
     end
-    model.slack_solution = slacks
-    model.rhs_values = XPRSgetrhs(model.inner, XPRS_ALLOC, 0, nrows - 1)
-    model.has_constraint_primal = true
-    return true
+    model.pool_slacks[result_index] = slacks
+    return slacks
 end
 
 # Fetch the full row-dual vector once and cache it, so ConstraintDual over m rows
@@ -1106,11 +1147,12 @@ end
 function MOI.get(model::Optimizer, result_index::MOI.VariablePrimal, index::MOI.VariableIndex)::Precision
     MOI.check_result_index_bounds(model, result_index)
     v = _XPRS_variable_from_moi_index(model, index)
-    if !_ensure_primal_solution!(model)
+    solvec = _ensure_primal_solution!(model, result_index.result_index)
+    if solvec === nothing
         return NaN
     end
-    # `primal_solution` is indexed by Xpress column (0-based); Julia is 1-based.
-    return model.primal_solution[v.xprs_index + 1]
+    # The solution vector is indexed by Xpress column (0-based); Julia is 1-based.
+    return solvec[v.xprs_index + 1]
 end
 
 function MOI.add_variables(model::Optimizer, n::Int)::Vector{MOI.VariableIndex}
@@ -1502,30 +1544,42 @@ function MOI.get(model::Optimizer, result_index::MOI.ConstraintPrimal, indices::
                 return MOI.get(model, MOI.VariablePrimal(result_index.result_index), c.moi_fct_value)
             end
 
-            # Slack and rhs come from the cached full vectors (indexed by Xpress
-            # row, 0-based -> 1-based Julia), filled once per solve.
-            if !_ensure_slacks!(model)
+            # Only a row with a scalar right-hand side can be evaluated from a
+            # slack.
+            if !(S <: Union{MOI.EqualTo, MOI.GreaterThan, MOI.LessThan})
+                # Can't evaluate constraint
                 return Precision(NaN)
             end
-            slack = model.slack_solution[c.xprs_index + 1]
-            rhs = model.rhs_values[c.xprs_index + 1]
+
+            # Slacks come from the cached full vector (indexed by Xpress row,
+            # 0-based -> 1-based Julia), filled once per result. For
+            # result_index > 1 they are those of the corresponding pooled solution.
+            slacks = _ensure_slacks!(model, result_index.result_index)
+            if slacks === nothing
+                return Precision(NaN)
+            end
+
+            # The right-hand side is read from the set the constraint was added
+            # with, NOT from XPRSgetrhs. `_xprs_set_value` is exactly what the add
+            # path wrote to the row, and the in-place set(ConstraintSet) keeps the
+            # two in step. XPRSgetrhs, by contrast, takes a row index in the
+            # problem's *current* state (a `RowIdx` parameter in the API
+            # definition), so after a solve that left the problem presolved (a MIP
+            # stopped at a node, solution or time limit) it would report the
+            # presolved row right-hand sides, and a read over 0..ORIGINALROWS-1
+            # would be out of range on top of that. The solution getters used
+            # above are declared over the input space (`IRowIdx`) instead, which
+            # is why they are the ones sized by ORIGINALROWS.
+            rhs = Precision(_xprs_set_value(c.moi_set_value))
             if S <: MOI.EqualTo
-                return Precision(rhs)
+                return rhs
             end
 
             # Xpress defines the row slack as (rhs - activity) regardless of the
             # row sense, so the row activity is (rhs - slack) uniformly. (Using
             # rhs + slack for LessThan happens to match only when the row is
             # binding, i.e. slack == 0.)
-            if S <: MOI.GreaterThan
-                return Precision(rhs - slack)
-            end
-
-            if S <: MOI.LessThan
-                return Precision(rhs - slack)
-            end
-            # Can't evaluate constraint
-            return Precision(NaN)
+            return rhs - slacks[c.xprs_index + 1]
         end,
         indices
     )

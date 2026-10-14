@@ -4,6 +4,49 @@ All notable changes to the XpressAPI Julia package are documented here.
 Version numbers track the FICO Xpress version from which the bindings were
 generated.
 
+## 48.1.1
+
+- **Breaking:** the bindings are now generated from the FICO Xpress 10.0
+  Optimizer API and require Xpress 10.0 (`Xpress_jll` 10). Wrappers for C
+  functions that were removed from the Xpress 10.0 C API are gone:
+  `XPRSminim`, `XPRSmaxim`, `XPRSglobal`, `XPRSinitglobal` (use
+  `XPRSoptimize`, `XPRSlpoptimize` or `XPRSmipoptimize`), `XPRSnlpminim`,
+  `XPRSnlpmaxim`, `XPRSslpreminim`, `XPRSslpremaxim`, `XPRSgetsol`,
+  `XPRSgetlpsolval`, `XPRSgetmipsolval` (use `XPRSgetsolution` and related
+  getters), `XPRSalter`, `XPRSbasiscondition`, `XPRSgetbarnumstability`,
+  `XPRSunloadprob`, `XPRSaddsetnames`, `XPRSlogfilehandler`, and the name
+  list object API (`XPRSgetnamelistobject` and all `XPRS_nml_*` functions).
+  The controls `BARNUMSTABILITY`, `CACHESIZE`, `HEURDEPTH`, `HEURMAXSOL`,
+  `HEURNODES`, `L1CACHE`, `MODKCUTS`, `NETCUTS`, `PERTURB`,
+  `REPAIRINFEASMAXTIME` and `SLEEPONTHREADWAIT` were removed as well.
+- Added wrappers and constants for the new Xpress 10.0 API, including the
+  solution pool functions (`XPRSgetpoolsolution`, `XPRSgetpoolslacks`,
+  `XPRSgetpoolsolobjval`), `XPRSfixmipentitiessolution`,
+  `XPRSslpchgcolvals`, `XPRSslpchgpresolvecolvals`, `XPRSslpsetrowenforced`,
+  the new controls (including the `POOL*`, `CUTSEP*`, `HEURSEARCH*`,
+  `SCALING*` and `NODE*` families), and the `POOLSIZE`, `POOLBESTBOUND` and
+  `OPTIMIZERVERSION` attributes.
+- Exposed the Xpress solution pool through the JuMP / MOI result-index API.
+  During a MIP solve Xpress collects several feasible solutions (and, with
+  `POOLENUMSTRATEGY`, enumerates more); each is now a separate MOI result.
+  `MOI.ResultCount` reports the pool size (`POOLSIZE`) for a solved MIP, and
+  `VariablePrimal`, `ConstraintPrimal`, `ObjectiveValue` and `PrimalStatus`
+  accept a result index `k` to read the `k`-th pooled solution (result 1 the
+  incumbent, ordered best objective first) -- in JuMP, `result_count(model)`
+  and the `result` keyword of `value` / `objective_value` / `primal_status`.
+  Results beyond the incumbent carry no dual information (`DualStatus` and
+  `ConstraintDual` report no solution), matching the solver. LP solves are
+  unchanged (single result).
+- Fixed `MOI.ConstraintPrimal` on a linear row after a solve that left the
+  problem in a presolved state, which is what an interrupted MIP search does (a
+  node, solution or time limit). The row activity is computed as `rhs - slack`,
+  and the right-hand side used to be read with `XPRSgetrhs`, whose row index
+  refers to the problem in its *current* state: it therefore returned the
+  presolved right-hand sides, and once presolve had removed a row, reading the
+  original row range failed outright with "Invalid row range passed to
+  XPRSgetrhs". The right-hand side is now taken from the MOI set the constraint
+  was added with, which is always in the original space.
+
 ## 47.1.6
 
 - Implemented the remaining MathOptInterface callback family in the JuMP / MOI

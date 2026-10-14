@@ -1,4 +1,4 @@
-# XpressAPI - A module for low-level access to the Xpress C API
+# XpressAPI - A JuMP/MOI interfance and a low-level access to the Xpress C API
 
 
 This package provides access from Julia to Xpress Solver C functions. While (in theory) 
