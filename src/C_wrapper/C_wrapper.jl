@@ -933,16 +933,16 @@ end
 
 
 """ `XPVERSION_MAJOR` - Major version number of Xpress optimizer library."""
-const XPVERSION_MAJOR::Int32 = Int32(47)
+const XPVERSION_MAJOR::Int32 = Int32(48)
 export XPVERSION_MAJOR
 """ `XPVERSION_MINOR` - Minor version number of Xpress optimizer library."""
 const XPVERSION_MINOR::Int32 = Int32(1)
 export XPVERSION_MINOR
 """ `XPVERSION_BUILD` - Build version number of Xpress optimizer library."""
-const XPVERSION_BUILD::Int32 = Int32(99)
+const XPVERSION_BUILD::Int32 = Int32(1)
 export XPVERSION_BUILD
 """ `XPVERSION_FULL` - Full version number of Xpress optimizer library."""
-const XPVERSION_FULL::Int32 = Int32(470199)
+const XPVERSION_FULL::Int32 = Int32(480101)
 export XPVERSION_FULL
 const XPRS_DEL_COLON::Int32 = Int32(2)
 
@@ -1176,6 +1176,14 @@ const XPRS_SLPANALYZE_SAVEITERBASIS::Int32 = Int32(128)
 
 const XPRS_SLPANALYZE_SAVELINEARIZATIONS::Int32 = Int32(64)
 
+const XPRS_SLPBARSTARTOPS_ALLOWINTERIORSOLUTION::Int32 = Int32(4)
+
+const XPRS_SLPBARSTARTOPS_POSTSOLVEFEASIBLITY::Int32 = Int32(8)
+
+const XPRS_SLPBARSTARTOPS_STALLING_NUMERICAL::Int32 = Int32(2)
+
+const XPRS_SLPBARSTARTOPS_STALLING_OBJECTIVE::Int32 = Int32(1)
+
 const XPRS_SLPBOUNDSSET::Int32 = Int32(67108864)
 
 const XPRS_SLPCASCADECONTRACTION::Int32 = Int32(536870912)
@@ -1372,6 +1380,14 @@ const XPRS_SLPMIPNODERELAXSLP::Int32 = Int32(16)
 
 const XPRS_SLPMIPWITHINSLP::Int32 = Int32(512)
 
+const XPRS_SLPMISLPALGORITHM_AUTOMATIC::Int32 = Int32(-1)
+
+const XPRS_SLPMISLPALGORITHM_MIPINSLP::Int32 = Int32(1)
+
+const XPRS_SLPMISLPALGORITHM_SLPINMIP::Int32 = Int32(0)
+
+const XPRS_SLPMISLPALGORITHM_SLPMIPSLP::Int32 = Int32(2)
+
 const XPRS_SLPNOERRORVECTORS::Int32 = Int32(2048)
 
 const XPRS_SLPNOFORMULADOMAINIV::Int32 = Int32(2048)
@@ -1401,6 +1417,12 @@ const XPRS_SLPRESETDELTAZ::Int32 = Int32(64)
 const XPRS_SLPRESIDUALERRORS::Int32 = Int32(4096)
 
 const XPRS_SLPRETAINPREVIOUSVALUE::Int32 = Int32(32)
+
+const XPRS_SLPRETURNSOLUTION_AUTOMATIC::Int32 = Int32(-1)
+
+const XPRS_SLPRETURNSOLUTION_BEST::Int32 = Int32(1)
+
+const XPRS_SLPRETURNSOLUTION_FINALITERATE::Int32 = Int32(2)
 
 const XPRS_SLPROOTMIPDRIVEN::Int32 = Int32(4096)
 
@@ -1490,6 +1512,12 @@ const XPRS_SLPSTATUS_WTOL::Int32 = Int32(65536)
 
 const XPRS_SLPSTATUS_XTOL::Int32 = Int32(32768)
 
+const XPRS_SLPSTEPBOUNDING_ALWAYS::Int32 = Int32(1)
+
+const XPRS_SLPSTEPBOUNDING_ASREQUIRED::Int32 = Int32(2)
+
+const XPRS_SLPSTEPBOUNDING_NEVER::Int32 = Int32(0)
+
 const XPRS_SLPSTEPBOUNDROWS::Int32 = Int32(256)
 
 const XPRS_SLPSTEPBOUNDSASREQUIRED::Int32 = Int32(2)
@@ -1565,6 +1593,18 @@ const XPRS_SLPTRANSFERROW::Int32 = Int32(262144)
 const XPRS_SLPUNCONVERGEDROW::Int32 = Int32(16384)
 
 const XPRS_SLPUSEFULDELTA::Int32 = Int32(134217728)
+
+const XPRS_SLPZEROCRITERION_DELTANBDRROW::Int32 = Int32(16)
+
+const XPRS_SLPZEROCRITERION_DELTANBUPSATEROW::Int32 = Int32(8)
+
+const XPRS_SLPZEROCRITERION_NBDELTA::Int32 = Int32(2)
+
+const XPRS_SLPZEROCRITERION_NBSLPVAR::Int32 = Int32(1)
+
+const XPRS_SLPZEROCRITERION_PRINT::Int32 = Int32(32)
+
+const XPRS_SLPZEROCRITERION_SLPVARNBUPDATEROW::Int32 = Int32(4)
 
 const XPRS_TOK_COL::Int32 = Int32(10)
 
@@ -1966,6 +2006,20 @@ Number of rows (i.e. constraints) in the original matrix before nonlinear reform
 """
 const XPRS_INPUTROWS::Int32 = Int32(1408)
 
+"""
+    XPRS_LOCALSOLVERSELECTED
+Includes information of which Xpress solver has been used to solve the problem (integer)
+
+Values:
+-1
+: Unset
+0
+: `XPRS_LOCALSOLVER_XSLP` Xpress-SLP
+1
+: `XPRS_LOCALSOLVER_KNITRO` Knitro (Artelys)
+2
+: `XPRS_LOCALSOLVER_OPTIMIZER` Xpress Optimizer
+"""
 const XPRS_LOCALSOLVERSELECTED::Int32 = Int32(12075)
 
 """
@@ -2138,56 +2192,202 @@ To allocate a character array to store names, you must allow `8*NAMELENGTH+1` ch
 """
 const XPRS_NAMELENGTH::Int32 = Int32(1028)
 
+"""
+    XPRS_NLPEQUALSCOLUMN
+Index of the reserved "=" column (integer)
+"""
 const XPRS_NLPEQUALSCOLUMN::Int32 = Int32(12013)
 
+"""
+    XPRS_NLPIFS
+Number of internal functions (integer)
+"""
 const XPRS_NLPIFS::Int32 = Int32(12008)
 
+"""
+    XPRS_NLPIMPLICITVARIABLES
+Number of SLP variables appearing only in coefficients (integer)
+"""
 const XPRS_NLPIMPLICITVARIABLES::Int32 = Int32(12015)
 
+"""
+    XPRS_NLPJOBID
+Unique identifier for the current job (integer)
+"""
 const XPRS_NLPJOBID::Int32 = Int32(12081)
 
+"""
+    XPRS_NLPKEEPBESTITER
+The iteration in which the returned solution has been found. (integer)
+"""
 const XPRS_NLPKEEPBESTITER::Int32 = Int32(12042)
 
+"""
+    XPRS_NLPMODELCOLS
+Number of model columns in the problem (integer)
+"""
 const XPRS_NLPMODELCOLS::Int32 = Int32(12080)
 
+"""
+    XPRS_NLPMODELROWS
+Number of model rows in the problem (integer)
+"""
 const XPRS_NLPMODELROWS::Int32 = Int32(12079)
 
+"""
+    XPRS_NLPOBJVAL
+Objective function value excluding any penalty costs (double)
+"""
 const XPRS_NLPOBJVAL::Int32 = Int32(12179)
 
+"""
+    XPRS_NLPOPTTIME
+Time spent in optimization (double)
+"""
 const XPRS_NLPOPTTIME::Int32 = Int32(12147)
 
+"""
+    XPRS_NLPORIGINALCOLS
+Number of model columns in the extended original problem (integer)
+"""
 const XPRS_NLPORIGINALCOLS::Int32 = Int32(12000)
 
+"""
+    XPRS_NLPORIGINALROWS
+Number of model rows in the extended original problem (integer)
+"""
 const XPRS_NLPORIGINALROWS::Int32 = Int32(11999)
 
+"""
+    XPRS_NLPPRESOLVEELIMINATIONS
+Number of SLP variables eliminated by XSLPpresolve (integer)
+"""
 const XPRS_NLPPRESOLVEELIMINATIONS::Int32 = Int32(12090)
 
+"""
+    XPRS_NLPPRIMALINTEGRAL
+Local primal integral of the solve (double)
+"""
 const XPRS_NLPPRIMALINTEGRAL::Int32 = Int32(12726)
 
+"""
+    XPRS_NLPSOLSTATUS
+Indicates the type of solution returned by the solver. (integer)
+
+Values:
+0
+: `NLPSOLSTATUS_NONE` No solution available.
+1
+: `NLPSOLSTATUS_SOLUTION_NODUALS` A solution with no dual information.
+2
+: `NLPSOLSTATUS_LOCALLYOPTIMAL_WITHDUALS` A locally optimal solution with dual information.
+3
+: `NLPSOLSTATUS_GLOBALLYOPTIMAL_NODUALS` A globally optimal solution without dual information.
+4
+: `NLPSOLSTATUS_GLOBALLYOPTIMAL_WITHDUALS` A globally optimal solution with dual information.
+"""
 const XPRS_NLPSOLSTATUS::Int32 = Int32(11987)
 
+"""
+    XPRS_NLPSTATUS
+The solution status of the problem. (integer)
+
+Values:
+0
+: Optimization unstarted (`NLPSTATUS_UNSTARTED`)
+1
+: Solution found (`NLPSTATUS_SOLUTION`)
+2
+: Globally optimal (`NLPSTATUS_OPTIMAL`)
+3
+: No solution found (`NLPSTATUS_NOSOLUTION`)
+4
+: Proven infeasible (`NLPSTATUS_INFEASIBLE`)
+5
+: Locally unbounded (`NLPSTATUS_UNBOUNDED`)
+6
+: Not yet solved to completion (`NLPSTATUS_UNFINISHED`)
+7
+: Could not be solved due to numerical issues (`NLPSTATUS_UNSOLVED`)
+"""
 const XPRS_NLPSTATUS::Int32 = Int32(12044)
 
+"""
+    XPRS_NLPSTOPSTATUS
+Status of the optimization process. (integer)
+"""
 const XPRS_NLPSTOPSTATUS::Int32 = Int32(12089)
 
+"""
+    XPRS_NLPTOTALEVALUATIONERRORS
+The total number of evaluation errors during the solve (integer)
+"""
 const XPRS_NLPTOTALEVALUATIONERRORS::Int32 = Int32(12093)
 
+"""
+    XPRS_NLPUFS
+Number of user functions (integer)
+"""
 const XPRS_NLPUFS::Int32 = Int32(12007)
 
+"""
+    XPRS_NLPUSEDERIVATIVES
+Indicates whether numeric or analytic derivatives were used to create the linear approximations and solve the problem (integer)
+
+Values:
+0
+: numeric derivatives.
+1
+: analytic derivatives for all formulae unless otherwise specified.
+"""
 const XPRS_NLPUSEDERIVATIVES::Int32 = Int32(12037)
 
+"""
+    XPRS_NLPUSERFUNCCALLS
+Number of calls made to user functions (integer)
+"""
 const XPRS_NLPUSERFUNCCALLS::Int32 = Int32(12031)
 
+"""
+    XPRS_NLPVALIDATIONINDEX_A
+Absolute validation index (double)
+"""
 const XPRS_NLPVALIDATIONINDEX_A::Int32 = Int32(12167)
 
+"""
+    XPRS_NLPVALIDATIONINDEX_K
+Relative first order optimality validation index (double)
+"""
 const XPRS_NLPVALIDATIONINDEX_K::Int32 = Int32(12718)
 
+"""
+    XPRS_NLPVALIDATIONINDEX_R
+Relative validation index (double)
+"""
 const XPRS_NLPVALIDATIONINDEX_R::Int32 = Int32(12168)
 
+"""
+    XPRS_NLPVALIDATIONNETOBJ
+Net objective as calculated by validation (double)
+"""
 const XPRS_NLPVALIDATIONNETOBJ::Int32 = Int32(12722)
 
+"""
+    XPRS_NLPVALIDATIONSTATUS
+Feasibility status of the current solution. (integer)
+
+Values:
+1
+: `NLPSTATUS_SOLUTION` Feasible.
+4
+: `NLPSTATUS_INFEASIBLE` Infeasible.
+"""
 const XPRS_NLPVALIDATIONSTATUS::Int32 = Int32(11986)
 
+"""
+    XPRS_NLPVARIABLES
+Number of SLP variables (integer)
+"""
 const XPRS_NLPVARIABLES::Int32 = Int32(12014)
 
 """
@@ -2204,6 +2404,10 @@ A node is counted as solved when it is either dropped or branched on.
 """
 const XPRS_NODES::Int32 = Int32(1013)
 
+"""
+    XPRS_NONLINEARCONSTRAINTS
+Number of nonlinear constraints in the problem (integer)
+"""
 const XPRS_NONLINEARCONSTRAINTS::Int32 = Int32(12026)
 
 """
@@ -2261,6 +2465,12 @@ const XPRS_OBJVAL::Int32 = Int32(2118)
 Value of the (observed) primal integral. (double)
 """
 const XPRS_OBSERVEDPRIMALINTEGRAL::Int32 = Int32(2106)
+
+"""
+    XPRS_OPTIMIZERVERSION
+The Optimizer version number, e.g., `4601` meaning release 46.01. (integer)
+"""
+const XPRS_OPTIMIZERVERSION::Int32 = Int32(1427)
 
 """
     XPRS_OPTIMIZETYPEUSED
@@ -2411,6 +2621,20 @@ Values:
 const XPRS_PHYSICALCORESPERCPUDETECTED::Int32 = Int32(1262)
 
 """
+    XPRS_POOLBESTBOUND
+Best bound on the objective value of any MIP solution that can be found in the remainder of the branch-and-bound search. (double)
+
+If solution enumeration is enabled, by setting POOLENUMSTRATEGY`>0`, this attribute provides a bound on any undiscovered solution that can be added to the pool.
+"""
+const XPRS_POOLBESTBOUND::Int32 = Int32(2122)
+
+"""
+    XPRS_POOLSIZE
+The number of solutions that have been collected during the last solve. (integer)
+"""
+const XPRS_POOLSIZE::Int32 = Int32(1426)
+
+"""
     XPRS_PREDICTEDATTLEVEL
 A measure between 0 and 1 to predict how numerically unstable the current MIP solve can be expected to be. (double)
 
@@ -2524,72 +2748,258 @@ Number of simplex iterations performed. (integer)
 """
 const XPRS_SIMPLEXITER::Int32 = Int32(1009)
 
+"""
+    XPRS_SLPCOEFFICIENTS
+Number of nonlinear coefficients (integer)
+"""
 const XPRS_SLPCOEFFICIENTS::Int32 = Int32(12016)
 
+"""
+    XPRS_SLPCURRENTDELTACOST
+Current value of penalty cost multiplier for penalty delta vectors (double)
+"""
 const XPRS_SLPCURRENTDELTACOST::Int32 = Int32(12701)
 
+"""
+    XPRS_SLPCURRENTERRORCOST
+Current value of penalty cost multiplier for penalty error vectors (double)
+"""
 const XPRS_SLPCURRENTERRORCOST::Int32 = Int32(12702)
 
+"""
+    XPRS_SLPDELTAS
+Number of delta vectors created during augmentation (integer)
+"""
 const XPRS_SLPDELTAS::Int32 = Int32(12041)
 
+"""
+    XPRS_SLPECFCOUNT
+Number of infeasible constraints found at the point of linearization (integer)
+"""
 const XPRS_SLPECFCOUNT::Int32 = Int32(12035)
 
+"""
+    XPRS_SLPERRORCOSTS
+Total penalty costs in the solution (double)
+"""
 const XPRS_SLPERRORCOSTS::Int32 = Int32(12153)
 
+"""
+    XPRS_SLPEXPLOREDELTAS
+Number of variables with an exploration-type delta set up in the problem (integer)
+"""
 const XPRS_SLPEXPLOREDELTAS::Int32 = Int32(11993)
 
+"""
+    XPRS_SLPINTEGERDELTAS
+Number of variables set up with an integer delta in the problem (integer)
+"""
 const XPRS_SLPINTEGERDELTAS::Int32 = Int32(11995)
 
+"""
+    XPRS_SLPITER
+SLP iteration count (integer)
+"""
 const XPRS_SLPITER::Int32 = Int32(12001)
 
+"""
+    XPRS_SLPMINUSPENALTYERRORS
+Number of negative penalty error vectors (integer)
+"""
 const XPRS_SLPMINUSPENALTYERRORS::Int32 = Int32(12020)
 
+"""
+    XPRS_SLPMIPITER
+Total number of SLP iterations in MISLP (integer)
+"""
 const XPRS_SLPMIPITER::Int32 = Int32(12023)
 
+"""
+    XPRS_SLPMIPNODES
+Number of nodes explored in SLP-in-MIP. (integer)
+
+This includes any nodes for which a non-linear solve has been carried out.
+"""
 const XPRS_SLPMIPNODES::Int32 = Int32(12022)
 
+"""
+    XPRS_SLPMIPSOLS
+Number of integer solutions found in MISLP. (integer)
+
+This includes solutions found during the tree search or any heuristics.
+"""
 const XPRS_SLPMIPSOLS::Int32 = Int32(12088)
 
+"""
+    XPRS_SLPNONCONSTANTCOEFFS
+Number of coefficients in the augmented problem that might change between SLP iterations (integer)
+"""
 const XPRS_SLPNONCONSTANTCOEFFS::Int32 = Int32(12058)
 
+"""
+    XPRS_SLPPENALTYDELTACOLUMN
+Index of column costing the penalty delta row (integer)
+"""
 const XPRS_SLPPENALTYDELTACOLUMN::Int32 = Int32(12010)
 
+"""
+    XPRS_SLPPENALTYDELTAROW
+Index of equality row holding the penalties for delta vectors (integer)
+"""
 const XPRS_SLPPENALTYDELTAROW::Int32 = Int32(12009)
 
+"""
+    XPRS_SLPPENALTYDELTAS
+Number of penalty delta vectors (integer)
+"""
 const XPRS_SLPPENALTYDELTAS::Int32 = Int32(12017)
 
+"""
+    XPRS_SLPPENALTYDELTATOTAL
+Total activity of penalty delta vectors (double)
+"""
 const XPRS_SLPPENALTYDELTATOTAL::Int32 = Int32(12706)
 
+"""
+    XPRS_SLPPENALTYDELTAVALUE
+Total penalty cost attributed to penalty delta vectors (double)
+"""
 const XPRS_SLPPENALTYDELTAVALUE::Int32 = Int32(12707)
 
+"""
+    XPRS_SLPPENALTYERRORCOLUMN
+Index of column costing the penalty error row (integer)
+"""
 const XPRS_SLPPENALTYERRORCOLUMN::Int32 = Int32(12012)
 
+"""
+    XPRS_SLPPENALTYERRORROW
+Index of equality row holding the penalties for penalty error vectors (integer)
+"""
 const XPRS_SLPPENALTYERRORROW::Int32 = Int32(12011)
 
+"""
+    XPRS_SLPPENALTYERRORS
+Number of penalty error vectors (integer)
+"""
 const XPRS_SLPPENALTYERRORS::Int32 = Int32(12018)
 
+"""
+    XPRS_SLPPENALTYERRORTOTAL
+Total activity of penalty error vectors (double)
+"""
 const XPRS_SLPPENALTYERRORTOTAL::Int32 = Int32(12704)
 
+"""
+    XPRS_SLPPENALTYERRORVALUE
+Total penalty cost attributed to penalty error vectors (double)
+"""
 const XPRS_SLPPENALTYERRORVALUE::Int32 = Int32(12705)
 
+"""
+    XPRS_SLPPLUSPENALTYERRORS
+Number of positive penalty error vectors (integer)
+"""
 const XPRS_SLPPLUSPENALTYERRORS::Int32 = Int32(12019)
 
+"""
+    XPRS_SLPSBXCONVERGED
+Number of step-bounded variables converged only on extended criteria (integer)
+"""
 const XPRS_SLPSBXCONVERGED::Int32 = Int32(12004)
 
+"""
+    XPRS_SLPSEMICONTDELTAS
+Number of variables with a minimum perturbation step set up in the problem (integer)
+"""
 const XPRS_SLPSEMICONTDELTAS::Int32 = Int32(11994)
 
+"""
+    XPRS_SLPSTATUS
+Bitmap holding the problem convergence status (integer)
+
+Values are a bitset:
+bit 0
+: `XPRS_SLPSTATUS_CONVERGEDOBJUCC` Converged on objective function with no unconverged values in active constraints.
+bit 1
+: `XPRS_SLPSTATUS_CONVERGEDOBJSBX` Converged on objective function with some variables converged on extended criteria only.
+bit 2
+: `XPRS_SLPSTATUS_LPINFEASIBLE` LP solution is infeasible.
+bit 3
+: `XPRS_SLPSTATUS_LPUNFINISHED` LP solution is unfinished (not optimal or infeasible).
+bit 4
+: `XPRS_SLPSTATUS_MAXSLPITERATIONS` SLP terminated on maximum SLP iterations.
+bit 5
+: `XPRS_SLPSTATUS_INTEGERINFEASIBLE` SLP is integer infeasible.
+bit 6
+: `XPRS_SLPSTATUS_RESIDUALPENALTIES` SLP converged with residual penalty errors.
+bit 7
+: `XPRS_SLPSTATUS_CONVERGEDOBJOBJ` Converged on objective.
+bit 9
+: `XPRS_SLPSTATUS_MAXTIME` SLP terminated on max time.
+bit 10
+: `XPRS_SLPSTATUS_USER` SLP terminated by user.
+bit 11
+: `XPRS_SLPSTATUS_VARSLINKEDINACTIVE` Some variables are linked to active constraints.
+bit 12
+: `XPRS_SLPSTATUS_NOVARSINACTIVE` No unconverged values in active constraints.
+bit 13
+: `XPRS_SLPSTATUS_OTOL` OTOL is satisfied - range of objective change small, active step bounds.
+bit 14
+: `XPRS_SLPSTATUS_VTOL` VTOL is satisfied - range of objective change is small.
+bit 15
+: `XPRS_SLPSTATUS_XTOL` XTOL is satisfied - range of objective change small, no unconverged in active.
+bit 16
+: `XPRS_SLPSTATUS_WTOL` WTOL is satisfied - convergence continuation.
+bit 17
+: `XPRS_SLPSTATUS_ERROTOL` ERRORTOL satisfied - penalties not increased further.
+bit 18
+: `XPRS_SLPSTATUS_EVTOL` EVTOL satisfied - penalties not increased further.
+bit 19
+: `XPRS_SLPSTATUS_POLISHED` There were iterations where the solution had to be polished.
+bit 20
+: `XPRS_SLPSTATUS_POLISH_FAILURE` There were iterations where the solution polishing failed.
+bit 21
+: `XPRS_SLPSTATUS_ENFORCED` There were iterations where rows were enforced.
+bit 22
+: `XPRS_SLPSTATUS_CONSECUTIVE_INFEAS` Terminated due to SLPINFEASLIMIT.
+"""
 const XPRS_SLPSTATUS::Int32 = Int32(12002)
 
+"""
+    XPRS_SLPTOLSETS
+**Deprecated**Number of tolerance sets. (integer)
+"""
 const XPRS_SLPTOLSETS::Int32 = Int32(12028)
 
+"""
+    XPRS_SLPUCCONSTRAINEDCOUNT
+Number of unconverged variables with coefficients in constraining rows (integer)
+"""
 const XPRS_SLPUCCONSTRAINEDCOUNT::Int32 = Int32(12021)
 
+"""
+    XPRS_SLPUNCONVERGED
+Number of unconverged values (integer)
+"""
 const XPRS_SLPUNCONVERGED::Int32 = Int32(12003)
 
+"""
+    XPRS_SLPZEROESRESET
+Number of placeholder entries set to zero (integer)
+"""
 const XPRS_SLPZEROESRESET::Int32 = Int32(12046)
 
+"""
+    XPRS_SLPZEROESRETAINED
+Number of potentially zero placeholders left untouched (integer)
+"""
 const XPRS_SLPZEROESRETAINED::Int32 = Int32(12048)
 
+"""
+    XPRS_SLPZEROESTOTAL
+Number of potential zero placeholder entries (integer)
+"""
 const XPRS_SLPZEROESTOTAL::Int32 = Int32(12047)
 
 """
@@ -2865,6 +3275,7 @@ const XPRS_ATTRIBUTES::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, 
 	"OBJSTOSOLVE" => (XPRS_OBJSTOSOLVE, Int64),
 	"OBJVAL" => (XPRS_OBJVAL, Float64),
 	"OBSERVEDPRIMALINTEGRAL" => (XPRS_OBSERVEDPRIMALINTEGRAL, Float64),
+	"OPTIMIZERVERSION" => (XPRS_OPTIMIZERVERSION, Int64),
 	"OPTIMIZETYPEUSED" => (XPRS_OPTIMIZETYPEUSED, Int64),
 	"ORIGINALCOLS" => (XPRS_ORIGINALCOLS, Int64),
 	"ORIGINALGENCONCOLS" => (XPRS_ORIGINALGENCONCOLS, Float64),
@@ -2886,6 +3297,8 @@ const XPRS_ATTRIBUTES::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, 
 	"PENALTYVALUE" => (XPRS_PENALTYVALUE, Float64),
 	"PHYSICALCORESDETECTED" => (XPRS_PHYSICALCORESDETECTED, Int64),
 	"PHYSICALCORESPERCPUDETECTED" => (XPRS_PHYSICALCORESPERCPUDETECTED, Int64),
+	"POOLBESTBOUND" => (XPRS_POOLBESTBOUND, Float64),
+	"POOLSIZE" => (XPRS_POOLSIZE, Int64),
 	"PREDICTEDATTLEVEL" => (XPRS_PREDICTEDATTLEVEL, Float64),
 	"PRESOLVEINDEX" => (XPRS_PRESOLVEINDEX, Int64),
 	"PRESOLVESTATE" => (XPRS_PRESOLVESTATE, Int64),
@@ -3084,9 +3497,9 @@ const XPRS_AUTOPERTURB::Int32 = Int32(8084)
 
 """
     XPRS_AUTOSCALING
-Whether the Optimizer should automatically select between different scaling algorithms. (integer)
+**Deprecated**Use SCALINGMETHOD instead. (integer)
 
-If the `SCALING` control is set, no automatic scaling will be applied.
+Whether the Optimizer should automatically select between different scaling algorithms. If the SCALING control is set, or SCALINGMETHOD is set to anything other than its automatic default, no automatic scaling will be applied.
 
 Default value: -1
 
@@ -3366,9 +3779,29 @@ Values:
 0
 : Do not use a GPU.
 1
-: Use the GPU.
+: Use the GPU, if available.
 """
 const XPRS_BARHGGPU::Int32 = Int32(8506)
+
+"""
+    XPRS_BARHGGPUALG
+Defines the GPU algorithm choice. (integer)
+
+The Nvidia linear algebra libraries offer various ways to calculate matrix-vector products. Some of these require more memory, but offer deterministic execution. On the other hand, there is a limited memory option, but with nondeterministic execution.
+
+Default value: `0`
+
+Values:
+0
+: The selected algorithm ensures deterministic runs on GPU.
+1
+: Use a faster GPU implementation that may result in nondeterministic runs.
+2
+: Use a reduced memory version on GPU, which may result in nondeterministic runs.
+3
+: Use a faster and reduced memory implementation on GPU, which may result in nondeterministic runs.
+"""
+const XPRS_BARHGGPUALG::Int32 = Int32(8509)
 
 """
     XPRS_BARHGGPUBLOCKSIZE
@@ -3379,6 +3812,18 @@ Default value: `256`
 Domain: [1,+INF)
 """
 const XPRS_BARHGGPUBLOCKSIZE::Int32 = Int32(8508)
+
+"""
+    XPRS_BARHGHALPER
+Defines how much weight is given for the Halpern reduction during the iterations. (double)
+
+Default value: `0.6`
+
+Values:
+[0,2]
+: Defines the Halpern weight for the hybrid gradient algorithm.
+"""
+const XPRS_BARHGHALPER::Int32 = Int32(7180)
 
 """
     XPRS_BARHGMAXRESTARTS
@@ -3416,7 +3861,7 @@ const XPRS_BARHGMINORITERATIONLIMIT::Int32 = Int32(8512)
     XPRS_BARHGOPS
 Bit-vector control (see Section ) options for the hybrid gradient algorithm. (integer)
 
-Bits 1, 2 and 3 control which norms of the coefficient matrix are used for solution normalization. The normalization factor is the maximum of the selected norms. By default, or if all three bits are set to 0, the infinity norm is used. The omega parameter referenced in bits 4, 5 and 6 is a measure of the relative magnitudes of the objective and the right-hand side.
+Bits 1, 2 and 3 control which norms of the coefficient matrix are used for solution normalization. The normalization factor is the maximum of the selected norms. By default, or if all three bits are set to 0, the L2 norm is used. The omega parameter referenced in bits 4, 5 and 6 is a measure of the relative magnitudes of the objective and the right-hand side. Additional scaling is controlled by bits 8-9. If no bit is set at all then a the default value is determined automatically based on the algorithm choice.
 
 Default value: `0`
 
@@ -3435,6 +3880,12 @@ bit 5
 : Contract omega towards 1 if the infeasibility is small enough.
 bit 6
 : Omega is based on the infeasibility.
+bit 7
+: Turn off Halpern updates.
+bit 8
+: Normalize the objective.
+bit 9
+: Normalize the RHS.
 """
 const XPRS_BARHGOPS::Int32 = Int32(8483)
 
@@ -3543,8 +3994,6 @@ Values:
 : Bounds larger than or equal to this value are considered being large for the barrier.
 """
 const XPRS_BARLARGEBOUND::Int32 = Int32(7067)
-
-const XPRS_BARNUMSTABILITY::Int32 = Int32(8186)
 
 """
     XPRS_BAROBJPERTURB
@@ -3897,22 +4346,6 @@ Values:
 const XPRS_BREADTHFIRST::Int32 = Int32(8082)
 
 """
-    XPRS_CACHESIZE
-**Deprecated**Newton Barrier: Specifies the L2 or L3 (see notes) cache size in kB (kilobytes). (integer)
-
-On Intel (or compatible) platforms a value of `-1` may be used to determine the cache size automatically. If the CPU model is new then the cache size may not be correctly detected by an older release of the software.
-
-Default value: -1
-
-Values:
--1
-: The cache will be detected automatically.
-[0,inf)
-: The cache size in kB (kilobytes).
-"""
-const XPRS_CACHESIZE::Int32 = Int32(8043)
-
-"""
     XPRS_CALLBACKCHECKTIMEDELAY
 Minimum delay in milliseconds between two consecutive executions of the CHECKTIME callback in the same solution process (integer)
 
@@ -4017,14 +4450,12 @@ This bit-vector control (see Section ) allows for the adjustment of returned sol
 Default value: `0`
 
 Values are a bitset:
-bit -1
-: Determined automatically.
 bit 0
 : Adjust primal solution to always be within primal bounds. Slacks if provided will be adjusted accordingly.
 bit 1
-: Adjust primal slack values to always be within constraint bounds.
-bit 2
 : Adjust dual solution to always be within the dual bounds implied by the slacks. Reduced costs, if provided, will be adjusted accordingly.
+bit 2
+: Adjust primal slack values to always be within constraint bounds.
 bit 3
 : Adjust reduced costs to always be within dual bounds implied by the primal solution.
 """
@@ -4140,9 +4571,9 @@ const XPRS_CORESPERCPU::Int32 = Int32(8296)
 
 """
     XPRS_COVERCUTS
-Branch and Bound: Specifies the number of rounds of lifted cover inequalities at the root node. (integer)
+**Deprecated**Branch and Bound: Specifies the number of rounds of lifted cover inequalities at the root node. (integer)
 
-A lifted cover inequality is an additional constraint that can be particularly effective at reducing the size of the feasible region without removing potential integral solutions. The process of generating these can be carried out a number of times, further reducing the feasible region, albeit incurring a time penalty. There is usually a good payoff from generating these at the root node, since these inequalities then apply to every subsequent node in the tree search.
+A lifted cover inequality is an additional constraint that can be particularly effective at reducing the size of the feasible region without removing potential integral solutions. The process of generating these can be carried out a number of times, further reducing the feasible region, albeit incurring a time penalty. There is usually a good payoff from generating these at the root node, since these inequalities then apply to every subsequent node in the tree search. This control is deprecated, please use CUTMAXROUNDS instead.
 
 Default value: `-1`
 
@@ -4325,6 +4756,30 @@ Values:
 const XPRS_CROSSOVERTHREADS::Int32 = Int32(8065)
 
 """
+    XPRS_CUTAGGROWS
+Strategy for row aggregation used when separating Mixed Integer Rounding (MIR) cuts, lifted cover cuts and Strong Chvatal-Gomory (CG) cuts. (integer)
+
+Row aggregation combines several rows of the problem into a single row from which a cut is then derived. A more aggressive strategy will try more and more complex row aggregations, which can uncover cuts that would otherwise be missed, at the cost of extra computational effort and, in some cases, at the cost of separating denser cutting planes that could slow down the node throughput.
+
+Default value: `-1`
+
+Values:
+-1
+: `XPRS_CUTAGGROWS_AUTOMATIC` Automatic selection of the row aggregation strategy.
+0
+: `XPRS_CUTAGGROWS_OFF` Off. No row aggregation.
+1
+: `XPRS_CUTAGGROWS_CONSERVATIVE` Conservative row aggregation strategy.
+2
+: `XPRS_CUTAGGROWS_MODERATE` Moderate row aggregation strategy.
+3
+: `XPRS_CUTAGGROWS_AGGRESSIVE` Aggressive row aggregation strategy.
+4
+: `XPRS_CUTAGGROWS_VERYAGGRESSIVE` Very aggressive row aggregation strategy.
+"""
+const XPRS_CUTAGGROWS::Int32 = Int32(8549)
+
+"""
     XPRS_CUTDEPTH
 Branch and Bound: Sets the maximum depth in the tree search at which cuts will be generated. (integer)
 
@@ -4375,10 +4830,128 @@ Values:
 const XPRS_CUTFREQ::Int32 = Int32(8116)
 
 """
-    XPRS_CUTSELECT
-A bit-vector (see Section ) providing detailed control of the cuts created for the root node of a MIP solve. (integer)
+    XPRS_CUTFROMCUTROWS
+Strategy to decide whether cutting planes already added to the matrix may themselves be used as base rows for separating new Mixed Integer Rounding (MIR) cuts, lifted cover cuts and Strong Chvatal-Gomory (CG) cuts. (integer)
 
-Use TREECUTSELECT to control cuts during the tree search.
+A more aggressive strategy allows cutting from cut rows more often, which can uncover additional cuts, at the cost of extra computational effort and, in some cases, at the cost of separating denser cutting planes that could slow down the node throughput.
+
+Default value: `-1`
+
+Values:
+-1
+: `XPRS_CUTFROMCUTROWS_AUTOMATIC` Automatic selection.
+0
+: `XPRS_CUTFROMCUTROWS_OFF` Off. Only original constraints are used as base rows.
+1
+: `XPRS_CUTFROMCUTROWS_CONSERVATIVE` Conservative strategy.
+2
+: `XPRS_CUTFROMCUTROWS_MODERATE` Moderate strategy.
+3
+: `XPRS_CUTFROMCUTROWS_AGGRESSIVE` Aggressive strategy.
+"""
+const XPRS_CUTFROMCUTROWS::Int32 = Int32(8550)
+
+"""
+    XPRS_CUTGOMMAXROUNDS
+The number of rounds of Gomory cuts or lift-and-project cuts separated at the root node of the branch-and-bound tree search. (integer)
+
+Default value: -1
+
+Values:
+-1
+: Number of rounds determined automatically.
+0
+: No Gomory cut separation at the root node.
+(0,inf)
+: Target number of Gomory cut rounds at the root node.
+"""
+const XPRS_CUTGOMMAXROUNDS::Int32 = Int32(8552)
+
+"""
+    XPRS_CUTGOMMAXTREEROUNDS
+The number of rounds of Gomory cuts or lift-and-project cuts separated at a node of the branch-and-bound tree search other than the root node. (integer)
+
+Default value: -1
+
+Values:
+-1
+: Number of rounds determined automatically.
+0
+: No Gomory cut separation at tree nodes.
+(0,inf)
+: Target number of Gomory cut rounds at tree nodes.
+"""
+const XPRS_CUTGOMMAXTREEROUNDS::Int32 = Int32(8556)
+
+"""
+    XPRS_CUTMAXROUNDS
+The number of rounds of cuts separated at the root node of the branch-and-bound tree search, for all MIP cut separators except Gomory cuts. (integer)
+
+Default value: -1
+
+Values:
+-1
+: Number of rounds determined automatically.
+0
+: No cut separation at the root node.
+(0,inf)
+: Target number of cut rounds at the root node.
+"""
+const XPRS_CUTMAXROUNDS::Int32 = Int32(8551)
+
+"""
+    XPRS_CUTMAXTREEROUNDS
+The number of rounds of cuts separated at a node of the branch-and-bound tree search other than the root node, for all MIP cut separators except Gomory cuts. (integer)
+
+Default value: -1
+
+Values:
+-1
+: Number of rounds determined automatically.
+0
+: No cut separation at tree nodes.
+(0,inf)
+: Target number of cut rounds at tree nodes.
+"""
+const XPRS_CUTMAXTREEROUNDS::Int32 = Int32(8555)
+
+"""
+    XPRS_CUTOAMAXROUNDS
+The number of rounds of Outer Approximation (OA) cuts for convex quadratic problems and for Second Order Cone Programs (SOCPs) separated at the root node of the branch-and-bound tree search. (integer)
+
+Default value: -1
+
+Values:
+-1
+: Number of rounds determined automatically.
+0
+: No OA cut separation at the root node.
+(0,inf)
+: Target number of OA cut rounds at the root node.
+"""
+const XPRS_CUTOAMAXROUNDS::Int32 = Int32(8553)
+
+"""
+    XPRS_CUTOAMAXTREEROUNDS
+The number of rounds of Outer Approximation (OA) cuts for convex quadratic problems and for Second Order Cone Programs (SOCPs) separated at a node of the branch-and-bound tree search other than the root node. (integer)
+
+Default value: -1
+
+Values:
+-1
+: Number of rounds determined automatically.
+0
+: No OA cut separation at tree nodes.
+(0,inf)
+: Target number of OA cut rounds at tree nodes.
+"""
+const XPRS_CUTOAMAXTREEROUNDS::Int32 = Int32(8557)
+
+"""
+    XPRS_CUTSELECT
+**Deprecated**A bit-vector (see Section ) providing detailed control of the cuts created for the root node of a MIP solve. Use TREECUTSELECT to control cuts during the tree search. This control is deprecated. For disabling individual cut separators (or, more generally, for tuning the separation strategy of cut separators), please use the individual controls `CUTSEP*STRATEGY` (e.g. CUTSEPCLIQUESTRATEGY for clique cuts) and the meta control CUTSEPSTRATEGY. (integer)
+
+For disabling or tuning other cut separation features, please use controls CUTAGGROWS and CUTFROMCUTROWS.
 
 Default value: `-1`
 
@@ -4413,10 +4986,338 @@ bit 26
 const XPRS_CUTSELECT::Int32 = Int32(8142)
 
 """
-    XPRS_CUTSTRATEGY
-Branch and Bound: This specifies the cut strategy. (integer)
+    XPRS_CUTSEPCLIQUESTRATEGY
+Strategy for separation of clique cuts. A more aggressive strategy will increase the effort spent in clique cut separation and the frequency at which clique cuts are separated during the branch-and-bound tree search. If a conservative strategy is selected (i.e., value 1, `XPRS_CUTSEPSTRATEGY_CONSERVATIVE`), then clique cuts will be separated only at the root node of the branch-and-bound tree. (integer)
 
-A more aggressive cut strategy, generating a greater number of cuts, will result in fewer nodes to be explored, but with an associated time cost in generating the cuts. The fewer cuts generated, the less time taken, but the greater subsequent number of nodes to be explored.
+Default value: `-1`
+
+Values:
+-2
+: `XPRS_CUTSEPSTRATEGY_AUTOENFORCED` Automatic selection of cut separation strategy, enforced regardless of the value of the meta control CUTSEPSTRATEGY.
+-1
+: `XPRS_CUTSEPSTRATEGY_AUTOMATIC` Automatic selection of cut separation strategy.
+0
+: `XPRS_CUTSEPSTRATEGY_OFF` Off. No separation of clique cuts.
+1
+: `XPRS_CUTSEPSTRATEGY_CONSERVATIVE` Conservative cut separation strategy. Clique cuts separated only at the root node.
+2
+: `XPRS_CUTSEPSTRATEGY_MODERATE` Moderate cut separation strategy.
+3
+: `XPRS_CUTSEPSTRATEGY_AGGRESSIVE` Aggressive cut separation strategy.
+"""
+const XPRS_CUTSEPCLIQUESTRATEGY::Int32 = Int32(8534)
+
+"""
+    XPRS_CUTSEPCOVERSTRATEGY
+Strategy for separation of lifted cover cuts. A more aggressive strategy will increase the effort spent in lifted cover cut separation and the frequency at which lifted cover cuts are separated during the branch-and-bound tree search. If a conservative strategy is selected (i.e., value 1, `XPRS_CUTSEPSTRATEGY_CONSERVATIVE`), then lifted cover cuts will be separated only at the root node of the branch-and-bound tree. (integer)
+
+Default value: `-1`
+
+Values:
+-2
+: `XPRS_CUTSEPSTRATEGY_AUTOENFORCED` Automatic selection of cut separation strategy, enforced regardless of the value of the meta control CUTSEPSTRATEGY.
+-1
+: `XPRS_CUTSEPSTRATEGY_AUTOMATIC` Automatic selection of cut separation strategy.
+0
+: `XPRS_CUTSEPSTRATEGY_OFF` Off. No separation of lifted cover cuts.
+1
+: `XPRS_CUTSEPSTRATEGY_CONSERVATIVE` Conservative cut separation strategy. Lifted cover cuts separated only at the root node.
+2
+: `XPRS_CUTSEPSTRATEGY_MODERATE` Moderate cut separation strategy.
+3
+: `XPRS_CUTSEPSTRATEGY_AGGRESSIVE` Aggressive cut separation strategy.
+"""
+const XPRS_CUTSEPCOVERSTRATEGY::Int32 = Int32(8536)
+
+"""
+    XPRS_CUTSEPFARKASSTRATEGY
+Strategy for separation of Farkas cuts. A more aggressive strategy will increase the effort spent in Farkas cut separation and the frequency at which Farkas cuts are separated during the branch-and-bound tree search. If a conservative strategy is selected (i.e., value 1, `XPRS_CUTSEPSTRATEGY_CONSERVATIVE`), then Farkas cuts will be separated only at the root node of the branch-and-bound tree. (integer)
+
+Default value: `-1`
+
+Values:
+-2
+: `XPRS_CUTSEPSTRATEGY_AUTOENFORCED` Automatic selection of cut separation strategy, enforced regardless of the value of the meta control CUTSEPSTRATEGY.
+-1
+: `XPRS_CUTSEPSTRATEGY_AUTOMATIC` Automatic selection of cut separation strategy.
+0
+: `XPRS_CUTSEPSTRATEGY_OFF` Off. No separation of Farkas cuts.
+1
+: `XPRS_CUTSEPSTRATEGY_CONSERVATIVE` Conservative cut separation strategy. Farkas cuts separated only at the root node.
+2
+: `XPRS_CUTSEPSTRATEGY_MODERATE` Moderate cut separation strategy.
+3
+: `XPRS_CUTSEPSTRATEGY_AGGRESSIVE` Aggressive cut separation strategy.
+"""
+const XPRS_CUTSEPFARKASSTRATEGY::Int32 = Int32(8542)
+
+"""
+    XPRS_CUTSEPFLOWPATHSTRATEGY
+Strategy for separation of flow path cuts. A more aggressive strategy will increase the effort spent in flow path cut separation and the frequency at which flow path cuts are separated during the branch-and-bound tree search. If a conservative strategy is selected (i.e., value 1, `XPRS_CUTSEPSTRATEGY_CONSERVATIVE`), then flow path cuts will be separated only at the root node of the branch-and-bound tree. (integer)
+
+Default value: `-1`
+
+Values:
+-2
+: `XPRS_CUTSEPSTRATEGY_AUTOENFORCED` Automatic selection of cut separation strategy, enforced regardless of the value of the meta control CUTSEPSTRATEGY.
+-1
+: `XPRS_CUTSEPSTRATEGY_AUTOMATIC` Automatic selection of cut separation strategy.
+0
+: `XPRS_CUTSEPSTRATEGY_OFF` Off. No separation of flow path cuts.
+1
+: `XPRS_CUTSEPSTRATEGY_CONSERVATIVE` Conservative cut separation strategy. Flow path cuts separated only at the root node.
+2
+: `XPRS_CUTSEPSTRATEGY_MODERATE` Moderate cut separation strategy.
+3
+: `XPRS_CUTSEPSTRATEGY_AGGRESSIVE` Aggressive cut separation strategy.
+"""
+const XPRS_CUTSEPFLOWPATHSTRATEGY::Int32 = Int32(8537)
+
+"""
+    XPRS_CUTSEPGOMORYSTRATEGY
+Strategy for separation of Gomory cuts. A more aggressive strategy will increase the effort spent in Gomory cut separation and the frequency at which Gomory cuts are separated during the branch-and-bound tree search. If a conservative strategy is selected (i.e., value 1, `XPRS_CUTSEPSTRATEGY_CONSERVATIVE`), then Gomory cuts will be separated only at the root node of the branch-and-bound tree. (integer)
+
+Default value: `-1`
+
+Values:
+-2
+: `XPRS_CUTSEPSTRATEGY_AUTOENFORCED` Automatic selection of cut separation strategy, enforced regardless of the value of the meta control CUTSEPSTRATEGY.
+-1
+: `XPRS_CUTSEPSTRATEGY_AUTOMATIC` Automatic selection of cut separation strategy.
+0
+: `XPRS_CUTSEPSTRATEGY_OFF` Off. No separation of Gomory cuts.
+1
+: `XPRS_CUTSEPSTRATEGY_CONSERVATIVE` Conservative cut separation strategy. Gomory cuts separated only at the root node.
+2
+: `XPRS_CUTSEPSTRATEGY_MODERATE` Moderate cut separation strategy.
+3
+: `XPRS_CUTSEPSTRATEGY_AGGRESSIVE` Aggressive cut separation strategy.
+"""
+const XPRS_CUTSEPGOMORYSTRATEGY::Int32 = Int32(8545)
+
+"""
+    XPRS_CUTSEPGUBCOVERSTRATEGY
+Strategy for separation of lifted GUB cover cuts. A more aggressive strategy will increase the effort spent in lifted GUB cover cut separation and the frequency at which lifted GUB cover cuts are separated during the branch-and-bound tree search. If a conservative strategy is selected (i.e., value 1, `XPRS_CUTSEPSTRATEGY_CONSERVATIVE`), then lifted GUB cover cuts will be separated only at the root node of the branch-and-bound tree. (integer)
+
+Default value: `-1`
+
+Values:
+-2
+: `XPRS_CUTSEPSTRATEGY_AUTOENFORCED` Automatic selection of cut separation strategy, enforced regardless of the value of the meta control CUTSEPSTRATEGY.
+-1
+: `XPRS_CUTSEPSTRATEGY_AUTOMATIC` Automatic selection of cut separation strategy.
+0
+: `XPRS_CUTSEPSTRATEGY_OFF` Off. No separation of lifted GUB cover cuts.
+1
+: `XPRS_CUTSEPSTRATEGY_CONSERVATIVE` Conservative cut separation strategy. Lifted GUB cover cuts separated only at the root node.
+2
+: `XPRS_CUTSEPSTRATEGY_MODERATE` Moderate cut separation strategy.
+3
+: `XPRS_CUTSEPSTRATEGY_AGGRESSIVE` Aggressive cut separation strategy.
+"""
+const XPRS_CUTSEPGUBCOVERSTRATEGY::Int32 = Int32(8539)
+
+"""
+    XPRS_CUTSEPIMPLBOUNDSTRATEGY
+Strategy for separation of implication cuts. A more aggressive strategy will increase the effort spent in implication cut separation and the frequency at which implication cuts are separated during the branch-and-bound tree search. If a conservative strategy is selected (i.e., value 1, `XPRS_CUTSEPSTRATEGY_CONSERVATIVE`), then implication cuts will be separated only at the root node of the branch-and-bound tree. (integer)
+
+Default value: `-1`
+
+Values:
+-2
+: `XPRS_CUTSEPSTRATEGY_AUTOENFORCED` Automatic selection of cut separation strategy, enforced regardless of the value of the meta control CUTSEPSTRATEGY.
+-1
+: `XPRS_CUTSEPSTRATEGY_AUTOMATIC` Automatic selection of cut separation strategy.
+0
+: `XPRS_CUTSEPSTRATEGY_OFF` Off. No separation of implication cuts.
+1
+: `XPRS_CUTSEPSTRATEGY_CONSERVATIVE` Conservative cut separation strategy. Implication cuts separated only at the root node.
+2
+: `XPRS_CUTSEPSTRATEGY_MODERATE` Moderate cut separation strategy.
+3
+: `XPRS_CUTSEPSTRATEGY_AGGRESSIVE` Aggressive cut separation strategy.
+"""
+const XPRS_CUTSEPIMPLBOUNDSTRATEGY::Int32 = Int32(8538)
+
+"""
+    XPRS_CUTSEPMCFSTRATEGY
+Strategy for separation of Multi-Commodity Flow (MCF) cuts. A more aggressive strategy will increase the effort spent in MCF cut separation and the frequency at which MCF cuts are separated during the branch-and-bound tree search. If a conservative strategy is selected (i.e., value 1, `XPRS_CUTSEPSTRATEGY_CONSERVATIVE`), then MCF cuts will be separated only at the root node of the branch-and-bound tree. (integer)
+
+Default value: `-1`
+
+Values:
+-2
+: `XPRS_CUTSEPSTRATEGY_AUTOENFORCED` Automatic selection of cut separation strategy, enforced regardless of the value of the meta control CUTSEPSTRATEGY.
+-1
+: `XPRS_CUTSEPSTRATEGY_AUTOMATIC` Automatic selection of cut separation strategy.
+0
+: `XPRS_CUTSEPSTRATEGY_OFF` Off. No separation of MCF cuts.
+1
+: `XPRS_CUTSEPSTRATEGY_CONSERVATIVE` Conservative cut separation strategy. MCF cuts separated only at the root node.
+2
+: `XPRS_CUTSEPSTRATEGY_MODERATE` Moderate cut separation strategy.
+3
+: `XPRS_CUTSEPSTRATEGY_AGGRESSIVE` Aggressive cut separation strategy.
+"""
+const XPRS_CUTSEPMCFSTRATEGY::Int32 = Int32(8544)
+
+"""
+    XPRS_CUTSEPMIRSTRATEGY
+Strategy for separation of Mixed Integer Rounding (MIR) cuts. A more aggressive strategy will increase the effort spent in MIR cut separation and the frequency at which MIR cuts are separated during the branch-and-bound tree search. If a conservative strategy is selected (i.e., value 1, `XPRS_CUTSEPSTRATEGY_CONSERVATIVE`), then MIR cuts will be separated only at the root node of the branch-and-bound tree. (integer)
+
+Default value: `-1`
+
+Values:
+-2
+: `XPRS_CUTSEPSTRATEGY_AUTOENFORCED` Automatic selection of cut separation strategy, enforced regardless of the value of the meta control CUTSEPSTRATEGY.
+-1
+: `XPRS_CUTSEPSTRATEGY_AUTOMATIC` Automatic selection of cut separation strategy.
+0
+: `XPRS_CUTSEPSTRATEGY_OFF` Off. No separation of MIR cuts.
+1
+: `XPRS_CUTSEPSTRATEGY_CONSERVATIVE` Conservative cut separation strategy. MIR cuts separated only at the root node.
+2
+: `XPRS_CUTSEPSTRATEGY_MODERATE` Moderate cut separation strategy.
+3
+: `XPRS_CUTSEPSTRATEGY_AGGRESSIVE` Aggressive cut separation strategy.
+"""
+const XPRS_CUTSEPMIRSTRATEGY::Int32 = Int32(8535)
+
+"""
+    XPRS_CUTSEPPATHMIXSTRATEGY
+Strategy for separation of path mixing cuts. A more aggressive strategy will increase the effort spent in path mixing cut separation and the frequency at which path mixing cuts are separated during the branch-and-bound tree search. If a conservative strategy is selected (i.e., value 1, `XPRS_CUTSEPSTRATEGY_CONSERVATIVE`), then path mixing cuts will be separated only at the root node of the branch-and-bound tree. (integer)
+
+Default value: `-1`
+
+Values:
+-2
+: `XPRS_CUTSEPSTRATEGY_AUTOENFORCED` Automatic selection of cut separation strategy, enforced regardless of the value of the meta control CUTSEPSTRATEGY.
+-1
+: `XPRS_CUTSEPSTRATEGY_AUTOMATIC` Automatic selection of cut separation strategy.
+0
+: `XPRS_CUTSEPSTRATEGY_OFF` Off. No separation of path mixing cuts.
+1
+: `XPRS_CUTSEPSTRATEGY_CONSERVATIVE` Conservative cut separation strategy. Path mixing cuts separated only at the root node.
+2
+: `XPRS_CUTSEPSTRATEGY_MODERATE` Moderate cut separation strategy.
+3
+: `XPRS_CUTSEPSTRATEGY_AGGRESSIVE` Aggressive cut separation strategy.
+"""
+const XPRS_CUTSEPPATHMIXSTRATEGY::Int32 = Int32(8543)
+
+"""
+    XPRS_CUTSEPRLTSTRATEGY
+Strategy for separation of Reformulation-Linearization Technique (RLT) cuts. A more aggressive strategy will increase the effort spent in RLT cut separation and the frequency at which RLT cuts are separated during the branch-and-bound tree search. If a conservative strategy is selected (i.e., value 1, `XPRS_CUTSEPSTRATEGY_CONSERVATIVE`), then RLT cuts will be separated only at the root node of the branch-and-bound tree. (integer)
+
+Default value: `-1`
+
+Values:
+-2
+: `XPRS_CUTSEPSTRATEGY_AUTOENFORCED` Automatic selection of cut separation strategy, enforced regardless of the value of the meta control CUTSEPSTRATEGY.
+-1
+: `XPRS_CUTSEPSTRATEGY_AUTOMATIC` Automatic selection of cut separation strategy.
+0
+: `XPRS_CUTSEPSTRATEGY_OFF` Off. No separation of RLT cuts.
+1
+: `XPRS_CUTSEPSTRATEGY_CONSERVATIVE` Conservative cut separation strategy. RLT cuts separated only at the root node.
+2
+: `XPRS_CUTSEPSTRATEGY_MODERATE` Moderate cut separation strategy.
+3
+: `XPRS_CUTSEPSTRATEGY_AGGRESSIVE` Aggressive cut separation strategy.
+"""
+const XPRS_CUTSEPRLTSTRATEGY::Int32 = Int32(8546)
+
+"""
+    XPRS_CUTSEPSDPSTRATEGY
+Strategy for separation of semidefinite programming (SDP) cuts. A more aggressive strategy will increase the effort spent in SDP cut separation and the frequency at which SDP cuts are separated during the branch-and-bound tree search. If a conservative strategy is selected (i.e., value 1, `XPRS_CUTSEPSTRATEGY_CONSERVATIVE`), then SDP cuts will be separated only at the root node of the branch-and-bound tree. (integer)
+
+Default value: `-1`
+
+Values:
+-2
+: `XPRS_CUTSEPSTRATEGY_AUTOENFORCED` Automatic selection of cut separation strategy, enforced regardless of the value of the meta control CUTSEPSTRATEGY.
+-1
+: `XPRS_CUTSEPSTRATEGY_AUTOMATIC` Automatic selection of cut separation strategy.
+0
+: `XPRS_CUTSEPSTRATEGY_OFF` Off. No separation of SDP cuts.
+1
+: `XPRS_CUTSEPSTRATEGY_CONSERVATIVE` Conservative cut separation strategy. SDP cuts separated only at the root node.
+2
+: `XPRS_CUTSEPSTRATEGY_MODERATE` Moderate cut separation strategy.
+3
+: `XPRS_CUTSEPSTRATEGY_AGGRESSIVE` Aggressive cut separation strategy.
+"""
+const XPRS_CUTSEPSDPSTRATEGY::Int32 = Int32(8547)
+
+"""
+    XPRS_CUTSEPSTRATEGY
+Meta control specifying the cut separation strategy for every individual `CUTSEP*STRATEGY` control left at its default value of -1 (automatic). Setting `CUTSEPSTRATEGY` to a value other than -1 overrides the automatic decision for each cut separator whose own control is left to value -1 (automatic). An individual control (e.g. CUTSEPCLIQUESTRATEGY) that is set to a value other than -1 always takes precedence over this meta control. (integer)
+
+Default value: `-1`
+
+Values:
+-1
+: `XPRS_CUTSEPSTRATEGY_AUTOMATIC` Automatic cut separation strategy.
+0
+: `XPRS_CUTSEPSTRATEGY_OFF` Off. Disable all cut separators set to automatic.
+1
+: `XPRS_CUTSEPSTRATEGY_CONSERVATIVE` Conservative cut separation strategy applied to all cuts separators set to automatic.
+2
+: `XPRS_CUTSEPSTRATEGY_MODERATE` Moderate cut separation strategy applied to all cuts separators set to automatic.
+3
+: `XPRS_CUTSEPSTRATEGY_AGGRESSIVE` Aggressive cut separation strategy applied to all cuts separators set to automatic.
+"""
+const XPRS_CUTSEPSTRATEGY::Int32 = Int32(8548)
+
+"""
+    XPRS_CUTSEPSTRONGCGSTRATEGY
+Strategy for separation of Strong Chvatal-Gomory (CG) cuts. A more aggressive strategy will increase the effort spent in Strong CG cut separation and the frequency at which Strong CG cuts are separated during the branch-and-bound tree search. If a conservative strategy is selected (i.e., value 1, `XPRS_CUTSEPSTRATEGY_CONSERVATIVE`), then Strong CG cuts will be separated only at the root node of the branch-and-bound tree. (integer)
+
+Default value: `-1`
+
+Values:
+-2
+: `XPRS_CUTSEPSTRATEGY_AUTOENFORCED` Automatic selection of cut separation strategy, enforced regardless of the value of the meta control CUTSEPSTRATEGY.
+-1
+: `XPRS_CUTSEPSTRATEGY_AUTOMATIC` Automatic selection of cut separation strategy.
+0
+: `XPRS_CUTSEPSTRATEGY_OFF` Off. No separation of Strong CG cuts.
+1
+: `XPRS_CUTSEPSTRATEGY_CONSERVATIVE` Conservative cut separation strategy. Strong CG cuts separated only at the root node.
+2
+: `XPRS_CUTSEPSTRATEGY_MODERATE` Moderate cut separation strategy.
+3
+: `XPRS_CUTSEPSTRATEGY_AGGRESSIVE` Aggressive cut separation strategy.
+"""
+const XPRS_CUTSEPSTRONGCGSTRATEGY::Int32 = Int32(8541)
+
+"""
+    XPRS_CUTSEPZEROHALFSTRATEGY
+Strategy for separation of zero-half cuts. A more aggressive strategy will increase the effort spent in zero-half cut separation and the frequency at which zero-half cuts are separated during the branch-and-bound tree search. If a conservative strategy is selected (i.e., value 1, `XPRS_CUTSEPSTRATEGY_CONSERVATIVE`), then zero-half cuts will be separated only at the root node of the branch-and-bound tree. (integer)
+
+Default value: `-1`
+
+Values:
+-2
+: `XPRS_CUTSEPSTRATEGY_AUTOENFORCED` Automatic selection of cut separation strategy, enforced regardless of the value of the meta control CUTSEPSTRATEGY.
+-1
+: `XPRS_CUTSEPSTRATEGY_AUTOMATIC` Automatic selection of cut separation strategy.
+0
+: `XPRS_CUTSEPSTRATEGY_OFF` Off. No separation of zero-half cuts.
+1
+: `XPRS_CUTSEPSTRATEGY_CONSERVATIVE` Conservative cut separation strategy. Zero-half cuts separated only at the root node.
+2
+: `XPRS_CUTSEPSTRATEGY_MODERATE` Moderate cut separation strategy.
+3
+: `XPRS_CUTSEPSTRATEGY_AGGRESSIVE` Aggressive cut separation strategy.
+"""
+const XPRS_CUTSEPZEROHALFSTRATEGY::Int32 = Int32(8540)
+
+"""
+    XPRS_CUTSTRATEGY
+Branch and Bound: This specifies the general cut strategy in terms of limits on the number of cuts and of non-zero cut elements that can be added to the problem. A more aggressive cut strategy, allowing a greater number of cuts and non-zero cut elemenets in the subproblems, will typically result in fewer nodes to be explored, but at the cost of a slowdown in the node throughput (i.e., the more cuts are added, the harder it becomes to solve the LP relaxation of each node subproblem). (integer)
+
+On the other hand, a more conservative cut strategy will typically improve the node throughput, but at the cost of more nodes to be explored for solving the problem.
 
 Default value: `-1`
 
@@ -4923,6 +5824,60 @@ Values:
 const XPRS_GLOBALBOUNDINGBOX::Int32 = Int32(7154)
 
 """
+    XPRS_GLOBALCONVCUTMAXROUNDS
+The number of rounds of outer approximation and convexification cuts separated at the root node of the branch-and-bound tree search, when solving an (MI)NLP to global optimality. (integer)
+
+Default value: -1
+
+Values:
+-1
+: Number of rounds determined automatically.
+0
+: No outer approximation or convexification cuts at the root node.
+(0,inf)
+: Target number of rounds of outer approximation and convexification cuts at the root node.
+"""
+const XPRS_GLOBALCONVCUTMAXROUNDS::Int32 = Int32(8554)
+
+"""
+    XPRS_GLOBALCONVCUTMAXTREEROUNDS
+The number of rounds of outer approximation and convexification cuts separated at a node of the branch-and-bound tree search other than the root node, when solving an (MI)NLP to global optimality. (integer)
+
+Default value: -1
+
+Values:
+-1
+: Number of rounds determined automatically.
+0
+: No outer approximation or convexification cuts at tree nodes.
+(0,inf)
+: Target number of rounds of outer approximation and convexification cuts at tree nodes.
+"""
+const XPRS_GLOBALCONVCUTMAXTREEROUNDS::Int32 = Int32(8558)
+
+"""
+    XPRS_GLOBALINITCUTSTRATEGY
+Strategy for the initial tangent/secant convexification cuts added per nonlinear operator when setting up the initial LP relaxation during a global solve. (integer)
+
+Adding more cuts tightens the problem, resulting in a smaller branch-and-bound tree, at the cost of slowing down each LP solve.
+
+Default value: `-1`
+
+Values:
+-1
+: `XPRS_GLOBALINITCUTSTRATEGY_AUTOMATIC` Automatic selection of the strategy.
+0
+: `XPRS_GLOBALINITCUTSTRATEGY_OFF` Off. No initial convexification cuts are added.
+1
+: `XPRS_GLOBALINITCUTSTRATEGY_CONSERVATIVE` Conservative strategy.
+2
+: `XPRS_GLOBALINITCUTSTRATEGY_MODERATE` Moderate strategy.
+3
+: `XPRS_GLOBALINITCUTSTRATEGY_AGGRESSIVE` Aggressive strategy.
+"""
+const XPRS_GLOBALINITCUTSTRATEGY::Int32 = Int32(8575)
+
+"""
     XPRS_GLOBALLSHEURSTRATEGY
 When integer-feasible (for MINLP, any solution for NLP) but nonlinear-infeasible solutions are encountered within a global solve, the integer variables can be fixed and a local solver (as defined by the LOCALSOLVER control) can be called on the remaining continuous problem. (integer)
 
@@ -4945,8 +5900,30 @@ Values:
 const XPRS_GLOBALLSHEURSTRATEGY::Int32 = Int32(8464)
 
 """
+    XPRS_GLOBALMISLPHEURSTRATEGY
+Controls how aggressively a set of MISLP-based root heuristics are run at the root node when solving an (MI)NLP to global optimality. (integer)
+
+Default value: `-1`
+
+Values:
+-1
+: `XPRS_GLOBALMISLPHEURSTRATEGY_AUTOMATIC` Automatic. The solver decides which heuristics to run and how aggressively, based on HEUREMPHASIS.
+0
+: `XPRS_GLOBALMISLPHEURSTRATEGY_OFF` Off. No root heuristics of this kind are run.
+1
+: `XPRS_GLOBALMISLPHEURSTRATEGY_CONSERVATIVE` Conservative. A small set of cheap root heuristics is run with tight effort limits.
+2
+: `XPRS_GLOBALMISLPHEURSTRATEGY_MODERATE` Moderate. A larger set of root heuristics is run with moderate effort limits.
+3
+: `XPRS_GLOBALMISLPHEURSTRATEGY_AGGRESSIVE` Aggressive. The full set of root heuristics is run with generous effort limits.
+"""
+const XPRS_GLOBALMISLPHEURSTRATEGY::Int32 = Int32(8566)
+
+"""
     XPRS_GLOBALNLPCUTS
-Limits the number of rounds of outer approximation and convexification cuts generated for the root node, when solving an (MI)NLP to global optimality. (integer)
+**Deprecated**Limits the number of rounds of outer approximation and convexification cuts generated for the root node, when solving an (MI)NLP to global optimality. (integer)
+
+This control is deprecated, please use GLOBALCONVCUTMAXROUNDS instead.
 
 Default value: -1
 
@@ -4960,9 +5937,9 @@ const XPRS_GLOBALNLPCUTS::Int32 = Int32(8481)
 
 """
     XPRS_GLOBALNUMINITNLPCUTS
-Specifies the maximum number of tangent cuts when setting up the initial relaxation during a global solve. (integer)
+**Deprecated**Specifies the maximum number of tangent cuts when setting up the initial relaxation during a global solve. (integer)
 
-By default, the algorithm chooses the number of cuts automatically. Adding more cuts tightens the problem, resulting in a smaller branch-and-bound tree, at the cost of slowing down each LP solve.
+By default, the algorithm chooses the number of cuts automatically. Adding more cuts tightens the problem, resulting in a smaller branch-and-bound tree, at the cost of slowing down each LP solve. This control is deprecated, please use GLOBALINITCUTSTRATEGY instead.
 
 Default value: -1
 
@@ -5046,7 +6023,9 @@ const XPRS_GLOBALSPATIALBRANCHPROPAGATIONEFFORT::Int32 = Int32(7152)
 
 """
     XPRS_GLOBALTREENLPCUTS
-Limits the number of rounds of outer approximation and convexification cuts generated for each node in the tree, when solving an (MI)NLP to global optimality. (integer)
+**Deprecated**Limits the number of rounds of outer approximation and convexification cuts generated for each node in the tree, when solving an (MI)NLP to global optimality. (integer)
+
+This control is deprecated, please use GLOBALCONVCUTMAXTREEROUNDS instead.
 
 Default value: -1
 
@@ -5060,7 +6039,9 @@ const XPRS_GLOBALTREENLPCUTS::Int32 = Int32(8482)
 
 """
     XPRS_GOMCUTS
-Branch and Bound: Specifies the number of rounds of Gomory or lift-and-project cuts at the root node. (integer)
+**Deprecated**Branch and Bound: Specifies the number of rounds of Gomory or lift-and-project cuts at the root node. (integer)
+
+This control is deprecated, please use CUTGOMMAXROUNDS instead.
 
 Default value: `-1`
 
@@ -5123,20 +6104,42 @@ Values:
 const XPRS_HEURBEFORELP::Int32 = Int32(8280)
 
 """
-    XPRS_HEURDEPTH
-Branch and Bound: Sets the maximum depth in the tree search at which heuristics will be used to find MIP solutions. (integer)
+    XPRS_HEURBEFORELPGPUEFFORT
+Effort dial to control the effort spent inside the selected GPU heuristic method. (double)
 
-It may be worth stopping the heuristic search for solutions after a certain depth in the tree search. A value of 0 signifies that heuristics will not be used. This control no longer has any effect and will be removed from future releases.
+If a GPU-accelerated heuristic method has been selected, this control can be used to increase or decrease the overall effort spent by the heuristic. For the heuristic enabled by setting HEURBEFORELPGPUMETHOD to `XPRS_HEURBEFORELPGPUMETHOD_FEASPUMP`, the effort parameter controls the iterations spent inside the primal-dual hybrid gradient algorithm.
+
+Default value: `-1`
+
+Values:
+-2
+: Run with (almost) no effort limit. This can be useful for evaluating whether the heuristic can find a solution without practical working limits
+-1
+: Automatic choice of effort.
+0
+: Disable GPU heuristics.
+(0,100]
+: Dial the effort for the GPU heuristic by setting a value >`1.0`, limit the search effort by setting a value <`1.0`.
+"""
+const XPRS_HEURBEFORELPGPUEFFORT::Int32 = Int32(7184)
+
+"""
+    XPRS_HEURBEFORELPGPUMETHOD
+Enables a GPU-accelerated heuristic of the specified type. (integer)
+
+If enabled, this heuristic is called as a BEFORELP heuristic for multiple rounds. The control value `XPRS_HEURBEFORELPGPUMETHOD_FEASPUMP` enables a GPU accelerated version of feasibility pump. In each round, the LP relaxation is approximately solved using the Primal Dual Hybrid Gradient algorithm on the GPU, The fractional solution is then rounded, and a heuristic is called to minimize the remaining violations. The effort spent on this final polishing step can be controlled by the user.
 
 Default value: `-1`
 
 Values:
 -1
-: The maximum depth is determined automatically.
-[0,inf)
-: Maximum depth in the tree search at which heuristics will be used to find MIP solutions.
+: `XPRS_HEURBEFORELPGPUMETHOD_AUTOMATIC` Leave the decision to the solver.
+0
+: `XPRS_HEURBEFORELPGPUMETHOD_OFF` Disable any GPU heuristic.
+1
+: `XPRS_HEURBEFORELPGPUMETHOD_FEASPUMP` Enable the feasibility pump GPU Heuristic. Use the limit controls as well as the controls of the primal-dual hybrid gradient algorithm to fine-tune the behavior.
 """
-const XPRS_HEURDEPTH::Int32 = Int32(8156)
+const XPRS_HEURBEFORELPGPUMETHOD::Int32 = Int32(8576)
 
 """
     XPRS_HEURDIVEITERLIMIT
@@ -5242,7 +6245,7 @@ const XPRS_HEUREMPHASIS::Int32 = Int32(8427)
 
 """
     XPRS_HEURFORCESPECIALOBJ
-Branch and Bound: This specifies whether local search heuristics without objective or with an auxiliary objective should always be used, despite the automatic selection of the Optimiezr. (integer)
+Branch and Bound: This specifies whether large neighborhood search (LNS) heuristics without objective or with an auxiliary objective should always be used, despite the automatic selection of the Optimizer. (integer)
 
 Deactivated by default.
 
@@ -5273,36 +6276,28 @@ Values:
 const XPRS_HEURFREQ::Int32 = Int32(8155)
 
 """
-    XPRS_HEURMAXSOL
-**Deprecated**Branch and Bound: This specifies the maximum number of heuristic solutions that will be found in the tree search. (integer)
+    XPRS_HEURSEARCHANALYTICSTRATEGY
+Strategy control for the Analytic Center (`A`) large neighborhood search heuristic, an LNS heuristic with an auxiliary objective function. (integer)
 
-This control no longer has any effect and will be removed from future releases.
-
-Default value: `-1`
-
-Values:
--1
-: Automatic.
-[0,inf)
-: The maximum number of heuristic solutions that will be found in the tree search.
-"""
-const XPRS_HEURMAXSOL::Int32 = Int32(8157)
-
-"""
-    XPRS_HEURNODES
-**Deprecated**Branch and Bound: This specifies the maximum number of nodes at which heuristics are used in the tree search. (integer)
-
-This control no longer has any effect and will be removed from future releases.
+Called seldom and only when no feasible solution is available.
 
 Default value: `-1`
 
 Values:
+-2
+: `XPRS_HEURSEARCHSTRATEGY_AUTOENFORCED` Automatic enforced. The Optimizer determines the frequency and effort of this heuristic, ignoring the value of HEURSEARCHSTRATEGY.
 -1
-: Automatic.
-[0,inf)
-: The maximum number of nodes at which heuristics are used in the tree search.
+: `XPRS_HEURSEARCHSTRATEGY_AUTOMATIC` Automatic. The Optimizer determines the frequency and effort of this heuristic.
+0
+: `XPRS_HEURSEARCHSTRATEGY_OFF` Disabled.
+1
+: `XPRS_HEURSEARCHSTRATEGY_CONSERVATIVE` Conservative strategy; the heuristic is run less frequently than the default.
+2
+: `XPRS_HEURSEARCHSTRATEGY_MODERATE` Moderate strategy; default level of frequency and effort.
+3
+: `XPRS_HEURSEARCHSTRATEGY_AGGRESSIVE` Aggressive strategy; the heuristic is run more frequently than the default.
 """
-const XPRS_HEURNODES::Int32 = Int32(8158)
+const XPRS_HEURSEARCHANALYTICSTRATEGY::Int32 = Int32(8584)
 
 """
     XPRS_HEURSEARCHBACKGROUNDSELECT
@@ -5317,36 +6312,60 @@ bit 1
 const XPRS_HEURSEARCHBACKGROUNDSELECT::Int32 = Int32(8477)
 
 """
+    XPRS_HEURSEARCHCOMBINESTRATEGY
+Strategy control for the Combine (`C`) large neighborhood search heuristic, which uses a neighborhood set up through the combination of multiple integer solutions. (integer)
+
+Default value: `-1`
+
+Values:
+-2
+: `XPRS_HEURSEARCHSTRATEGY_AUTOENFORCED` Automatic enforced. The Optimizer determines the frequency and effort of this heuristic, ignoring the value of HEURSEARCHSTRATEGY.
+-1
+: `XPRS_HEURSEARCHSTRATEGY_AUTOMATIC` Automatic. The Optimizer determines the frequency and effort of this heuristic.
+0
+: `XPRS_HEURSEARCHSTRATEGY_OFF` Disabled.
+1
+: `XPRS_HEURSEARCHSTRATEGY_CONSERVATIVE` Conservative strategy; the heuristic is run less frequently than the default.
+2
+: `XPRS_HEURSEARCHSTRATEGY_MODERATE` Moderate strategy; default level of frequency and effort.
+3
+: `XPRS_HEURSEARCHSTRATEGY_AGGRESSIVE` Aggressive strategy; the heuristic is run more frequently than the default.
+"""
+const XPRS_HEURSEARCHCOMBINESTRATEGY::Int32 = Int32(8582)
+
+"""
     XPRS_HEURSEARCHCOPYCONTROLS
-Select how user-set controls should affect local search heuristics. (integer)
+Select how user-set controls should affect the subproblems solved by large neighborhood search (LNS) heuristics. (integer)
 
 Default value: `1`
 
 Values:
 0
-: Do not copy any user-set controls
+: Do not copy any user-set controls into the subproblems.
 1
-: Automatic - Let the Optimizer decide which user-set controls to copy
+: Automatic - Let the Optimizer decide which user-set controls to copy.
 2
-: Copy all user-set controls
+: Copy all user-set controls.
 """
 const XPRS_HEURSEARCHCOPYCONTROLS::Int32 = Int32(8480)
 
 """
     XPRS_HEURSEARCHEFFORT
-Adjusts the overall level of the local search heuristics. (double)
+Adjusts the overall level of the large neighborhood search (LNS) heuristics. (double)
 
 Default value: `1.0`
 
 Values:
 (0,inf)
-: Multiplier on the default amount of work the local search heuristics should do. A higher value means the local search heuristics will be run more often and that they are allowed to search larger neighborhoods.
+: Multiplier on the default amount of work the large neighborhood search heuristics should do. A higher value means that all active LNS heuristics are allowed to search larger neighborhoods.
+0
+: Disables all LNS heuristics.
 """
 const XPRS_HEURSEARCHEFFORT::Int32 = Int32(7090)
 
 """
     XPRS_HEURSEARCHFREQ
-Branch and Bound: This specifies how often the local search heuristic should be run in the tree. (integer)
+Branch and Bound: This specifies how often the large neighborhood search (LNS) heuristic should be run in the tree. (integer)
 
 Default value: `-1`
 
@@ -5361,10 +6380,78 @@ Values:
 const XPRS_HEURSEARCHFREQ::Int32 = Int32(8196)
 
 """
-    XPRS_HEURSEARCHROOTCUTFREQ
-How frequently to run the local search heuristic during root cutting. (integer)
+    XPRS_HEURSEARCHLPFIRSTSTRATEGY
+Strategy control for the LP first (`L`) large neighborhood search heuristic, an LNS heuristic with a small neighborhood centered around a node LP solution. (integer)
 
-This is given as how many cut rounds to perform between runs of the heuristic. Set to zero to avoid applying the heuristic during root cutting. Branch and Bound: This specifies how often the local search heuristic should be run in the tree.
+Default value: `-1`
+
+Values:
+-2
+: `XPRS_HEURSEARCHSTRATEGY_AUTOENFORCED` Automatic enforced. The Optimizer determines the frequency and effort of this heuristic, ignoring the value of HEURSEARCHSTRATEGY.
+-1
+: `XPRS_HEURSEARCHSTRATEGY_AUTOMATIC` Automatic. The Optimizer determines the frequency and effort of this heuristic.
+0
+: `XPRS_HEURSEARCHSTRATEGY_OFF` Disabled.
+1
+: `XPRS_HEURSEARCHSTRATEGY_CONSERVATIVE` Conservative strategy; the heuristic is run less frequently than the default.
+2
+: `XPRS_HEURSEARCHSTRATEGY_MODERATE` Moderate strategy; default level of frequency and effort.
+3
+: `XPRS_HEURSEARCHSTRATEGY_AGGRESSIVE` Aggressive strategy; the heuristic is run more frequently than the default.
+"""
+const XPRS_HEURSEARCHLPFIRSTSTRATEGY::Int32 = Int32(8580)
+
+"""
+    XPRS_HEURSEARCHMIPFIRSTSTRATEGY
+Strategy control for the MIP first (`M`) large neighborhood search heuristic, an LNS heuristic with a small neighborhood centered around an integer solution. (integer)
+
+This heuristic will often provide smaller, incremental improvements to an incumbent solution.
+
+Default value: `-1`
+
+Values:
+-2
+: `XPRS_HEURSEARCHSTRATEGY_AUTOENFORCED` Automatic enforced. The Optimizer determines the frequency and effort of this heuristic, ignoring the value of HEURSEARCHSTRATEGY.
+-1
+: `XPRS_HEURSEARCHSTRATEGY_AUTOMATIC` Automatic. The Optimizer determines the frequency and effort of this heuristic.
+0
+: `XPRS_HEURSEARCHSTRATEGY_OFF` Disabled.
+1
+: `XPRS_HEURSEARCHSTRATEGY_CONSERVATIVE` Conservative strategy; the heuristic is run less frequently than the default.
+2
+: `XPRS_HEURSEARCHSTRATEGY_MODERATE` Moderate strategy; default level of frequency and effort.
+3
+: `XPRS_HEURSEARCHSTRATEGY_AGGRESSIVE` Aggressive strategy; the heuristic is run more frequently than the default.
+"""
+const XPRS_HEURSEARCHMIPFIRSTSTRATEGY::Int32 = Int32(8581)
+
+"""
+    XPRS_HEURSEARCHRINSSTRATEGY
+Strategy control for the RINS (`R`) large neighborhood search heuristic, an LNS heuristic that is potentially expensive but good for finding solutions that differ significantly from the incumbent. (integer)
+
+Default value: `-1`
+
+Values:
+-2
+: `XPRS_HEURSEARCHSTRATEGY_AUTOENFORCED` Automatic enforced. The Optimizer determines the frequency and effort of this heuristic, ignoring the value of HEURSEARCHSTRATEGY.
+-1
+: `XPRS_HEURSEARCHSTRATEGY_AUTOMATIC` Automatic. The Optimizer determines the frequency and effort of this heuristic.
+0
+: `XPRS_HEURSEARCHSTRATEGY_OFF` Disabled.
+1
+: `XPRS_HEURSEARCHSTRATEGY_CONSERVATIVE` Conservative strategy; the heuristic is run less frequently than the default.
+2
+: `XPRS_HEURSEARCHSTRATEGY_MODERATE` Moderate strategy; default level of frequency and effort.
+3
+: `XPRS_HEURSEARCHSTRATEGY_AGGRESSIVE` Aggressive strategy; the heuristic is run more frequently than the default.
+"""
+const XPRS_HEURSEARCHRINSSTRATEGY::Int32 = Int32(8579)
+
+"""
+    XPRS_HEURSEARCHROOTCUTFREQ
+How frequently to run the large neighborhood search (LNS) heuristics during root cutting. (integer)
+
+This is given as how many cut rounds to perform between runs of the heuristics. Set to zero to disable all LNS heuristics during root cutting.
 
 Default value: `-1`
 
@@ -5372,7 +6459,7 @@ Values:
 -1
 : Automatic.
 0
-: Disabled heuristic during cutting.
+: Disables LNS heuristics during cutting.
 (0,inf)
 : Number of cutting rounds between each run.
 """
@@ -5380,53 +6467,99 @@ const XPRS_HEURSEARCHROOTCUTFREQ::Int32 = Int32(8351)
 
 """
     XPRS_HEURSEARCHROOTSELECT
-A bit-vector control (see Section ) for selecting which local search heuristics to apply on the root node of a MIP solve. (integer)
+**Deprecated**This control has been deprecated. (integer)
 
-Use HEURSEARCHTREESELECT to control local search heuristics during the tree search.
+Use the meta LNS heuristic strategy control HEURSEARCHSTRATEGY or one of the individual strategy controls to (de-)activate individual LNS heuristics. A bit-vector control (see Section ) for selecting which large neighborhood search (LNS) heuristics to apply on the root node of a MIP solve.
 
 Default value: `117`
 
 Values are a bitset:
 bit 0
-: Local search with a large neighborhood. Potentially slow but is good for finding solutions that differs significantly from the incumbent.
+: LNS heuristic with a large neighborhood. Potentially expensive but good for finding solutions that differs significantly from the incumbent. Use HEURSEARCHRINSSTRATEGY instead.
 bit 1
-: Local search with a small neighborhood centered around a node LP solution.
+: LNS heuristic with a small neighborhood centered around a node LP solution. Use HEURSEARCHLPFIRSTSTRATEGY instead.
 bit 2
-: Local search with a small neighborhood centered around an integer solution. This heuristic will often provide smaller, incremental improvements to an incumbent solution.
+: LNS heuristic with a small neighborhood centered around an integer solution. This heuristic will often provide smaller, incremental improvements to an incumbent solution. Use HEURSEARCHMIPFIRSTSTRATEGY instead.
 bit 3
-: Local search with a neighborhood set up through the combination of multiple integer solutions.
+: LNS heuristic with a neighborhood set up through the combination of multiple integer solutions. Use HEURSEARCHCOMBINESTRATEGY instead.
 bit 5
-: Local search without an objective function. Called seldom and only when no feasible solution is available.
+: LNS heuristic without an objective function. Called seldom and only when no feasible solution is available. Use HEURSEARCHZEROOBJSTRATEGY instead.
 bit 6
-: Local search with an auxiliary objective function. Called seldom and only when no feasible solution is available.
+: LNS heuristic with an auxiliary objective function. Called seldom and only when no feasible solution is available. Use HEURSEARCHANALYTICSTRATEGY instead.
 """
 const XPRS_HEURSEARCHROOTSELECT::Int32 = Int32(8216)
+
+"""
+    XPRS_HEURSEARCHSTRATEGY
+Meta strategy control for large neighborhood search (LNS) heuristics. (integer)
+
+When set to a value other than automatic, it determines the frequency and effort of all LNS heuristics whose individual strategy control is set to automatic. Individual heuristic strategy controls take precedence over this setting.
+
+Default value: `-1`
+
+Values:
+-1
+: `XPRS_HEURSEARCHSTRATEGY_AUTOMATIC` Each LNS heuristic uses its own default strategy.
+0
+: `XPRS_HEURSEARCHSTRATEGY_OFF` All LNS heuristics set to automatic are disabled.
+1
+: `XPRS_HEURSEARCHSTRATEGY_CONSERVATIVE` Conservative strategy applied to all LNS heuristics set to automatic.
+2
+: `XPRS_HEURSEARCHSTRATEGY_MODERATE` Moderate strategy applied to all LNS heuristics set to automatic.
+3
+: `XPRS_HEURSEARCHSTRATEGY_AGGRESSIVE` Aggressive strategy applied to all LNS heuristics set to automatic.
+"""
+const XPRS_HEURSEARCHSTRATEGY::Int32 = Int32(8578)
 
 const XPRS_HEURSEARCHTARGETSIZE::Int32 = Int32(7112)
 
 """
     XPRS_HEURSEARCHTREESELECT
-A bit-vector control (see Section ) for selecting which local search heuristics to apply during the tree search of a MIP solve. (integer)
+**Deprecated**This control has been deprecated. (integer)
 
-Use HEURSEARCHROOTSELECT to control local search heuristics on the root node.
+Use the meta LNS heuristic strategy control HEURSEARCHSTRATEGY or one of the individual strategy controls to (de-)activate individual LNS heuristics. A bit-vector control (see Section ) for selecting which large neighborhood search (LNS) heuristics to apply during the tree search of a MIP solve.
 
 Default value: `17`
 
 Values are a bitset:
 bit 0
-: Local search with a large neighborhood. Potentially slow but is good for finding solutions that differs significantly from the incumbent.
+: LNS heuristic with a large neighborhood. Potentially expensive but good for finding solutions that differs significantly from the incumbent. Use HEURSEARCHRINSSTRATEGY instead.
 bit 1
-: Local search with a small neighborhood centered around a node LP solution.
+: LNS heuristic with a small neighborhood centered around a node LP solution. Use HEURSEARCHLPFIRSTSTRATEGY instead.
 bit 2
-: Local search with a small neighborhood centered around an integer solution. This heuristic will often provide smaller, incremental improvements to an incumbent solution.
+: LNS heuristic with a small neighborhood centered around an integer solution. This heuristic will often provide smaller, incremental improvements to an incumbent solution. Use HEURSEARCHMIPFIRSTSTRATEGY instead.
 bit 3
-: Local search with a neighborhood set up through the combination of multiple integer solutions.
+: LNS heuristic with a neighborhood set up through the combination of multiple integer solutions. Use HEURSEARCHCOMBINESTRATEGY instead.
 bit 5
-: Local search without an objective function. Called seldom and only when no feasible solution is available.
+: LNS heuristic without an objective function. Called seldom and only when no feasible solution is available. Use HEURSEARCHZEROOBJSTRATEGY instead.
 bit 6
-: Local search with an auxiliary objective function. Called seldom and only when no feasible solution is available.
+: LNS heuristic with an auxiliary objective function. Called seldom and only when no feasible solution is available. Use HEURSEARCHANALYTICSTRATEGY instead.
 """
 const XPRS_HEURSEARCHTREESELECT::Int32 = Int32(8217)
+
+"""
+    XPRS_HEURSEARCHZEROOBJSTRATEGY
+Strategy control for the Zero Objective (`Z`) large neighborhood search heuristic, an LNS heuristic without an objective function. (integer)
+
+Called seldom and only when no feasible solution is available.
+
+Default value: `-1`
+
+Values:
+-2
+: `XPRS_HEURSEARCHSTRATEGY_AUTOENFORCED` Automatic enforced. The Optimizer determines the frequency and effort of this heuristic, ignoring the value of HEURSEARCHSTRATEGY.
+-1
+: `XPRS_HEURSEARCHSTRATEGY_AUTOMATIC` Automatic. The Optimizer determines the frequency and effort of this heuristic.
+0
+: `XPRS_HEURSEARCHSTRATEGY_OFF` Disabled.
+1
+: `XPRS_HEURSEARCHSTRATEGY_CONSERVATIVE` Conservative strategy; the heuristic is run less frequently than the default.
+2
+: `XPRS_HEURSEARCHSTRATEGY_MODERATE` Moderate strategy; default level of frequency and effort.
+3
+: `XPRS_HEURSEARCHSTRATEGY_AGGRESSIVE` Aggressive strategy; the heuristic is run more frequently than the default.
+"""
+const XPRS_HEURSEARCHZEROOBJSTRATEGY::Int32 = Int32(8583)
 
 const XPRS_HEURSELECT::Int32 = Int32(8178)
 
@@ -5794,6 +6927,8 @@ const XPRS_KNITRO_PARAM_MSTERMINATE::Int32 = Int32(101054)
 
 const XPRS_KNITRO_PARAM_MULTISTART::Int32 = Int32(101033)
 
+const XPRS_KNITRO_PARAM_NCVX_QCQP_INIT::Int32 = Int32(101139)
+
 const XPRS_KNITRO_PARAM_NEWPOINT::Int32 = Int32(101001)
 
 const XPRS_KNITRO_PARAM_OBJRANGE::Int32 = Int32(101026)
@@ -5819,20 +6954,6 @@ const XPRS_KNITRO_PARAM_SOC::Int32 = Int32(101019)
 const XPRS_KNITRO_PARAM_SOLTYPE::Int32 = Int32(101161)
 
 const XPRS_KNITRO_PARAM_XTOL::Int32 = Int32(101030)
-
-"""
-    XPRS_L1CACHE
-**Deprecated**Newton barrier: Specifies the L1 cache size in kB (kilo bytes) of the CPU. (integer)
-
-Default value: -1
-
-Values:
--1
-: The cache size is determined automatically (Intel or compatible platforms).
-[0,inf)
-: The L1 cache size in kB.
-"""
-const XPRS_L1CACHE::Int32 = Int32(8175)
 
 """
     XPRS_LNPBEST
@@ -5880,6 +7001,22 @@ Values:
 """
 const XPRS_LOCALCHOICE::Int32 = Int32(8170)
 
+"""
+    XPRS_LOCALSOLVER
+Selects the library to use for local solves (integer)
+
+Default value: -1
+
+Values:
+-1
+: automatic selection, based on model characteristics and solver availability
+0
+: use Xpress-SLP (always available)
+1
+: use Knitro if available
+2
+: use Xpress-Optimizer if possible (convex quadratic problems only)
+"""
 const XPRS_LOCALSOLVER::Int32 = Int32(12352)
 
 """
@@ -6300,9 +7437,9 @@ const XPRS_MAXTREEFILESIZE::Int32 = Int32(8245)
 
 """
     XPRS_MCFCUTSTRATEGY
-Level of Multi-Commodity Flow (MCF) cutting planes separation: This specifies how aggressively MCF cuts should be separated. (integer)
+**Deprecated**Level of Multi-Commodity Flow (MCF) cutting planes separation: This specifies how aggressively MCF cuts should be separated. (integer)
 
-If the separation of MCF cuts is enabled, Xpress will try to detect a MCF network structure in the problem and, if such a structure is identified, it will separate specific cutting planes exploiting the identified network.
+If the separation of MCF cuts is enabled, Xpress will try to detect a MCF network structure in the problem and, if such a structure is identified, it will separate specific cutting planes exploiting the identified network. This control is deprecated, please use CUTSEPMCFSTRATEGY instead.
 
 Default value: `-1`
 
@@ -6840,6 +7977,12 @@ Domain: ?
 """
 const XPRS_MPSRHSNAME::Int32 = Int32(6001)
 
+"""
+    XPRS_MSMAXBOUNDRANGE
+Defines the maximum range inside which initial points are generated by multistart presets (double)
+
+Default value: 1000
+"""
 const XPRS_MSMAXBOUNDRANGE::Int32 = Int32(12204)
 
 """
@@ -6874,18 +8017,70 @@ bit 2
 """
 const XPRS_MULTIOBJOPS::Int32 = Int32(8457)
 
+"""
+    XPRS_MULTISTART
+The multistart main control. (integer)
+
+Defines if the multistart search is to be initiated, or if only the baseline model is to be solved.
+
+Default value: -1
+
+Values:
+-1
+: Depends on if any multistart jobs have been added.
+0
+: Multistart is off.
+1
+: Multistart is on.
+"""
 const XPRS_MULTISTART::Int32 = Int32(12362)
 
+"""
+    XPRS_MULTISTART_LOG
+The level of logging during the multistart run. (integer)
+
+Default value: 0
+"""
 const XPRS_MULTISTART_LOG::Int32 = Int32(12395)
 
+"""
+    XPRS_MULTISTART_MAXSOLVES
+The maximum number of jobs to create during the multistart search. (integer)
+
+Default value: -1 (no upper limit)
+"""
 const XPRS_MULTISTART_MAXSOLVES::Int32 = Int32(12364)
 
+"""
+    XPRS_MULTISTART_MAXTIME
+The maximum total time to be spent in the multistart search. (integer)
+
+Default value: 0 (no upper limit)
+"""
 const XPRS_MULTISTART_MAXTIME::Int32 = Int32(12365)
 
+"""
+    XPRS_MULTISTART_POOLSIZE
+The maximum number of problem objects allowed to pool up before synchronization in the deterministic multistart. (integer)
+
+Default value: 2
+"""
 const XPRS_MULTISTART_POOLSIZE::Int32 = Int32(12397)
 
+"""
+    XPRS_MULTISTART_SEED
+Random seed used for the automatic generation of initial point when loading multistart presets (integer)
+
+Default value: 0
+"""
 const XPRS_MULTISTART_SEED::Int32 = Int32(12396)
 
+"""
+    XPRS_MULTISTART_THREADS
+The maximum number of threads to be used in multistart (integer)
+
+Default value: -1 (determined by NLPTHREADS)
+"""
 const XPRS_MULTISTART_THREADS::Int32 = Int32(12363)
 
 """
@@ -6901,8 +8096,6 @@ Values:
 : Callbacks are mutexed.
 """
 const XPRS_MUTEXCALLBACKS::Int32 = Int32(8210)
-
-const XPRS_NETCUTS::Int32 = Int32(8382)
 
 """
     XPRS_NETSTALLLIMIT
@@ -6920,79 +8113,549 @@ Values:
 """
 const XPRS_NETSTALLLIMIT::Int32 = Int32(8412)
 
+"""
+    XPRS_NLPCALCTHREADS
+Number of threads used for formula and derivatives evaluations (integer)
+
+Default value: -1 (determined by NLPTHREADS)
+"""
 const XPRS_NLPCALCTHREADS::Int32 = Int32(12405)
 
+"""
+    XPRS_NLPDEFAULTIV
+Default initial value for an SLP variable if none is explicitly given (double)
+
+Default value: 100
+"""
 const XPRS_NLPDEFAULTIV::Int32 = Int32(12145)
 
+"""
+    XPRS_NLPDERIVATIVES
+Bitmap describing the method of calculating derivatives (integer)
+
+Default value: 1
+
+Values are a bitset:
+bit 0
+: analytic derivatives where possible
+bit 1
+: avoid embedding numerical derivatives of instantiated functions into analytic derivatives
+"""
 const XPRS_NLPDERIVATIVES::Int32 = Int32(12373)
 
+"""
+    XPRS_NLPDETERMINISTIC
+Determines if the parallel features of SLP should be guaranteed to be deterministic (integer)
+
+Default value: 1
+"""
 const XPRS_NLPDETERMINISTIC::Int32 = Int32(12399)
 
+"""
+    XPRS_NLPEVALUATE
+Evaluation strategy for user functions (integer)
+
+Default value: 0
+
+Values:
+0
+: use derivatives where possible;
+1
+: always re-evaluate.
+"""
 const XPRS_NLPEVALUATE::Int32 = Int32(12334)
 
+"""
+    XPRS_NLPFINDIV
+Option for running a heuristic to find a feasible initial point (integer)
+
+Default value: -1
+
+Values:
+-1
+: Automatic (default).
+0
+: Disable the heuristic.
+1
+: Enable the heuristic.
+"""
 const XPRS_NLPFINDIV::Int32 = Int32(12413)
 
+"""
+    XPRS_NLPFUNCEVAL
+Bit map for determining the method of evaluating user functions and their derivatives (integer)
+
+Default value: 0
+
+Values are a bitset:
+bit 3
+: `XPRS_NLPRECALC` evaluate function whenever independent variables change.
+bit 4
+: `XPRS_NLPTOLCALC` evaluate function when independent variables change outside tolerances.
+bit 5
+: `XPRS_NLPALLCALCS` application of bits 3-4: 0 = functions which do not have a defined re-evaluation mode;1 = all functions.
+bit 6
+: `XPRS_NLP2DERIVATIVE` tangential derivatives.
+bit 7
+: `XPRS_NLP1DERIVATIVE` forward derivatives
+bit 8
+: `XPRS_NLPALLDERIVATIVES` application of bits 6-7: 0 = functions which do not have a defined derivative mode;1 = all functions.
+"""
 const XPRS_NLPFUNCEVAL::Int32 = Int32(12312)
 
+"""
+    XPRS_NLPHESSIAN
+Second order differentiation mode when using analytical derivatives (integer)
+
+Default value: -1
+
+Values:
+[-1,0]
+: automatic selection
+1
+: numerical derivatives (finite difference)
+2
+: symbolic differentiation
+3
+: automatic differentiation
+"""
 const XPRS_NLPHESSIAN::Int32 = Int32(12361)
 
+"""
+    XPRS_NLPINFINITY
+Value returned by a divide-by-zero in a formula (double)
+
+Default value: 1.0e+10
+"""
 const XPRS_NLPINFINITY::Int32 = Int32(12119)
 
+"""
+    XPRS_NLPIVNAME
+Name of the set of initial values to be used (string)
+
+Default value: none
+"""
 const XPRS_NLPIVNAME::Int32 = Int32(12453)
 
+"""
+    XPRS_NLPJACOBIAN
+First order differentiation mode when using analytical derivatives (integer)
+
+Default value: -1
+
+Values:
+[-1,0]
+: automatic selection
+1
+: numerical derivatives (finite difference)
+2
+: symbolic differentiation
+3
+: automatic differentiation
+"""
 const XPRS_NLPJACOBIAN::Int32 = Int32(12360)
 
+"""
+    XPRS_NLPKEEPEQUALSCOLUMN
+When set to a nonzero value, the MPS reader will keep the equals column in the problem (integer)
+
+Default value: 0
+"""
 const XPRS_NLPKEEPEQUALSCOLUMN::Int32 = Int32(12325)
 
+"""
+    XPRS_NLPLINQUADBR
+Use linear and quadratic constraints and objective function to further reduce bounds on all variables (integer)
+
+Default value: -1
+
+Values:
+-1
+: automatic selection
+0
+: disable
+1
+: enable
+"""
 const XPRS_NLPLINQUADBR::Int32 = Int32(12414)
 
+"""
+    XPRS_NLPLOG
+Level of printing during SLP iterations (integer)
+
+Default value: 0
+
+Values:
+-1
+: none
+0
+: minimal
+1
+: normal: iteration, penalty vectors
+2
+: omit from convergence log any variables which have converged
+3
+: omit from convergence log any variables which have already converged (except variables on step bounds)
+4
+: include all variables in convergence log
+5
+: include user function call communications in the log
+"""
 const XPRS_NLPLOG::Int32 = Int32(12316)
 
+"""
+    XPRS_NLPMAXTIME
+The maximum time in seconds that the SLP optimization will run before it terminates (integer)
+
+Default value: 0
+"""
 const XPRS_NLPMAXTIME::Int32 = Int32(12366)
 
+"""
+    XPRS_NLPMERITLAMBDA
+Factor by which the net objective is taken into account in the merit function (double)
+
+Default value: 0.0
+"""
 const XPRS_NLPMERITLAMBDA::Int32 = Int32(12197)
 
+"""
+    XPRS_NLPPOSTSOLVE
+This control determines whether postsolving should be performed automatically (integer)
+
+Default value: -1
+
+Values:
+-1
+: Postsolve if the problem could be solved to optimality/infeasibility.
+0
+: Do not automatically postsolve.
+1
+: Postsolve automatically.
+"""
 const XPRS_NLPPOSTSOLVE::Int32 = Int32(12398)
 
+"""
+    XPRS_NLPPRESOLVE
+This control determines whether presolving should be performed on the nonlinear problem prior to starting the main algorithm (integer)
+
+Default value: -1
+
+Values:
+-1
+: Disable nonlinear presolve if and only if Optimizer presolve is disabled.
+0
+: Disable nonlinear presolve.
+1
+: Activate nonlinear presolve.
+2
+: Low memory presolve. Original problem is not restored by postsolve and dual solution may not be completely postsolved.
+"""
 const XPRS_NLPPRESOLVE::Int32 = Int32(12344)
 
+"""
+    XPRS_NLPPRESOLVELEVEL
+This control determines the level of changes presolve may carry out on the problem and whether column/row indices may change (integer)
+
+Default value: 4
+
+Values:
+1
+: Individual rows only presolve, no dropped columns/rows or index changes, no nonlinear transformations (`NLPPRESOLVELEVEL_LOCALIZED`).
+2
+: All linear presolve that does not drop columns/rows, no index changes, no nonlinear transformations (`NLPPRESOLVELEVEL_BASIC`).
+3
+: Full linear presolve including dropping columns/rows and index changes, no nonlinear transformations (`NLPPRESOLVELEVEL_LINEAR`).
+4
+: Full presolve (`NLPPRESOLVELEVEL_FULL`).
+"""
 const XPRS_NLPPRESOLVELEVEL::Int32 = Int32(12402)
 
+"""
+    XPRS_NLPPRESOLVEOPS
+Bitmap indicating the SLP presolve actions to be taken (integer)
+
+Default value: 2104
+
+Values are a bitset:
+bit 0
+: Generic SLP presolve.
+bit 1
+: Explicitly fix columns identified as fixed to zero.
+bit 2
+: Explicitly fix all columns identified as fixed.
+bit 3
+: SLP bound tightening.
+bit 4
+: MISLP bound tightening.
+bit 5
+: Bound tightening based on function domains.
+bit 8
+: Do not presolve coefficients.
+bit 9
+: Do not remove delta variables.
+bit 10
+: Avoid reductions that can not be dual postsolved.
+bit 11
+: Allow eliminations on determined variables.
+bit 12
+: Avoid performing linear reductions at the nlp level.
+bit 13
+: Avoid simplifying nonlinear expressions.
+"""
 const XPRS_NLPPRESOLVEOPS::Int32 = Int32(12393)
 
+"""
+    XPRS_NLPPRESOLVEZERO
+Minimum absolute value for a variable which is identified as nonzero during SLP presolve (double)
+
+Default value: 1.0E-09
+"""
 const XPRS_NLPPRESOLVEZERO::Int32 = Int32(12193)
 
+"""
+    XPRS_NLPPRESOLVE_ELIMTOL
+Tolerance for nonlinear eliminations during SLP presolve (double)
+
+Default value: 0.001
+"""
 const XPRS_NLPPRESOLVE_ELIMTOL::Int32 = Int32(12206)
 
+"""
+    XPRS_NLPPRIMALINTEGRALALPHA
+Decay term for primal integral computation (double)
+
+Default value: 0
+"""
 const XPRS_NLPPRIMALINTEGRALALPHA::Int32 = Int32(12176)
 
+"""
+    XPRS_NLPPRIMALINTEGRALREF
+Reference solution value to take into account when calculating the primal integral (double)
+
+Default value: XPRS_PLUSINFINITY
+"""
 const XPRS_NLPPRIMALINTEGRALREF::Int32 = Int32(12175)
 
+"""
+    XPRS_NLPPROBING
+This control determines whether probing on a subset of variables should be performed prior to starting the main algorithm. (integer)
+
+Probing runs bound reduction multiple times in order to further tighten the bounding box.
+
+Default value: -1
+
+Values:
+-1
+: Automatic.
+0
+: Disable SLP probing.
+1
+: Activate SLP probing only on binary variables.
+2
+: Activate SLP probing only on binary or unbounded integer variables.
+3
+: Activate SLP probing only on binary or integer variables.
+4
+: Activate SLP probing only on binary, integer variables, and unbounded continuous variables.
+5
+: Activate SLP probing on any variable.
+"""
 const XPRS_NLPPROBING::Int32 = Int32(12403)
 
+"""
+    XPRS_NLPREFORMULATE
+Controls the problem reformulations carried out before augmentation. (integer)
+
+This allows SLP to take advantage of dedicated algorithms for special problem classes.
+
+Default value: `511` (bits `0` `8` incl. are set)
+
+Values are a bitset:
+bit 0
+: `XPRS_NLPREFORMULATE_SLP2QP` Solve convex quadratic objectives using the XPRS library .
+bit 1
+: `XPRS_NLPREFORMULATE_QP2SLP` Convert non-convex quadratic objectives to SLP constructs .
+bit 2
+: `XPRS_NLPREFORMULATE_SLP2QCQP` Solve convex quadratic constraints using the XPRS library.
+bit 3
+: `XPRS_NLPREFORMULATE_QCQP2SLP` Convert non-convex QCQP constraints to SLP constructs.
+bit 4
+: `XPRS_NLPREFORMULATE_SOCP2SLP` Keep second order cones in the XPRS problem to keep them in the linearizations.
+bit 5
+: `XPRS_NLPREFORMULATE_QPSOLVE` Convexity of a quadratic only problem may be checked by calling the optimizer to solve the instance.
+bit 6
+: `XPRS_NLPREFORMULATE_PWL` Convert piecewise linear functions to MIP constructs.
+bit 7
+: `XPRS_NLPREFORMULATE_ABS` Convert ABS functions to MIP constraints if the full problem can be made not nonlinear.
+bit 8
+: `XPRS_NLPREFORMULATE_MINMAX` Convert MIN and MAX functions to MIP expressions if the full problem can be made not nonlinear.
+bit 9
+: `XPRS_NLPREFORMULATE_ALLABS` Always convert ABS expressions.
+bit 10
+: `XPRS_NLPREFORMULATE_ALLMINMAX` Always convert MIN and MAX expressions.
+"""
 const XPRS_NLPREFORMULATE::Int32 = Int32(12392)
 
+"""
+    XPRS_NLPSOLVER
+Controls whether to call FICO Xpress Global or one of the local solvers (integer)
+
+Default value: -1
+
+Values:
+-1
+: `XPRS_NLPSOLVER_AUTOMATIC` If the license allows and there are no user functions or multistart jobs, FICO Xpress Global will be called, otherwise a local solver.
+1
+: `XPRS_NLPSOLVER_LOCAL` The algorithm selected by LOCALSOLVER will be used to find a locally optimal solution
+2
+: `XPRS_NLPSOLVER_GLOBAL` FICO Xpress Global will be used to find a globally optimal solution
+"""
 const XPRS_NLPSOLVER::Int32 = Int32(12417)
 
+"""
+    XPRS_NLPSTOPOUTOFRANGE
+Stop optimization and return error code if internal function argument is out of range (integer)
+
+Default value: 0
+"""
 const XPRS_NLPSTOPOUTOFRANGE::Int32 = Int32(12354)
 
+"""
+    XPRS_NLPTHREADS
+Default number of threads to be used (integer)
+
+Default value: -1 (use XPRS_THREADS value)
+"""
 const XPRS_NLPTHREADS::Int32 = Int32(12406)
 
+"""
+    XPRS_NLPTHREADSAFEUSERFUNC
+Defines if user functions are allowed to be called in parallel (integer)
+
+Default value: 0 (no parallel user function calls)
+
+Values:
+0
+: user functions are not thread safe, and will not be called in parallel
+1
+: user functions are thread safe, and may be called in parallel
+"""
 const XPRS_NLPTHREADSAFEUSERFUNC::Int32 = Int32(12359)
 
+"""
+    XPRS_NLPVALIDATIONFACTOR
+Minimum improvement in validation targets to continue iterating (double)
+
+Default value: 0.001
+"""
 const XPRS_NLPVALIDATIONFACTOR::Int32 = Int32(12211)
 
+"""
+    XPRS_NLPVALIDATIONTARGET_K
+Optimality target tolerance (double)
+
+Default value: 1e-6
+"""
 const XPRS_NLPVALIDATIONTARGET_K::Int32 = Int32(12210)
 
+"""
+    XPRS_NLPVALIDATIONTARGET_R
+Feasibility target tolerance (double)
+
+Default value: 1e-6
+"""
 const XPRS_NLPVALIDATIONTARGET_R::Int32 = Int32(12209)
 
+"""
+    XPRS_NLPVALIDATIONTOL_A
+Absolute tolerance for the XSLPvalidate procedure (double)
+
+Default value: 0.00001
+"""
 const XPRS_NLPVALIDATIONTOL_A::Int32 = Int32(12165)
 
+"""
+    XPRS_NLPVALIDATIONTOL_K
+Relative tolerance for the XSLPvalidatekkt procedure (double)
+
+Default value: 0.00001
+"""
 const XPRS_NLPVALIDATIONTOL_K::Int32 = Int32(12205)
 
+"""
+    XPRS_NLPVALIDATIONTOL_R
+Relative tolerance for the XSLPvalidate procedure (double)
+
+Default value: 0.00001
+"""
 const XPRS_NLPVALIDATIONTOL_R::Int32 = Int32(12166)
 
+"""
+    XPRS_NLPZERO
+Absolute tolerance (double)
+
+Default value: 1.0E-15
+"""
 const XPRS_NLPZERO::Int32 = Int32(12123)
+
+"""
+    XPRS_NODEAPPLIEDBOUNDS
+This control determines whether the solver is allowed to apply primal reductions at each node. (integer)
+
+The solver will use the constraints of the node to tighten the range of variables, often resulting in fixing their values. This can greatly simplify the problem and may even determine optimality or infeasibility of the node before the simplex method commences.
+
+Default value: `-1`
+
+Values:
+-1
+: Automatic: the solver decides if and when to apply primal reductions at nodes.
+0
+: Disabled.
+1
+: Only apply primal reductions to MIP entities.
+2
+: Apply primal reductions to all variables.
+"""
+const XPRS_NODEAPPLIEDBOUNDS::Int32 = Int32(8532)
+
+"""
+    XPRS_NODEDUALREDUCTIONS
+This control determines whether the solver is allowed to apply dual reductions at each node. (integer)
+
+Default value: `-1`
+
+Values:
+-1
+: Automatic: the solver decides if and when to apply dual reductions at nodes.
+0
+: Disabled.
+1
+: Apply dual reductions to all variables.
+2
+: Only apply dual reductions to non MIP entities.
+"""
+const XPRS_NODEDUALREDUCTIONS::Int32 = Int32(8533)
+
+"""
+    XPRS_NODEPRESOLVE
+This control determines whether some form of presolving should be performed at Branch and Bound nodes. (integer)
+
+Node presolve attempts to simplify the problem by detecting and removing redundant constraints, tightening variable bounds, etc.
+
+Default value: `-1`
+
+Values:
+-1
+: Automatic: the solver decides which reductions to apply, and to which extent.
+0
+: Disabled.
+1
+: Minimal node presolve is applied.
+2
+: Standard node presolve is applied.
+"""
+const XPRS_NODEPRESOLVE::Int32 = Int32(8530)
 
 """
     XPRS_NODEPROBINGEFFORT
@@ -7005,6 +8668,24 @@ Values:
 : Level of the node probing effort.
 """
 const XPRS_NODEPROBINGEFFORT::Int32 = Int32(7141)
+
+"""
+    XPRS_NODEREDCOSTTIGHTEN
+This control determines whether reduced cost tightening is applied during Branch and Bound. (integer)
+
+Default value: `-1`
+
+Values:
+-1
+: Automatic: the solver decides if and when to apply reduced cost tightening.
+0
+: Disabled.
+1
+: Enabled.
+2
+: Aggressive: the solver will search for alternative reduced costs to potentially increase the amount of tightening.
+"""
+const XPRS_NODEREDCOSTTIGHTEN::Int32 = Int32(8531)
 
 """
     XPRS_NODESELECTION
@@ -7173,6 +8854,110 @@ Values:
 const XPRS_PIVOTTOL::Int32 = Int32(7002)
 
 """
+    XPRS_POOLABSGAP
+Limit on the absolute gap between the objective function values of the best and worst solutions in the pool. (double)
+
+If the best solution in the pool has objective value o-best, and o-pool is the value of another solution in the pool, they must satisfy `|`o-pool - o-best`| < POOLABSGAP`. If a new best solution is discovered, any existing solutions that would violate this restriction are purged from the pool. This restriction is in addition to any other restrictions on the collected solutions.
+
+Default value: `0`
+
+Values:
+0
+: No absolute gap restriction.
+(0,inf)
+: The absolute gap limit to satisfy.
+"""
+const XPRS_POOLABSGAP::Int32 = Int32(7182)
+
+"""
+    XPRS_POOLDUPLICATECHECK
+When extended branch-and-bound search for additional solutions has been enabled through POOLENUMSTRATEGY, this control determines which MIP column entities to consider when checking if two solutions should be considered duplicates. (integer)
+
+If two solutions are discovered with the same discrete values for the MIP column entities, only the solution with the better objective value is kept.
+
+Default value: `1`
+
+Values:
+1
+: Solutions that agree in MIP columns specified using XPRSloadbranchdirs are considered duplicates. If no directives are given, then behaves the same as option `2`.
+2
+: Solutions must agree in all MIP column entity values to be considered duplicates.
+"""
+const XPRS_POOLDUPLICATECHECK::Int32 = Int32(8529)
+
+"""
+    XPRS_POOLENUMSTRATEGY
+Enables extended branch-and-bound search strategies to identify and capture additional solutions into the solution pool. (integer)
+
+The built-in solution pool will collect solutions encountered during a branch-and-bound search, subject to the limitations imposed by controls such as POOLLIMIT, POOLRELGAP and POOLABSGAP. With the default setting of `POOLENUMSTRATEGY=0` the collection will not affect the branch-and-bound search itself. When `POOLENUMSTRATEGY > 0`, more of the branch-and-bound tree will be explored and additional nodes will be searched based on whether they admit additional solutions that can be added to the solution pool.
+
+Default value: `0`
+
+Values:
+0
+: `XPRS_POOLENUMSTRATEGY_STANDARD` Collect solutions that are found through a standard branch-and-bound search.
+1
+: `XPRS_POOLENUMSTRATEGY_EXTENDED` Extend the branch-and-bound search to include solutions reachable through fractional branching.
+2
+: `XPRS_POOLENUMSTRATEGY_FULL` Extend the branch-and-bound search to include solutions reachable through both fraction and non-fractional branching on MIP column entities.
+"""
+const XPRS_POOLENUMSTRATEGY::Int32 = Int32(8528)
+
+"""
+    XPRS_POOLKEEPSOLS
+Limits the number of collected solutions that should automatically be transferred into a next solve. (integer)
+
+Solutions collected from a MIP solve or from a Global solve can be transferred automatically as warm-start solutions for a subsequent solve, by setting this control to a positive value. Solutions will be transferred the first time a problem is modified after having been solved, or at the start of the next solve if no modifications were applied. The warm-starting is equivalent to calling XPRSaddmipsol on the `POOLKEEPSOLS` best solutions stored in the pool and therefore supports any solve type that can be warm-started by XPRSaddmipsol.
+
+Default value: `0`
+
+Values:
+-1
+: Use all collected solutions as warm-starts for the next solve.
+0
+: Do not use any collected solutions for warm-starting
+(0,inf)
+: Use up to the given number of solutions as warm-starts for the next solve.
+"""
+const XPRS_POOLKEEPSOLS::Int32 = Int32(8527)
+
+"""
+    XPRS_POOLLIMIT
+Determines the maximum number of solutions to be collected during a solve with XPRSoptimize, XPRSmipoptimize or XPRSnlpoptimize. (integer)
+
+Multiple solutions can be collected from a MIP solve, a Global solve or an MISLP solve.
+
+Default value: `10`
+
+Values:
+-1
+: Collect all solutions found.
+0
+: Do not collect multiple solutions.
+1
+: Do not collect multiple solutions.
+(1,inf)
+: Limit collection to the given number of solutions.
+"""
+const XPRS_POOLLIMIT::Int32 = Int32(8526)
+
+"""
+    XPRS_POOLRELGAP
+Limit on the relative gap between the objective function values of the best and worst solutions in the pool. (double)
+
+If the best solution in the pool has objective value o-best, and o-pool is the value of another solution in the pool, they must satisfy `|`o-pool - o-best`| < POOLRELGAP * |`o-best`|`. If a new best solution is discovered, any existing solutions that would violate this restriction are purged from the pool. This restriction is in addition to any other restrictions on the collected solutions.
+
+Default value: `0`
+
+Values:
+0
+: No relative gap restriction.
+(0,inf)
+: The relative gap limit to satisfy.
+"""
+const XPRS_POOLRELGAP::Int32 = Int32(7181)
+
+"""
     XPRS_PPFACTOR
 The partial pricing candidate list sizing parameter. (double)
 
@@ -7249,6 +9034,22 @@ Values:
 : Enable bound reductions from quadratic constraints.
 """
 const XPRS_PREBNDREDQUAD::Int32 = Int32(8337)
+
+"""
+    XPRS_PRECLIQUELIFTING
+Presolve: Determines whether to do clique lifting. (integer)
+
+Default value: `-1`
+
+Values:
+-1
+: Automatically determined.
+0
+: Disabled.
+1
+: Enabled.
+"""
+const XPRS_PRECLIQUELIFTING::Int32 = Int32(8571)
 
 """
     XPRS_PRECLIQUESTRATEGY
@@ -7429,6 +9230,24 @@ Values:
 const XPRS_PREDOMROW::Int32 = Int32(8281)
 
 """
+    XPRS_PREDUALREDUCTIONS
+This control determines whether the solver is allowed to apply dual reductions during presolve. (integer)
+
+Default value: `-1`
+
+Values:
+-1
+: Automatic: the solver decides if and when to apply dual reductions during presolve.
+0
+: Disabled.
+1
+: Apply dual reductions to all variables.
+2
+: Only apply dual reductions to non MIP entities.
+"""
+const XPRS_PREDUALREDUCTIONS::Int32 = Int32(8570)
+
+"""
     XPRS_PREDUPROW
 Presolve: Determines the type of duplicate rows to look for and eliminate when presolving a problem. (integer)
 
@@ -7447,6 +9266,24 @@ Values:
 : Same as option 2 plus eliminate duplicate rows with more complex penalty variable expressions. (MIP only).
 """
 const XPRS_PREDUPROW::Int32 = Int32(8307)
+
+"""
+    XPRS_PREELIMINATIONS
+Presolve: Determines whether to performe variable eliminations. (integer)
+
+Default value: `-1`
+
+Values:
+-1
+: Automatically determined.
+0
+: Disabled.
+1
+: Only eliminations on non MIP entities.
+2
+: All types of eliminations allowed.
+"""
+const XPRS_PREELIMINATIONS::Int32 = Int32(8574)
 
 """
     XPRS_PREELIMQUAD
@@ -7513,6 +9350,40 @@ Values:
 : Check for and remove linearly dependent equality constraints.
 """
 const XPRS_PRELINDEP::Int32 = Int32(8333)
+
+"""
+    XPRS_PREMIPENTDETECT
+Presolve: Determines whether to do integer variable and SOS detection. (integer)
+
+Default value: `-1`
+
+Values:
+-1
+: Automatically determined.
+0
+: Disabled.
+1
+: Enabled.
+"""
+const XPRS_PREMIPENTDETECT::Int32 = Int32(8573)
+
+"""
+    XPRS_PREMIPREDUCTIONS
+Presolve: Determines whether to do integrality based reductions. (integer)
+
+Default value: `-1`
+
+Values:
+-1
+: Automatically determined.
+0
+: Disabled.
+1
+: Only simple reductions are enabled.
+2
+: All reductions, including advanced ones, are enabled.
+"""
+const XPRS_PREMIPREDUCTIONS::Int32 = Int32(8572)
 
 """
     XPRS_PREOBJCUTDETECT
@@ -7704,7 +9575,7 @@ bit 1
 bit 2
 : Forcing row removal.
 bit 3
-: Dual reductions.
+: Dual reductions. This bit is deprecated, use PREDUALREDUCTIONS instead.
 bit 4
 : Redundant row removal.
 bit 5
@@ -7714,29 +9585,29 @@ bit 6
 bit 7
 : Strong dual reductions.
 bit 8
-: Variable eliminations.
+: Variable eliminations. This bit is deprecated, use PREELIMINATIONS instead.
 bit 9
-: No IP reductions.
+: No IP reductions. This bit is deprecated, use PREMIPREDUCTIONS instead.
 bit 10
 : No domain changes for MIP entities (e.g., semi-continuous detection or shifting integers).
 bit 11
-: No advanced IP reductions.
+: No advanced IP reductions. This bit is deprecated, use PREMIPREDUCTIONS instead.
 bit 12
-: No eliminations on integers.
+: No eliminations on integers. This bit is deprecated, use PREELIMINATIONS instead.
 bit 13
 : No reductions based on solution enumeration.
 bit 14
 : Linearly dependant row removal.
 bit 15
-: No integer variable and SOS detection.
+: No integer variable and SOS detection. This bit is deprecated, use PREMIPENTDETECT instead.
 bit 16
 : No implied bounds.
 bit 17
-: No clique presolve.
+: No clique presolve. This bit is deprecated, use PRECLIQUELIFTING instead.
 bit 18
 : No mod2 presolve.
 bit 29
-: No dual reductions on global entities.
+: No dual reductions on global entities. This bit is deprecated, use PREDUALREDUCTIONS instead.
 """
 const XPRS_PRESOLVEOPS::Int32 = Int32(8077)
 
@@ -7807,7 +9678,7 @@ bit 2
 : Use reluctant switching back to partial pricing.
 bit 3
 : Use dynamic switching between cheap and expensive pricing strategies.
-bit 4
+bit 5
 : Keep solving even after potential cycling is detected.
 """
 const XPRS_PRIMALOPS::Int32 = Int32(8231)
@@ -7892,7 +9763,9 @@ const XPRS_PWLNONCONVEXTRANSFORMATION::Int32 = Int32(8420)
 
 """
     XPRS_QCCUTS
-Branch and Bound: Limits the number of rounds of outer approximation cuts generated for the root node, when solving a mixed integer quadratic constrained or mixed integer second order conic problem with outer approximation. (integer)
+**Deprecated**Branch and Bound: Limits the number of rounds of outer approximation cuts generated for the root node, when solving a mixed integer quadratic constrained or mixed integer second order conic problem with outer approximation. (integer)
+
+This control is deprecated, please use CUTOAMAXROUNDS instead.
 
 Default value: -1
 
@@ -8072,35 +9945,23 @@ const XPRS_RELPIVOTTOL::Int32 = Int32(7008)
 
 """
     XPRS_REPAIRINDEFINITEQ
-Controls if the Optimizer should make indefinite quadratic matrices positive definite when it is possible. (integer)
+Controls if the Optimizer should make indefinite quadratic matrices over binary columns positive definite when it is possible. (integer)
 
-Default value: `1`
+This is achieved by making the matrix diagonally dominant and it enables solving nonconvex quadratic problems with binary columns without relying on linearization or resorting to the Xpress Global Solver.
+
+Default value: `-1`
 
 Values:
+-1
+: Use problem data to decide whether to repair the matrix or not.
 0
-: Repair if possible.
-1
 : Do not repair.
+1
+: Repair if possible.
 """
 const XPRS_REPAIRINDEFINITEQ::Int32 = Int32(8254)
 
 const XPRS_REPAIRINDEFINITEQMAX::Int32 = Int32(7071)
-
-"""
-    XPRS_REPAIRINFEASMAXTIME
-**Deprecated**Overall time limit for the repairinfeas tool (integer)
-
-Default value: `0`
-
-Values:
-(-inf,0)
-: Stop in LP or MIP search after the absolute value of the specified number of seconds.
-0
-: No time limit.
-(0,inf)
-: If an integer solution has been found, stop MIP search after the specified number of seconds, otherwise continue until an integer solution is finally found.
-"""
-const XPRS_REPAIRINFEASMAXTIME::Int32 = Int32(8250)
 
 """
     XPRS_REPAIRINFEASTIMELIMIT
@@ -8132,7 +9993,9 @@ const XPRS_RESOURCESTRATEGY::Int32 = Int32(8297)
 
 """
     XPRS_RLTCUTS
-Determines whether RLT cuts should be separated in the Xpress Global Solver. (integer)
+**Deprecated**Determines whether RLT cuts should be separated in the Xpress Global Solver. (integer)
+
+This control is deprecated, please use CUTSEPRLTSTRATEGY instead.
 
 Default value: `-1`
 
@@ -8240,9 +10103,9 @@ const XPRS_SBSELECT::Int32 = Int32(8164)
 
 """
     XPRS_SCALING
-This bit-vector control (see Section ) determines how the Optimizer will rescale a model internally before optimization. (integer)
+**Deprecated**Use SCALINGMETHOD, SCALINGORDER, SCALINGBIGM and SCALINGOPS instead. (integer)
 
-If set to `0`, no scaling will take place.
+This bit-vector control (see Section ) determines how the Optimizer will rescale a model internally before optimization. If set to `0`, no scaling will take place.
 
 Default value: `163`, meaning bits 0, 1, 5 and 7 are set
 
@@ -8283,8 +10146,98 @@ bit 15
 const XPRS_SCALING::Int32 = Int32(8010)
 
 """
+    XPRS_SCALINGBIGM
+Whether to apply special handling of big-M rows during scaling. (integer)
+
+Default value: -1
+
+Values:
+-1
+: The big-M handling is determined automatically.
+0
+: Disable special handling of big-M rows; they are treated as normal rows during scaling.
+1
+: Enable special handling of big-M rows.
+"""
+const XPRS_SCALINGBIGM::Int32 = Int32(8561)
+
+"""
+    XPRS_SCALINGMETHOD
+Which scaling method to use. (integer)
+
+Default value: -1
+
+Values:
+-1
+: The scaling method is determined automatically.
+0
+: Disable scaling.
+1
+: Use maximum element scaling (also called equilibrium scaling).
+2
+: Use geometric mean scaling.
+3
+: Use Curtis-Reid scaling.
+4
+: Use maximum element plus Curtis-Reid scaling.
+"""
+const XPRS_SCALINGMETHOD::Int32 = Int32(8559)
+
+"""
+    XPRS_SCALINGOPS
+This bit-vector control (see Section ) is allows finer-grained control of the scaling process. (integer)
+
+In most circumstances it should not be necessary to change it from it's default value.
+
+Default value: `3`, meaning bits 0 and 1 are set
+
+Values are a bitset:
+bit 0
+: Row scaling.
+bit 1
+: Column scaling.
+bit 2
+: Row scaling again.
+bit 8
+: Exclude the quadratic part of constraint when calculating scaling factors.
+bit 10
+: Do not scale rows up.
+bit 11
+: Do not scale columns down.
+bit 12
+: Do not apply automatic objective scaling.
+bit 13
+: RHS scaling.
+bit 14
+: Disable aggressive quadratic scaling.
+bit 15
+: Enable explicit linear slack scaling.
+"""
+const XPRS_SCALINGOPS::Int32 = Int32(8562)
+
+"""
+    XPRS_SCALINGORDER
+When scaling is applied relative to presolve. (integer)
+
+Default value: -1
+
+Values:
+-1
+: The scaling order is determined automatically, typically after presolve only.
+1
+: Scale after presolve.
+2
+: Scale before presolve.
+3
+: Scale both before and after presolve.
+"""
+const XPRS_SCALINGORDER::Int32 = Int32(8560)
+
+"""
     XPRS_SDPCUTSTRATEGY
-Level of SDP cutting planes separation: This specifies how aggressively SDP cuts should be separated. (integer)
+**Deprecated**Level of SDP cutting planes separation: This specifies how aggressively SDP cuts should be separated. (integer)
+
+This control is deprecated, please use CUTSEPSDPSTRATEGY instead.
 
 Default value: `-1`
 
@@ -8377,317 +10330,1531 @@ Values:
 const XPRS_SIFTSWITCH::Int32 = Int32(8425)
 
 """
-    XPRS_SLEEPONTHREADWAIT
-**Deprecated**In previous versions this was used to determine if the threads should be put into a wait state when waiting for work. (integer)
+    XPRS_SLPALGORITHM
+Bit map describing the SLP algorithm(s) to be used (integer)
+
+Default value: 166 (sets bits 1, 2, 5, 7)
+
+Values are a bitset:
+bit 0
+: `XPRS_SLPNOSTEPBOUNDS` Superseded by SLPSTEPBOUNDING. Do not apply step bounds.
+bit 1
+: `XPRS_SLPSTEPBOUNDSASREQUIRED` Superseded by SLPSTEPBOUNDING. Apply step bounds to SLP delta vectors only when required.
+bit 2
+: `XPRS_SLPESTIMATESTEPBOUNDS` Estimate step bounds from early SLP iterations.
+bit 3
+: `XPRS_SLPDYNAMICDAMPING` Use dynamic damping.
+bit 4
+: `XPRS_SLPHOLDVALUES` Do not update values which are converged within strict tolerance.
+bit 5
+: `XPRS_SLPRETAINPREVIOUSVALUE` Retain previous value when cascading if determining row is zero.
+bit 6
+: `XPRS_SLPRESETDELTAZ` Reset SLPDELTA_Z to zero when converged and continue SLP.
+bit 7
+: `XPRS_SLPQUICKCONVERGENCECHECK` Quick convergence check.
+bit 8
+: `XPRS_SLPESCALATEPENALTIES` Escalate penalties.
+bit 9
+: `XPRS_SLPSWITCHTOPRIMAL` Use the primal simplex algorithm when all error vectors become inactive.
+bit 11
+: `XPRS_SLPMAXCOSTOPTION` Continue optimizing after penalty cost reaches maximum.
+bit 12
+: `XPRS_SLPRESIDUALERRORS` Accept a solution which has converged even if there are still significant active penalty error vectors.
+bit 13
+: `XPRS_SLPNOLPPOLISHING` Skip the solution polishing step if the LP postsolve returns a slightly infeasible, but claimed optimal solution.
+bit 14
+: `XPRS_SLPCASCADEDBOUNDS` Step bounds are updated to accommodate cascaded values (otherwise cascaded values are pushed to respect step bounds).
+bit 15
+: `XPRS_SLPCLAMPEXTENDEDACTIVESB` Apply clamping when converged on extended criteria only with some variables having active step bounds.
+bit 16
+: `XPRS_SLPCLAMPEXTENDEDALL` Apply clamping when converged on extended criteria only.
+"""
+const XPRS_SLPALGORITHM::Int32 = Int32(12301)
+
+"""
+    XPRS_SLPANALYZE
+Bit map activating additional options supporting model / solution path analysis (integer)
+
+Default value: 0
+
+Values are a bitset:
+bit 3
+: `XPRS_SLPANALYZE_EXTENDEDFINALSUMMARY` Include an extended iteration summary.
+bit 4
+: `XPRS_SLPANALYZE_INFEASIBLE_ITERATION` Run infeasibility analysis on infeasible iterations.
+bit 6
+: `XPRS_SLPANALYZE_SAVELINEARIZATIONS` Write the linearizations to disk at every SLPAUTOSAVE iterations.
+bit 7
+: `XPRS_SLPANALYZE_SAVEITERBASIS` Write the initial basis of the linearizations to disk at every SLPAUTOSAVE iterations.
+bit 8
+: `XPRS_SLPANALYZE_SAVEFILE` Create an XSLP save file at every SLPAUTOSAVE iterations.
+"""
+const XPRS_SLPANALYZE::Int32 = Int32(12332)
+
+"""
+    XPRS_SLPATOL_A
+Absolute delta convergence tolerance (double)
+
+Default value: -1.0
+"""
+const XPRS_SLPATOL_A::Int32 = Int32(12125)
+
+"""
+    XPRS_SLPATOL_R
+Relative delta convergence tolerance (double)
+
+Default value: -1.0
+"""
+const XPRS_SLPATOL_R::Int32 = Int32(12126)
+
+"""
+    XPRS_SLPAUGMENTATION
+Bit map describing the SLP augmentation method(s) to be used (integer)
+
+Default value: 12 (sets bits 2 and 3)
+
+Values are a bitset:
+bit 0
+: `XPRS_SLPMINIMUMAUGMENTATION` Minimum augmentation.
+bit 1
+: `XPRS_SLPEVENHANDEDAUGMENTATION` Even handed augmentation.
+bit 2
+: `XPRS_SLPEQUALITYERRORVECTORS` Penalty error vectors on all non-linear equality constraints.
+bit 3
+: `XPRS_SLPALLERRORVECTORS` Penalty error vectors on all non-linear inequality constraints.
+bit 4
+: `XPRS_SLPPENALTYDELTAVECTORS` Penalty vectors to exceed step bounds.
+bit 5
+: `XPRS_SLPAMEANWEIGHT` Use arithmetic means to estimate penalty weights.
+bit 6
+: `XPRS_SLPSBFROMVALUES` Estimate step bounds from values of row coefficients.
+bit 7
+: `XPRS_SLPSBFROMABSVALUES` Estimate step bounds from absolute values of row coefficients.
+bit 8
+: `XPRS_SLPSTEPBOUNDROWS` Row-based step bounds.
+bit 9
+: `XPRS_SLPALLROWERRORVECTORS` Penalty error vectors on all constraints.
+bit 10
+: `XPRS_SLPNOUPDATEIFONLYIV` Initial values do not imply an SLP variable.
+bit 12
+: `XPRS_SLPSKIPIVLPHEURISTICS` Avoid running an LP around fixed initial values trying to get feasible.
+"""
+const XPRS_SLPAUGMENTATION::Int32 = Int32(12302)
+
+"""
+    XPRS_SLPAUTOSAVE
+Frequency with which to save the model (integer)
+
+Default value: 0
+"""
+const XPRS_SLPAUTOSAVE::Int32 = Int32(12330)
+
+"""
+    XPRS_SLPBARCROSSOVERSTART
+Default crossover activation behaviour for barrier start (integer)
+
+Default value: 0
+"""
+const XPRS_SLPBARCROSSOVERSTART::Int32 = Int32(12408)
+
+"""
+    XPRS_SLPBARLIMIT
+Number of initial SLP iterations using the barrier method (integer)
+
+Default value: 0
+"""
+const XPRS_SLPBARLIMIT::Int32 = Int32(12303)
+
+"""
+    XPRS_SLPBARSTALLINGLIMIT
+Number of iterations to allow numerical failures in barrier before switching to dual (integer)
+
+Default value: 3
+"""
+const XPRS_SLPBARSTALLINGLIMIT::Int32 = Int32(12409)
+
+"""
+    XPRS_SLPBARSTALLINGOBJLIMIT
+Number of iterations over which to measure the objective change for barrier iterations with no crossover (integer)
+
+Default value: 3
+"""
+const XPRS_SLPBARSTALLINGOBJLIMIT::Int32 = Int32(12410)
+
+"""
+    XPRS_SLPBARSTALLINGTOL
+Required change in the objective when progress is measured in barrier iterations without crossover (double)
+
+Default value: 0.05
+"""
+const XPRS_SLPBARSTALLINGTOL::Int32 = Int32(12212)
+
+"""
+    XPRS_SLPBARSTARTOPS
+Controls behaviour when the barrier is used to solve the linearizations (integer)
+
+Default value: -1
+
+Values are a bitset:
+bit 0
+: `XPRS_SLPBARSTARTOPS_STALLING_OBJECTIVE` Check objective progress when no crossover is applied.
+bit 1
+: `XPRS_SLPBARSTARTOPS_STALLING_NUMERICAL` Fall back to dual simplex if too many numerical problems are reported by the barrier.
+bit 2
+: `XPRS_SLPBARSTARTOPS_ALLOWINTERIORSOLUTION` If a non-vertex converged solution found by barrier without crossover can be returned as a final solution.
+"""
+const XPRS_SLPBARSTARTOPS::Int32 = Int32(12411)
+
+"""
+    XPRS_SLPBOUNDTHRESHOLD
+The maximum size of a bound that can be introduced by nonlinear presolve. (double)
+
+Default value: 1.0e+10
+"""
+const XPRS_SLPBOUNDTHRESHOLD::Int32 = Int32(12214)
+
+"""
+    XPRS_SLPCASCADE
+Bit map describing the cascading to be used (integer)
+
+Default value: 257
+
+Values are a bitset:
+bit 0
+: `XPRS_SLPCASCADE_ALL` Apply cascading to all variables with determining rows.
+bit 1
+: `XPRS_SLPCASCADE_COEF_VAR` Apply cascading to SLP variables which appear in coefficients and which would change by more than FEASTOL.
+bit 2
+: `XPRS_SLPCASCADE_ALL_COEF_VAR` Apply cascading to all SLP variables which appear in coefficients.
+bit 3
+: `XPRS_SLPCASCADE_STRUCT_VAR` Apply cascading to SLP variables which are structural and which would change by more than FEASTOL.
+bit 4
+: `XPRS_SLPCASCADE_ALL_STRUCT_VAR` Apply cascading to all SLP variables which are structural.
+bit 5
+: `XPRS_SLPCASCADE_SECONDARY_GROUPS` Create secondary order groupping DR rows with instantiated user functions together in the order.
+bit 6
+: `XPRS_SLPCASCADE_DRCOL_PREVOUSVALUE` In cases where the determining column is below SLPDRCOLTOL, fix at the previous rather than current value.
+bit 7
+: `XPRS_SLPCASCADE_DRCOL_PVRANGE` In cases where the determining column is below SLPDRCOLTOL, fix within a range SLPDRFIXRANGE of previous value.
+bit 8
+: `XPRS_SLPCASCADE_AUTOAPPLY` Automatically determine whether to apply cascading.
+"""
+const XPRS_SLPCASCADE::Int32 = Int32(12304)
+
+"""
+    XPRS_SLPCASCADENLIMIT
+Maximum number of iterations for cascading with non-linear determining rows (integer)
+
+Default value: 10
+"""
+const XPRS_SLPCASCADENLIMIT::Int32 = Int32(12306)
+
+"""
+    XPRS_SLPCASCADETOL_PA
+Absolute cascading print tolerance (double)
+
+Default value: 0.01
+"""
+const XPRS_SLPCASCADETOL_PA::Int32 = Int32(12142)
+
+"""
+    XPRS_SLPCASCADETOL_PR
+Relative cascading print tolerance (double)
+
+Default value: 0.01
+"""
+const XPRS_SLPCASCADETOL_PR::Int32 = Int32(12143)
+
+"""
+    XPRS_SLPCDTOL_A
+Absolute tolerance for deducing constant derivatives (double)
+
+Default value: 1.0e-08
+"""
+const XPRS_SLPCDTOL_A::Int32 = Int32(12200)
+
+"""
+    XPRS_SLPCDTOL_R
+Relative tolerance for deducing constant derivatives (double)
+
+Default value: 1.0e-08
+"""
+const XPRS_SLPCDTOL_R::Int32 = Int32(12201)
+
+"""
+    XPRS_SLPCLAMPSHRINK
+Shrink ratio used to impose strict convergence on variables converged in extended criteria only (double)
+
+Default value: 0.3
+"""
+const XPRS_SLPCLAMPSHRINK::Int32 = Int32(12188)
+
+"""
+    XPRS_SLPCLAMPVALIDATIONTOL_A
+Absolute validation tolerance for applying SLPCLAMPSHRINK (double)
+
+Default value: 1.0e-06
+"""
+const XPRS_SLPCLAMPVALIDATIONTOL_A::Int32 = Int32(12186)
+
+"""
+    XPRS_SLPCLAMPVALIDATIONTOL_R
+Relative validation tolerance for applying SLPCLAMPSHRINK (double)
+
+Default value: 1.0e-06
+"""
+const XPRS_SLPCLAMPVALIDATIONTOL_R::Int32 = Int32(12187)
+
+"""
+    XPRS_SLPCONVERGENCEOPS
+Bit map describing which convergence tests should be carried out (integer)
+
+Default value: 39935 (bits 0-9, 11-12, and 15 are set)
+
+Values are a bitset:
+bit 0
+: `XPRS_SLPCONVERGEBIT_CTOL` Execute the closure tolerance checks.
+bit 1
+: `XPRS_SLPCONVERGEBIT_ATOL` Execute the delta tolerance checks.
+bit 2
+: `XPRS_SLPCONVERGEBIT_MTOL` Execute the matrix tolerance checks.
+bit 3
+: `XPRS_SLPCONVERGEBIT_ITOL` Execute the impact tolerance checks.
+bit 4
+: `XPRS_SLPCONVERGEBIT_STOL` Execute the slack impact tolerance checks.
+bit 5
+: `XPRS_SLPCONVERGEBIT_USER` Check for user provided convergence.
+bit 6
+: `XPRS_SLPCONVERGEBIT_VTOL` Execute the objective range checks.
+bit 7
+: `XPRS_SLPCONVERGEBIT_XTOL` Execute the objective range + constraint activity check.
+bit 8
+: `XPRS_SLPCONVERGEBIT_OTOL` Execute the objective range + active step bound check.
+bit 9
+: `XPRS_SLPCONVERGEBIT_WTOL` Execute the convergence continuation check.
+bit 10
+: `XPRS_SLPCONVERGEBIT_EXTENDEDSCALING` Take scaling of individual variables / rows into account.
+bit 11
+: `XPRS_SLPCONVERGEBIT_VALIDATION` Execute the validation target convergence checks.
+bit 12
+: `XPRS_SLPCONVERGEBIT_VALIDATION_K` Execute the first order optimality target convergence checks.
+bit 13
+: `XPRS_SLPCONVERGEBIT_NOQUADCHECK` Allow convex quadratic problems to converge on extended criteria.
+bit 15
+: `XPRS_SLPCONVERGEBIT_REQUIRE_OTOL_R` Do not declare converged if still sufficient improvement in objective.
+"""
+const XPRS_SLPCONVERGENCEOPS::Int32 = Int32(12377)
+
+"""
+    XPRS_SLPCTOL
+Closure convergence tolerance (double)
+
+Default value: -1.0
+"""
+const XPRS_SLPCTOL::Int32 = Int32(12124)
+
+"""
+    XPRS_SLPCUTSTRATEGY
+Determines which cuts to apply in the MISLP search when the default SLP-in-MIP strategy is used. (integer)
+
+Default value: 0
+"""
+const XPRS_SLPCUTSTRATEGY::Int32 = Int32(12310)
+
+"""
+    XPRS_SLPDAMP
+Damping factor for updating values of variables (double)
+
+Default value: 1
+"""
+const XPRS_SLPDAMP::Int32 = Int32(12103)
+
+"""
+    XPRS_SLPDAMPEXPAND
+Multiplier to increase damping factor during dynamic damping (double)
+
+Default value: 1
+"""
+const XPRS_SLPDAMPEXPAND::Int32 = Int32(12104)
+
+"""
+    XPRS_SLPDAMPMAX
+Maximum value for the damping factor of a variable during dynamic damping (double)
+
+Default value: 1
+"""
+const XPRS_SLPDAMPMAX::Int32 = Int32(12137)
+
+"""
+    XPRS_SLPDAMPMIN
+Minimum value for the damping factor of a variable during dynamic damping (double)
+
+Default value: 1
+"""
+const XPRS_SLPDAMPMIN::Int32 = Int32(12138)
+
+"""
+    XPRS_SLPDAMPSHRINK
+Multiplier to decrease damping factor during dynamic damping (double)
+
+Default value: 1
+"""
+const XPRS_SLPDAMPSHRINK::Int32 = Int32(12105)
+
+"""
+    XPRS_SLPDAMPSTART
+SLP iteration at which damping is activated (integer)
+
+Default value: 0
+"""
+const XPRS_SLPDAMPSTART::Int32 = Int32(12308)
+
+"""
+    XPRS_SLPDEFAULTSTEPBOUND
+Minimum initial value for the step bound of an SLP variable if none is explicitly given (double)
+
+Default value: 16
+"""
+const XPRS_SLPDEFAULTSTEPBOUND::Int32 = Int32(12136)
+
+"""
+    XPRS_SLPDELAYUPDATEROWS
+Number of SLP iterations before update rows are fully activated (integer)
+
+Default value: 2
+"""
+const XPRS_SLPDELAYUPDATEROWS::Int32 = Int32(12329)
+
+"""
+    XPRS_SLPDELTACOST
+Initial penalty cost multiplier for penalty delta vectors (double)
+
+Default value: 200
+"""
+const XPRS_SLPDELTACOST::Int32 = Int32(12109)
+
+"""
+    XPRS_SLPDELTACOSTFACTOR
+Factor for increasing cost multiplier on total penalty delta vectors (double)
+
+Default value: 1.3
+"""
+const XPRS_SLPDELTACOSTFACTOR::Int32 = Int32(12139)
+
+"""
+    XPRS_SLPDELTAFORMAT
+Formatting string for creation of names for SLP delta vectors (string)
+
+Default value: pD_s where p is a unique prefix for names in the current problem
+"""
+const XPRS_SLPDELTAFORMAT::Int32 = Int32(12452)
+
+"""
+    XPRS_SLPDELTAMAXCOST
+Maximum penalty cost multiplier for penalty delta vectors (double)
+
+Default value: XPRS_PLUSINFINITY
+"""
+const XPRS_SLPDELTAMAXCOST::Int32 = Int32(12110)
+
+"""
+    XPRS_SLPDELTAOFFSET
+Position of first character of SLP variable name used to create name of delta vector (integer)
+
+Default value: 0
+"""
+const XPRS_SLPDELTAOFFSET::Int32 = Int32(12348)
+
+"""
+    XPRS_SLPDELTAZLIMIT
+Number of SLP iterations during which to apply XPRS_SLPDELTA_Z (integer)
+
+Default value: 0
+"""
+const XPRS_SLPDELTAZLIMIT::Int32 = Int32(12311)
+
+"""
+    XPRS_SLPDELTA_A
+Absolute perturbation of values for calculating numerical derivatives (double)
+
+Default value: 0.001
+"""
+const XPRS_SLPDELTA_A::Int32 = Int32(12106)
+
+"""
+    XPRS_SLPDELTA_INFINITY
+Maximum value for partial derivatives (double)
+
+Default value: 1.0e+15
+"""
+const XPRS_SLPDELTA_INFINITY::Int32 = Int32(12174)
+
+"""
+    XPRS_SLPDELTA_R
+Relative perturbation of values for calculating numerical derivatives (double)
+
+Default value: 0.001
+"""
+const XPRS_SLPDELTA_R::Int32 = Int32(12107)
+
+"""
+    XPRS_SLPDELTA_X
+Minimum absolute value of delta coefficients to be retained (double)
+
+Default value: 1.0e-6
+"""
+const XPRS_SLPDELTA_X::Int32 = Int32(12152)
+
+"""
+    XPRS_SLPDELTA_Z
+Tolerance used when calculating derivatives (double)
+
+Default value: 0.00001
+"""
+const XPRS_SLPDELTA_Z::Int32 = Int32(12108)
+
+"""
+    XPRS_SLPDELTA_ZERO
+Absolute zero acceptance tolerance used when calculating derivatives (double)
+
+Default value: -1.0 (not applied)
+"""
+const XPRS_SLPDELTA_ZERO::Int32 = Int32(12184)
+
+"""
+    XPRS_SLPDJTOL
+Tolerance on DJ value for determining if a variable is at its step bound (double)
+
+Default value: 1.0e-6
+"""
+const XPRS_SLPDJTOL::Int32 = Int32(12112)
+
+"""
+    XPRS_SLPDRCOLDJTOL
+Reduced cost tolerance on the delta variable when fixing due to the determining column being below SLPDRCOLTOL. (double)
+
+Default value: 0.0
+"""
+const XPRS_SLPDRCOLDJTOL::Int32 = Int32(12208)
+
+"""
+    XPRS_SLPDRCOLTOL
+The minimum absolute magnitude of a determining column, for which the determined variable is still regarded as well defined (double)
+
+Default value: 1.0e-6
+"""
+const XPRS_SLPDRCOLTOL::Int32 = Int32(12196)
+
+"""
+    XPRS_SLPDRFIXRANGE
+The range around the previous value where variables are fixed in cascading if the determining column is below SLPDRCOLTOL. (double)
+
+Default value: 0.1
+"""
+const XPRS_SLPDRFIXRANGE::Int32 = Int32(12195)
+
+"""
+    XPRS_SLPECFCHECK
+Check feasibility at the point of linearization for extended convergence criteria (integer)
+
+Default value: 1
+
+Values:
+0
+: no check (extended criteria are always used);
+1
+: check until one infeasible constraint is found;
+2
+: check all constraints.
+"""
+const XPRS_SLPECFCHECK::Int32 = Int32(12369)
+
+"""
+    XPRS_SLPECFTOL_A
+Absolute tolerance on testing feasibility at the point of linearization (double)
+
+Default value: -1.0
+"""
+const XPRS_SLPECFTOL_A::Int32 = Int32(12189)
+
+"""
+    XPRS_SLPECFTOL_R
+Relative tolerance on testing feasibility at the point of linearization (double)
+
+Default value: -1.0
+"""
+const XPRS_SLPECFTOL_R::Int32 = Int32(12190)
+
+"""
+    XPRS_SLPENFORCECOSTSHRINK
+Factor by which to decrease the current penalty multiplier when enforcing rows. (double)
+
+Default value: 0.00001
+"""
+const XPRS_SLPENFORCECOSTSHRINK::Int32 = Int32(12203)
+
+"""
+    XPRS_SLPENFORCEMAXCOST
+Maximum penalty cost in the objective before enforcing most violating rows (double)
+
+Default value: 1.0e+11
+"""
+const XPRS_SLPENFORCEMAXCOST::Int32 = Int32(12202)
+
+"""
+    XPRS_SLPERRORCOST
+Initial penalty cost multiplier for penalty error vectors (double)
+
+Default value: 200
+"""
+const XPRS_SLPERRORCOST::Int32 = Int32(12113)
+
+"""
+    XPRS_SLPERRORCOSTFACTOR
+Factor for increasing cost multiplier on total penalty error vectors (double)
+
+Default value: 1.3
+"""
+const XPRS_SLPERRORCOSTFACTOR::Int32 = Int32(12140)
+
+"""
+    XPRS_SLPERRORMAXCOST
+Maximum penalty cost multiplier for penalty error vectors (double)
+
+Default value: -1.0
+
+Values:
+-1
+: Let the solver decide.
+[0,inf)
+: Maximum penalty cost multiplier.
+"""
+const XPRS_SLPERRORMAXCOST::Int32 = Int32(12114)
+
+"""
+    XPRS_SLPERROROFFSET
+Position of first character of constraint name used to create name of penalty error vectors (integer)
+
+Default value: 0
+"""
+const XPRS_SLPERROROFFSET::Int32 = Int32(12350)
+
+"""
+    XPRS_SLPERRORTOL_A
+Absolute tolerance for error vectors (double)
+
+Default value: 0.00001
+"""
+const XPRS_SLPERRORTOL_A::Int32 = Int32(12116)
+
+"""
+    XPRS_SLPERRORTOL_P
+Absolute tolerance for printing error vectors (double)
+
+Default value: 0.0001
+"""
+const XPRS_SLPERRORTOL_P::Int32 = Int32(12141)
+
+"""
+    XPRS_SLPESCALATION
+Factor for increasing cost multiplier on individual penalty error vectors (double)
+
+Default value: 1.25
+"""
+const XPRS_SLPESCALATION::Int32 = Int32(12169)
+
+"""
+    XPRS_SLPETOL_A
+Absolute tolerance on penalty vectors (double)
+
+Default value: 0.0001
+"""
+const XPRS_SLPETOL_A::Int32 = Int32(12180)
+
+"""
+    XPRS_SLPETOL_R
+Relative tolerance on penalty vectors (double)
+
+Default value: 0.0001
+"""
+const XPRS_SLPETOL_R::Int32 = Int32(12181)
+
+"""
+    XPRS_SLPEVTOL_A
+Absolute tolerance on total penalty costs (double)
+
+Default value: -1.0
+"""
+const XPRS_SLPEVTOL_A::Int32 = Int32(12182)
+
+"""
+    XPRS_SLPEVTOL_R
+Relative tolerance on total penalty costs (double)
+
+Default value: -1.0
+"""
+const XPRS_SLPEVTOL_R::Int32 = Int32(12183)
+
+"""
+    XPRS_SLPEXPAND
+Multiplier to increase a step bound (double)
+
+Default value: 2
+"""
+const XPRS_SLPEXPAND::Int32 = Int32(12118)
+
+"""
+    XPRS_SLPFEASTOLTARGET
+When set, this defines a target feasibility tolerance to which the linearizations are solved to (double)
+
+Default value: 0 (ignored, not set)
+"""
+const XPRS_SLPFEASTOLTARGET::Int32 = Int32(12172)
+
+"""
+    XPRS_SLPFILTER
+Bit map for controlling solution updates (integer)
+
+Default value: 3 (bit 0,1)
+
+Values are a bitset:
+bit 0
+: `XPRS_SLPFILTER_KEEPBEST` Superseded by SLPRETURNSOLUTION. retain best solution according to the merit function.
+bit 1
+: `XPRS_SLPFILTER_CASCADE` check cascaded solutions against improvements in the merit function.
+bit 2
+: `XPRS_SLPFILTER_ZEROLINESEARCH` force minimum step sizes in line search.
+bit 3
+: `XPRS_SLPFILTER_ZEROLINESEARCHTR` accept the trust region step is the line search returns a zero step size.
+"""
+const XPRS_SLPFILTER::Int32 = Int32(12387)
+
+"""
+    XPRS_SLPGRANULARITY
+Base for calculating penalty costs (double)
+
+Default value: 4
+"""
+const XPRS_SLPGRANULARITY::Int32 = Int32(12157)
+
+"""
+    XPRS_SLPGRIDHEURSELECT
+Bit map selecting which heuristics to run if the problem has a variable with an integer delta (integer)
+
+Default value: 6
+
+Values are a bitset:
+bit 0
+: Enumeration: try all combinations.
+bit 1
+: Simple search heuristics.
+bit 2
+: Simulated annealing.
+"""
+const XPRS_SLPGRIDHEURSELECT::Int32 = Int32(12412)
+
+"""
+    XPRS_SLPHEURSTRATEGY
+Branch and Bound: This specifies the MINLP heuristic strategy. (integer)
+
+On some problems it is worth trying more comprehensive heuristic strategies by setting `HEURSTRATEGY` to 2 or 3.
 
 Default value: `-1`
 
 Values:
 -1
-: Automatically determined depending on the CPU the Optimizer is running on.
+: Automatic selection of heuristic strategy (depending on XPRS_HEUREMPHASIS).
 0
-: Keep the threads busy when waiting for work.
+: No heuristics.
 1
-: Put the threads into a wait state when waiting for work.
+: Basic heuristic strategy.
+2
+: Enhanced heuristic strategy.
+3
+: Extensive heuristic strategy.
+4
+: Run all heuristics without effort limits.
 """
-const XPRS_SLEEPONTHREADWAIT::Int32 = Int32(8302)
-
-const XPRS_SLPALGORITHM::Int32 = Int32(12301)
-
-const XPRS_SLPANALYZE::Int32 = Int32(12332)
-
-const XPRS_SLPATOL_A::Int32 = Int32(12125)
-
-const XPRS_SLPATOL_R::Int32 = Int32(12126)
-
-const XPRS_SLPAUGMENTATION::Int32 = Int32(12302)
-
-const XPRS_SLPAUTOSAVE::Int32 = Int32(12330)
-
-const XPRS_SLPBARCROSSOVERSTART::Int32 = Int32(12408)
-
-const XPRS_SLPBARLIMIT::Int32 = Int32(12303)
-
-const XPRS_SLPBARSTALLINGLIMIT::Int32 = Int32(12409)
-
-const XPRS_SLPBARSTALLINGOBJLIMIT::Int32 = Int32(12410)
-
-const XPRS_SLPBARSTALLINGTOL::Int32 = Int32(12212)
-
-const XPRS_SLPBARSTARTOPS::Int32 = Int32(12411)
-
-const XPRS_SLPBOUNDTHRESHOLD::Int32 = Int32(12214)
-
-const XPRS_SLPCASCADE::Int32 = Int32(12304)
-
-const XPRS_SLPCASCADENLIMIT::Int32 = Int32(12306)
-
-const XPRS_SLPCASCADETOL_PA::Int32 = Int32(12142)
-
-const XPRS_SLPCASCADETOL_PR::Int32 = Int32(12143)
-
-const XPRS_SLPCDTOL_A::Int32 = Int32(12200)
-
-const XPRS_SLPCDTOL_R::Int32 = Int32(12201)
-
-const XPRS_SLPCLAMPSHRINK::Int32 = Int32(12188)
-
-const XPRS_SLPCLAMPVALIDATIONTOL_A::Int32 = Int32(12186)
-
-const XPRS_SLPCLAMPVALIDATIONTOL_R::Int32 = Int32(12187)
-
-const XPRS_SLPCONVERGENCEOPS::Int32 = Int32(12377)
-
-const XPRS_SLPCTOL::Int32 = Int32(12124)
-
-const XPRS_SLPCUTSTRATEGY::Int32 = Int32(12310)
-
-const XPRS_SLPDAMP::Int32 = Int32(12103)
-
-const XPRS_SLPDAMPEXPAND::Int32 = Int32(12104)
-
-const XPRS_SLPDAMPMAX::Int32 = Int32(12137)
-
-const XPRS_SLPDAMPMIN::Int32 = Int32(12138)
-
-const XPRS_SLPDAMPSHRINK::Int32 = Int32(12105)
-
-const XPRS_SLPDAMPSTART::Int32 = Int32(12308)
-
-const XPRS_SLPDEFAULTSTEPBOUND::Int32 = Int32(12136)
-
-const XPRS_SLPDELAYUPDATEROWS::Int32 = Int32(12329)
-
-const XPRS_SLPDELTACOST::Int32 = Int32(12109)
-
-const XPRS_SLPDELTACOSTFACTOR::Int32 = Int32(12139)
-
-const XPRS_SLPDELTAFORMAT::Int32 = Int32(12452)
-
-const XPRS_SLPDELTAMAXCOST::Int32 = Int32(12110)
-
-const XPRS_SLPDELTAOFFSET::Int32 = Int32(12348)
-
-const XPRS_SLPDELTAZLIMIT::Int32 = Int32(12311)
-
-const XPRS_SLPDELTA_A::Int32 = Int32(12106)
-
-const XPRS_SLPDELTA_INFINITY::Int32 = Int32(12174)
-
-const XPRS_SLPDELTA_R::Int32 = Int32(12107)
-
-const XPRS_SLPDELTA_X::Int32 = Int32(12152)
-
-const XPRS_SLPDELTA_Z::Int32 = Int32(12108)
-
-const XPRS_SLPDELTA_ZERO::Int32 = Int32(12184)
-
-const XPRS_SLPDJTOL::Int32 = Int32(12112)
-
-const XPRS_SLPDRCOLDJTOL::Int32 = Int32(12208)
-
-const XPRS_SLPDRCOLTOL::Int32 = Int32(12196)
-
-const XPRS_SLPDRFIXRANGE::Int32 = Int32(12195)
-
-const XPRS_SLPECFCHECK::Int32 = Int32(12369)
-
-const XPRS_SLPECFTOL_A::Int32 = Int32(12189)
-
-const XPRS_SLPECFTOL_R::Int32 = Int32(12190)
-
-const XPRS_SLPENFORCECOSTSHRINK::Int32 = Int32(12203)
-
-const XPRS_SLPENFORCEMAXCOST::Int32 = Int32(12202)
-
-const XPRS_SLPERRORCOST::Int32 = Int32(12113)
-
-const XPRS_SLPERRORCOSTFACTOR::Int32 = Int32(12140)
-
-const XPRS_SLPERRORMAXCOST::Int32 = Int32(12114)
-
-const XPRS_SLPERROROFFSET::Int32 = Int32(12350)
-
-const XPRS_SLPERRORTOL_A::Int32 = Int32(12116)
-
-const XPRS_SLPERRORTOL_P::Int32 = Int32(12141)
-
-const XPRS_SLPESCALATION::Int32 = Int32(12169)
-
-const XPRS_SLPETOL_A::Int32 = Int32(12180)
-
-const XPRS_SLPETOL_R::Int32 = Int32(12181)
-
-const XPRS_SLPEVTOL_A::Int32 = Int32(12182)
-
-const XPRS_SLPEVTOL_R::Int32 = Int32(12183)
-
-const XPRS_SLPEXPAND::Int32 = Int32(12118)
-
-const XPRS_SLPFEASTOLTARGET::Int32 = Int32(12172)
-
-const XPRS_SLPFILTER::Int32 = Int32(12387)
-
-const XPRS_SLPGRANULARITY::Int32 = Int32(12157)
-
-const XPRS_SLPGRIDHEURSELECT::Int32 = Int32(12412)
-
 const XPRS_SLPHEURSTRATEGY::Int32 = Int32(12400)
 
+"""
+    XPRS_SLPINFEASLIMIT
+The maximum number of consecutive infeasible or unbounded SLP iterations which can occur before Xpress-SLP terminates (integer)
+
+Default value: 3
+"""
 const XPRS_SLPINFEASLIMIT::Int32 = Int32(12314)
 
+"""
+    XPRS_SLPITERFALLBACKOPS
+Alternative LP level control values for numerically challenging problems (string)
+
+Default value: none
+"""
 const XPRS_SLPITERFALLBACKOPS::Int32 = Int32(12474)
 
+"""
+    XPRS_SLPITERLIMIT
+The maximum number of SLP iterations (integer)
+
+Default value: 1000
+"""
 const XPRS_SLPITERLIMIT::Int32 = Int32(12315)
 
+"""
+    XPRS_SLPITOL_A
+Absolute impact convergence tolerance (double)
+
+Default value: -1.0
+"""
 const XPRS_SLPITOL_A::Int32 = Int32(12129)
 
+"""
+    XPRS_SLPITOL_R
+Relative impact convergence tolerance (double)
+
+Default value: -1.0
+"""
 const XPRS_SLPITOL_R::Int32 = Int32(12130)
 
+"""
+    XPRS_SLPLOG
+Frequency with which SLP status is printed (integer)
+
+Default value: 1
+"""
 const XPRS_SLPLOG::Int32 = Int32(12346)
 
+"""
+    XPRS_SLPLSITERLIMIT
+Number of iterations in the line search (integer)
+
+Default value: 0
+"""
 const XPRS_SLPLSITERLIMIT::Int32 = Int32(12382)
 
+"""
+    XPRS_SLPLSPATTERNLIMIT
+Number of iterations in the pattern search preceding the line search (integer)
+
+Default value: 0
+"""
 const XPRS_SLPLSPATTERNLIMIT::Int32 = Int32(12381)
 
+"""
+    XPRS_SLPLSSTART
+Iteration in which to active the line search (integer)
+
+Default value: 8
+"""
 const XPRS_SLPLSSTART::Int32 = Int32(12383)
 
+"""
+    XPRS_SLPLSZEROLIMIT
+Maximum number of zero length line search steps before line search is deactivated (integer)
+
+Default value: 5
+"""
 const XPRS_SLPLSZEROLIMIT::Int32 = Int32(12389)
 
+"""
+    XPRS_SLPMATRIXTOL
+Nonzero tolerance for dropping coefficients from the linearization. (double)
+
+Default value: 0.0
+"""
 const XPRS_SLPMATRIXTOL::Int32 = Int32(12194)
 
+"""
+    XPRS_SLPMAXWEIGHT
+Maximum penalty weight for delta or error vectors (double)
+
+Default value: 100
+"""
 const XPRS_SLPMAXWEIGHT::Int32 = Int32(12120)
 
+"""
+    XPRS_SLPMINSBFACTOR
+Factor by which step bounds can be decreased beneath SLPATOL_A (double)
+
+Default value: 1.0
+"""
 const XPRS_SLPMINSBFACTOR::Int32 = Int32(12185)
 
+"""
+    XPRS_SLPMINUSDELTAFORMAT
+Formatting string for creation of names for SLP negative penalty delta vectors (string)
+
+Default value: pD-s where p is a unique prefix for names in the current problem
+"""
 const XPRS_SLPMINUSDELTAFORMAT::Int32 = Int32(12456)
 
+"""
+    XPRS_SLPMINUSERRORFORMAT
+Formatting string for creation of names for SLP negative penalty error vectors (string)
+
+Default value: pE-s where p is a unique prefix for names in the current problem
+"""
 const XPRS_SLPMINUSERRORFORMAT::Int32 = Int32(12457)
 
+"""
+    XPRS_SLPMINWEIGHT
+Minimum penalty weight for delta or error vectors (double)
+
+Default value: 0.01
+"""
 const XPRS_SLPMINWEIGHT::Int32 = Int32(12121)
 
+"""
+    XPRS_SLPMIPALGORITHM
+Bitmap describing the MISLP algorithms to be used (integer)
+
+Default value: 17 (bits 0 and 4 are set)
+
+Values are a bitset:
+bit 0
+: `XPRS_SLPMIPINITIALSLP` Solve initial SLP to convergence.
+bit 2
+: `XPRS_SLPMIPINITIALRELAXSLP` Relax step bounds according to SLPMIPRELAXSTEPBOUNDS after initial node.
+bit 3
+: `XPRS_SLPMIPINITIALFIXSLP` Fix step bounds according to SLPMIPFIXSTEPBOUNDS after initial node.
+bit 4
+: `XPRS_SLPMIPNODERELAXSLP` Relax step bounds according to SLPMIPRELAXSTEPBOUNDS at each node.
+bit 5
+: `XPRS_SLPMIPNODEFIXSLP` Fix step bounds according to SLPMIPFIXSTEPBOUNDS at each node.
+bit 6
+: `XPRS_SLPMIPNODELIMITSLP` Limit iterations at each node to SLPMIPITERLIMIT.
+bit 7
+: `XPRS_SLPMIPFINALRELAXSLP` Relax step bounds according to SLPMIPRELAXSTEPBOUNDS after MIP solution is found.
+bit 8
+: `XPRS_SLPMIPFINALFIXSLP` Fix step bounds according to SLPMIPFIXSTEPBOUNDS after MIP solution is found.
+bit 9
+: `XPRS_SLPMIPWITHINSLP` Superseded by SLPMISLPALGORITHM. Use MIP at each SLP iteration instead of SLP at each node.
+bit 10
+: `XPRS_SLPSLPTHENMIP` Superseded by SLPMISLPALGORITHM. Use MIP on converged SLP solution and then SLP on the resulting MIP solution.
+"""
 const XPRS_SLPMIPALGORITHM::Int32 = Int32(12336)
 
+"""
+    XPRS_SLPMIPCUTOFFCOUNT
+Number of SLP iterations to check when considering a node for cutting off (integer)
+
+Default value: 5
+"""
 const XPRS_SLPMIPCUTOFFCOUNT::Int32 = Int32(12370)
 
+"""
+    XPRS_SLPMIPCUTOFFLIMIT
+Number of SLP iterations to check when considering a node for cutting off (integer)
+
+Default value: 10
+"""
 const XPRS_SLPMIPCUTOFFLIMIT::Int32 = Int32(12340)
 
+"""
+    XPRS_SLPMIPCUTOFF_A
+Absolute objective function cutoff for MIP termination (double)
+
+Default value: 0.00001
+"""
 const XPRS_SLPMIPCUTOFF_A::Int32 = Int32(12158)
 
+"""
+    XPRS_SLPMIPCUTOFF_R
+Relative objective function cutoff for MIP termination (double)
+
+Default value: 0.00001
+"""
 const XPRS_SLPMIPCUTOFF_R::Int32 = Int32(12159)
 
+"""
+    XPRS_SLPMIPDEFAULTALGORITHM
+Default algorithm to be used during the tree search in MISLP (integer)
+
+Default value: 3
+"""
 const XPRS_SLPMIPDEFAULTALGORITHM::Int32 = Int32(12343)
 
+"""
+    XPRS_SLPMIPERRORTOL_A
+Absolute penalty error cost tolerance for MIP cut-off (double)
+
+Default value: 0 (inactive)
+"""
 const XPRS_SLPMIPERRORTOL_A::Int32 = Int32(12198)
 
+"""
+    XPRS_SLPMIPERRORTOL_R
+Relative penalty error cost tolerance for MIP cut-off (double)
+
+Default value: 0 (inactive)
+"""
 const XPRS_SLPMIPERRORTOL_R::Int32 = Int32(12199)
 
+"""
+    XPRS_SLPMIPFIXSTEPBOUNDS
+Bitmap describing the step-bound fixing strategy during MISLP (integer)
+
+Default value: 0
+
+Values are a bitset:
+bit 0
+: Fix step bounds on structural SLP variables which are not in coefficients.
+bit 1
+: Fix step bounds on all structural SLP variables.
+bit 2
+: Fix step bounds on SLP variables appearing only in coefficients.
+bit 3
+: Fix step bounds on SLP variables appearing in coefficients.
+"""
 const XPRS_SLPMIPFIXSTEPBOUNDS::Int32 = Int32(12338)
 
+"""
+    XPRS_SLPMIPITERLIMIT
+Maximum number of SLP iterations at each node (integer)
+
+Default value: 0
+"""
 const XPRS_SLPMIPITERLIMIT::Int32 = Int32(12339)
 
+"""
+    XPRS_SLPMIPLOG
+Frequency with which MIP status is printed (integer)
+
+Default value: 0 (deterministic logging)
+"""
 const XPRS_SLPMIPLOG::Int32 = Int32(12347)
 
+"""
+    XPRS_SLPMIPOCOUNT
+Number of SLP iterations at each node over which to measure objective function variation (integer)
+
+Default value: 5
+"""
 const XPRS_SLPMIPOCOUNT::Int32 = Int32(12341)
 
+"""
+    XPRS_SLPMIPOTOL_A
+Absolute objective function tolerance for MIP termination (double)
+
+Default value: 0.00001
+"""
 const XPRS_SLPMIPOTOL_A::Int32 = Int32(12160)
 
+"""
+    XPRS_SLPMIPOTOL_R
+Relative objective function tolerance for MIP termination (double)
+
+Default value: 0.00001
+"""
 const XPRS_SLPMIPOTOL_R::Int32 = Int32(12161)
 
+"""
+    XPRS_SLPMIPRELAXSTEPBOUNDS
+Bitmap describing the step-bound relaxation strategy during MISLP (integer)
+
+Default value: 15 (relax all types)
+
+Values are a bitset:
+bit 0
+: Relax step bounds on structural SLP variables which are not in coefficients.
+bit 1
+: Relax step bounds on all structural SLP variables.
+bit 2
+: Relax step bounds on SLP variables appearing only in coefficients.
+bit 3
+: Relax step bounds on SLP variables appearing in coefficients.
+"""
 const XPRS_SLPMIPRELAXSTEPBOUNDS::Int32 = Int32(12337)
 
+"""
+    XPRS_SLPMISLPALGORITHM
+Selects the MISLP strategy used to combine SLP with the branch-and-bound search (integer)
+
+Default value: -1
+
+Values:
+-1
+: `XPRS_SLPMISLPALGORITHM_AUTOMATIC` Fall back to bits 9 and 10 of SLPMIPALGORITHM. By default neither bit is set, which is equivalent to `XPRS_SLPMISLPALGORITHM_SLPINMIP`.
+0
+: `XPRS_SLPMISLPALGORITHM_SLPINMIP` Use SLP at each node of the branch and bound search.
+1
+: `XPRS_SLPMISLPALGORITHM_MIPINSLP` Solve the linearization in each SLP iteration as an MILP.
+2
+: `XPRS_SLPMISLPALGORITHM_SLPMIPSLP` Solve the continuous relaxation, solve an MILP on the final linearization and then fix all integers and solve with SLP again.
+"""
+const XPRS_SLPMISLPALGORITHM::Int32 = Int32(12421)
+
+"""
+    XPRS_SLPMTOL_A
+Absolute effective matrix element convergence tolerance (double)
+
+Default value: -1.0
+"""
 const XPRS_SLPMTOL_A::Int32 = Int32(12127)
 
+"""
+    XPRS_SLPMTOL_R
+Relative effective matrix element convergence tolerance (double)
+
+Default value: -1.0
+"""
 const XPRS_SLPMTOL_R::Int32 = Int32(12128)
 
+"""
+    XPRS_SLPMVTOL
+Marginal value tolerance for determining if a constraint is slack (double)
+
+Default value: -1.0
+"""
 const XPRS_SLPMVTOL::Int32 = Int32(12133)
 
+"""
+    XPRS_SLPOBJTHRESHOLD
+Assumed maximum value of the objective function in absolute value. (double)
+
+Default value: 1.0e+15
+"""
 const XPRS_SLPOBJTHRESHOLD::Int32 = Int32(12213)
 
+"""
+    XPRS_SLPOBJTOPENALTYCOST
+Factor to estimate initial penalty costs from objective function (double)
+
+Default value: 0
+"""
 const XPRS_SLPOBJTOPENALTYCOST::Int32 = Int32(12170)
 
+"""
+    XPRS_SLPOCOUNT
+Number of SLP iterations over which to measure objective function variation for static objective (2) convergence criterion (integer)
+
+Default value: 5
+"""
 const XPRS_SLPOCOUNT::Int32 = Int32(12333)
 
+"""
+    XPRS_SLPOPTIMALITYTOLTARGET
+When set, this defines a target optimality tolerance to which the linearizations are solved to (double)
+
+Default value: 0 (ignored, not set)
+"""
 const XPRS_SLPOPTIMALITYTOLTARGET::Int32 = Int32(12173)
 
+"""
+    XPRS_SLPOTOL_A
+Absolute static objective (2) convergence tolerance (double)
+
+Default value: -1.0
+"""
 const XPRS_SLPOTOL_A::Int32 = Int32(12150)
 
+"""
+    XPRS_SLPOTOL_R
+Relative static objective (2) convergence tolerance (double)
+
+Default value: -1.0
+"""
 const XPRS_SLPOTOL_R::Int32 = Int32(12151)
 
+"""
+    XPRS_SLPPENALTYCOLFORMAT
+Formatting string for creation of the names of the SLP penalty transfer vectors (string)
+
+Default value: pPC_s where p is a unique prefix for names in the current problem
+"""
 const XPRS_SLPPENALTYCOLFORMAT::Int32 = Int32(12464)
 
+"""
+    XPRS_SLPPENALTYINFOSTART
+Iteration from which to record row penalty information (integer)
+
+Default value: 3
+"""
 const XPRS_SLPPENALTYINFOSTART::Int32 = Int32(12384)
 
+"""
+    XPRS_SLPPENALTYROWFORMAT
+Formatting string for creation of the names of the SLP penalty rows (string)
+
+Default value: pPR_s where p is a unique prefix for names in the current problem
+"""
 const XPRS_SLPPENALTYROWFORMAT::Int32 = Int32(12463)
 
+"""
+    XPRS_SLPPLUSDELTAFORMAT
+Formatting string for creation of names for SLP positive penalty delta vectors (string)
+
+Default value: pD+s where p is a unique prefix for names in the current problem
+"""
 const XPRS_SLPPLUSDELTAFORMAT::Int32 = Int32(12458)
 
+"""
+    XPRS_SLPPLUSERRORFORMAT
+Formatting string for creation of names for SLP positive penalty error vectors (string)
+
+Default value: pE+s where p is a unique prefix for names in the current problem
+"""
 const XPRS_SLPPLUSERRORFORMAT::Int32 = Int32(12459)
 
+"""
+    XPRS_SLPRETURNSOLUTION
+Selects whether XPRSgetsolution returns the final converged iterate or the best merit-function iterate (integer)
+
+Default value: -1
+
+Values:
+-1
+: `XPRS_SLPRETURNSOLUTION_AUTOMATIC` Fall back to bit 0 of SLPFILTER: return the best merit-function iterate if the bit is set (the default), or the final converged iterate if it is not.
+1
+: `XPRS_SLPRETURNSOLUTION_BEST` Return the solution which had the best value according to the merit function.
+2
+: `XPRS_SLPRETURNSOLUTION_FINALITERATE` Return the final converged iterate.
+"""
+const XPRS_SLPRETURNSOLUTION::Int32 = Int32(12420)
+
+"""
+    XPRS_SLPSAMECOUNT
+Number of steps reaching the step bound in the same direction before step bounds are increased (integer)
+
+Default value: 3
+"""
 const XPRS_SLPSAMECOUNT::Int32 = Int32(12317)
 
+"""
+    XPRS_SLPSAMEDAMP
+Number of steps in same direction before damping factor is increased (integer)
+
+Default value: 3
+"""
 const XPRS_SLPSAMEDAMP::Int32 = Int32(12319)
 
+"""
+    XPRS_SLPSBLOROWFORMAT
+Formatting string for creation of names for SLP lower step bound rows (string)
+
+Default value: pSB-s where p is a unique prefix for names in the current problem
+"""
 const XPRS_SLPSBLOROWFORMAT::Int32 = Int32(12467)
 
+"""
+    XPRS_SLPSBNAME
+Name of the set of initial step bounds to be used (string)
+
+Default value: none
+"""
 const XPRS_SLPSBNAME::Int32 = Int32(12460)
 
+"""
+    XPRS_SLPSBROWOFFSET
+Position of first character of SLP variable name used to create name of SLP lower and upper step bound rows (integer)
+
+Default value: 0
+"""
 const XPRS_SLPSBROWOFFSET::Int32 = Int32(12351)
 
+"""
+    XPRS_SLPSBSTART
+SLP iteration after which step bounds are first applied (integer)
+
+Default value: 8
+"""
 const XPRS_SLPSBSTART::Int32 = Int32(12320)
 
+"""
+    XPRS_SLPSBUPROWFORMAT
+Formatting string for creation of names for SLP upper step bound rows (string)
+
+Default value: pSB+s where p is a unique prefix for names in the current problem
+"""
 const XPRS_SLPSBUPROWFORMAT::Int32 = Int32(12468)
 
+"""
+    XPRS_SLPSCALE
+When to re-scale the SLP problem (integer)
+
+Default value: 1
+
+Values:
+0
+: No re-scaling.
+1
+: Re-scale every SLP iteration up to SLPSCALECOUNT iterations after the end of barrier optimization.
+2
+: Re-scale every SLP iteration up to SLPSCALECOUNT iterations in total.
+3
+: Re-scale every SLP iteration until primal simplex is automatically invoked.
+4
+: Re-scale every SLP iteration.
+5
+: Re-scale every SLPSCALECOUNT SLP iterations.
+6
+: Re-scale every SLPSCALECOUNT SLP iterations after the end of barrier optimization.
+"""
 const XPRS_SLPSCALE::Int32 = Int32(12367)
 
+"""
+    XPRS_SLPSCALECOUNT
+Iteration limit used in determining when to re-scale the SLP matrix (integer)
+
+Default value: 0
+"""
 const XPRS_SLPSCALECOUNT::Int32 = Int32(12368)
 
+"""
+    XPRS_SLPSHRINK
+Multiplier to reduce a step bound (double)
+
+Default value: 0.5
+"""
 const XPRS_SLPSHRINK::Int32 = Int32(12122)
 
+"""
+    XPRS_SLPSHRINKBIAS
+Defines an overwrite / adjustment of step bounds for improving iterations (double)
+
+Default value: 0 (ignored, not set)
+"""
 const XPRS_SLPSHRINKBIAS::Int32 = Int32(12171)
 
+"""
+    XPRS_SLPSTEPBOUNDING
+Selects the step bounding strategy used by SLP (integer)
+
+Default value: -1
+
+Values:
+-1
+: Automatic: fall back to bits 0 and 1 of SLPALGORITHM (default). By default bit 1 (`XPRS_SLPSTEPBOUNDSASREQUIRED`) is set and bit 0 is not, which is equivalent to `XPRS_SLPSTEPBOUNDING_ASREQUIRED`.
+0
+: `XPRS_SLPSTEPBOUNDING_NEVER` Do not apply step bounds.
+1
+: `XPRS_SLPSTEPBOUNDING_ALWAYS` Always apply step bounds.
+2
+: `XPRS_SLPSTEPBOUNDING_ASREQUIRED` Apply step bounds to SLP delta vectors only when required.
+"""
+const XPRS_SLPSTEPBOUNDING::Int32 = Int32(12419)
+
+"""
+    XPRS_SLPSTOL_A
+Absolute slack convergence tolerance (double)
+
+Default value: -1.0
+"""
 const XPRS_SLPSTOL_A::Int32 = Int32(12131)
 
+"""
+    XPRS_SLPSTOL_R
+Relative slack convergence tolerance (double)
+
+Default value: -1.0
+"""
 const XPRS_SLPSTOL_R::Int32 = Int32(12132)
 
+"""
+    XPRS_SLPTOLNAME
+Name of the set of tolerance sets to be used (string)
+
+Default value: none
+"""
 const XPRS_SLPTOLNAME::Int32 = Int32(12461)
 
+"""
+    XPRS_SLPTRACEMASK
+Mask of variable or row names that are to be traced through the SLP iterates (string)
+
+Default value: none (no tracing)
+"""
 const XPRS_SLPTRACEMASK::Int32 = Int32(12472)
 
+"""
+    XPRS_SLPTRACEMASKOPS
+Controls the information printed for SLPTRACEMASK. (integer)
+
+The order in which the information is printed is determined by the order of bits in SLPTRACEMASKOPS.
+
+Default value: -1
+
+Values are a bitset:
+bit 0
+: `XPRS_SLPTRACEMASK_GENERALFIT` The variable name is used as a mask, not as an exact fit.
+bit 1
+: `XPRS_SLPTRACEMASK_ROWS` Use mask to trace rows.
+bit 2
+: `XPRS_SLPTRACEMASK_COLS` Use mask to trace columns.
+bit 3
+: `XPRS_SLPTRACEMASK_CASCADE` Use mask to trace cascaded SLP variables.
+bit 4
+: `XPRS_SLPTRACEMASK_TYPE` Show row / column category.
+bit 5
+: `XPRS_SLPTRACEMASK_SLACK` Trace slack values.
+bit 6
+: `XPRS_SLPTRACEMASK_DUAL` Trace dual values.
+bit 7
+: `XPRS_SLPTRACEMASK_WEIGHT` Trace row penalty multiplier.
+bit 8
+: `XPRS_SLPTRACEMASK_SOLUTION` Trace variable values (as returned by the linearization).
+bit 9
+: `XPRS_SLPTRACEMASK_REDUCEDCOST` Trace reduced costs.
+bit 10
+: `XPRS_SLPTRACEMASK_SLPVALUE` Trace slp value (value used in linearization and cascaded).
+bit 11
+: `XPRS_SLPTRACEMASK_STEPBOUND` Trace step bounds.
+bit 12
+: `XPRS_SLPTRACEMASK_CONVERGE` Trace convergence status.
+bit 13
+: `XPRS_SLPTRACEMASK_LINESEARCH` Trace line search.
+"""
 const XPRS_SLPTRACEMASKOPS::Int32 = Int32(12388)
 
+"""
+    XPRS_SLPUNFINISHEDLIMIT
+The number of consecutive SLP iterations that may have an unfinished status before the solve is terminated. (integer)
+
+Default value: 3
+"""
 const XPRS_SLPUNFINISHEDLIMIT::Int32 = Int32(12376)
 
+"""
+    XPRS_SLPUPDATEFORMAT
+Formatting string for creation of names for SLP update rows (string)
+
+Default value: pU_s where p is a unique prefix for names in the current problem
+"""
 const XPRS_SLPUPDATEFORMAT::Int32 = Int32(12462)
 
+"""
+    XPRS_SLPUPDATEOFFSET
+Position of first character of SLP variable name used to create name of SLP update row (integer)
+
+Default value: 0
+"""
 const XPRS_SLPUPDATEOFFSET::Int32 = Int32(12349)
 
+"""
+    XPRS_SLPVCOUNT
+Number of SLP iterations over which to measure static objective (3) convergence (integer)
+
+Default value: 0
+"""
 const XPRS_SLPVCOUNT::Int32 = Int32(12356)
 
+"""
+    XPRS_SLPVLIMIT
+Number of SLP iterations after which static objective (3) convergence testing starts (integer)
+
+Default value: 0
+"""
 const XPRS_SLPVLIMIT::Int32 = Int32(12357)
 
+"""
+    XPRS_SLPVTOL_A
+Absolute static objective (3) convergence tolerance (double)
+
+Default value: -1.0
+"""
 const XPRS_SLPVTOL_A::Int32 = Int32(12177)
 
+"""
+    XPRS_SLPVTOL_R
+Relative static objective (3) convergence tolerance (double)
+
+Default value: -1.0
+"""
 const XPRS_SLPVTOL_R::Int32 = Int32(12178)
 
+"""
+    XPRS_SLPWCOUNT
+Number of SLP iterations over which to measure the objective for the extended convergence continuation criterion (integer)
+
+Default value: 0
+"""
 const XPRS_SLPWCOUNT::Int32 = Int32(12374)
 
+"""
+    XPRS_SLPWTOL_A
+Absolute extended convergence continuation tolerance (double)
+
+Default value: -1.0
+"""
 const XPRS_SLPWTOL_A::Int32 = Int32(12191)
 
+"""
+    XPRS_SLPWTOL_R
+Relative extended convergence continuation tolerance (double)
+
+Default value: -1.0
+"""
 const XPRS_SLPWTOL_R::Int32 = Int32(12192)
 
+"""
+    XPRS_SLPXCOUNT
+Number of SLP iterations over which to measure static objective (1) convergence (integer)
+
+Default value: 5
+"""
 const XPRS_SLPXCOUNT::Int32 = Int32(12321)
 
+"""
+    XPRS_SLPXLIMIT
+Number of SLP iterations up to which static objective (1) convergence testing is performed (integer)
+
+Default value: 100
+"""
 const XPRS_SLPXLIMIT::Int32 = Int32(12322)
 
+"""
+    XPRS_SLPXTOL_A
+Absolute static objective function (1) tolerance (double)
+
+Default value: -1.0
+"""
 const XPRS_SLPXTOL_A::Int32 = Int32(12134)
 
+"""
+    XPRS_SLPXTOL_R
+Relative static objective function (1) tolerance (double)
+
+Default value: -1.0
+"""
 const XPRS_SLPXTOL_R::Int32 = Int32(12135)
 
+"""
+    XPRS_SLPZEROCRITERION
+Bitmap determining the behavior of the placeholder deletion procedure (integer)
+
+Default value: 0
+
+Values are a bitset:
+bit 0
+: (=1) `XPRS_SLPZEROCRITERION_NBSLPVAR` Remove placeholders in nonbasic SLP variables
+bit 1
+: (=2) `XPRS_SLPZEROCRITERION_NBDELTA` Remove placeholders in nonbasic delta variables
+bit 2
+: (=4) `XPRS_SLPZEROCRITERION_SLPVARNBUPDATEROW` Remove placeholders in a basic SLP variable if its update row is nonbasic
+bit 3
+: (=8) `XPRS_SLPZEROCRITERION_DELTANBUPSATEROW` Remove placeholders in a basic delta variable if its update row is nonbasic and the corresponding SLP variable is nonbasic
+bit 4
+: (=16) `XPRS_SLPZEROCRITERION_DELTANBDRROW` Remove placeholders in a basic delta variable if the determining row for the corresponding SLP variable is nonbasic
+bit 5
+: (=32) `XPRS_SLPZEROCRITERION_PRINT` Print information about zero placeholders
+"""
 const XPRS_SLPZEROCRITERION::Int32 = Int32(12378)
 
+"""
+    XPRS_SLPZEROCRITERIONCOUNT
+Number of consecutive times a placeholder entry is zero before being considered for deletion (integer)
+
+Default value: 0
+"""
 const XPRS_SLPZEROCRITERIONCOUNT::Int32 = Int32(12380)
 
+"""
+    XPRS_SLPZEROCRITERIONSTART
+SLP iteration at which criteria for deletion of placeholder entries are first activated. (integer)
+
+Default value: 0
+"""
 const XPRS_SLPZEROCRITERIONSTART::Int32 = Int32(12379)
 
 """
@@ -8818,9 +11985,9 @@ const XPRS_TREECOMPRESSION::Int32 = Int32(8243)
 
 """
     XPRS_TREECOVERCUTS
-Branch and Bound: Specifies the number of rounds of lifted cover inequalities generated at nodes other than the root node in the tree. (integer)
+**Deprecated**Branch and Bound: Specifies the number of rounds of lifted cover inequalities generated at nodes other than the root node in the tree. (integer)
 
-Compare with the description for COVERCUTS.
+Compare with the description for COVERCUTS. This control is deprecated, please use CUTMAXTREEROUNDS instead.
 
 Default value: `-1`
 
@@ -8836,9 +12003,9 @@ const XPRS_TREECOVERCUTS::Int32 = Int32(8140)
 
 """
     XPRS_TREECUTSELECT
-A bit-vector (see Section ) providing detailed control of the cuts created during the tree search of a MIP solve. (integer)
+**Deprecated**A bit-vector (see Section ) providing detailed control of the cuts created during the tree search of a MIP solve. Use CUTSELECT to control cuts on the root node. This control is deprecated. For disabling individual cut separators (or, more generally, for tuning the separation strategy of cut separators), please use the individual controls `CUTSEP*STRATEGY` (e.g. CUTSEPCLIQUESTRATEGY for clique cuts) and the meta control CUTSEPSTRATEGY. (integer)
 
-Use CUTSELECT to control cuts on the root node.
+For disabling or tuning other cut separation features, please use controls CUTAGGROWS and CUTFROMCUTROWS.
 
 Default value: `-1`
 
@@ -8902,9 +12069,9 @@ const XPRS_TREEFILELOGINTERVAL::Int32 = Int32(8389)
 
 """
     XPRS_TREEGOMCUTS
-Branch and Bound: The number of rounds of Gomory cuts generated at nodes other than the first node in the tree. (integer)
+**Deprecated**Branch and Bound: The number of rounds of Gomory cuts generated at nodes other than the first node in the tree. (integer)
 
-Compare with the description for GOMCUTS.
+Compare with the description for GOMCUTS. This control is deprecated, please use CUTGOMMAXTREEROUNDS instead.
 
 Default value: `-1`
 
@@ -8950,7 +12117,9 @@ const XPRS_TREEMEMORYSAVINGTARGET::Int32 = Int32(7100)
 
 """
     XPRS_TREEQCCUTS
-Branch and Bound: Limit on the number of rounds of outer approximation cuts generated for nodes other than the root node, when solving a mixed integer quadratic constrained or mixed integer second order conic problem with outer approximation. (integer)
+**Deprecated**Branch and Bound: Limit on the number of rounds of outer approximation cuts generated for nodes other than the root node, when solving a mixed integer quadratic constrained or mixed integer second order conic problem with outer approximation. (integer)
+
+This control is deprecated, please use CUTOAMAXTREEROUNDS instead.
 
 Default value: -1
 
@@ -9131,6 +12300,8 @@ Values:
 : Best integer solution only.
 10
 : Best primal integral. (Only for individual instances, not for problem sets)
+11
+: Least deterministic work consumed. Compares runs by the amount of algorithmic work (in work units) used to reach the final solution.
 """
 const XPRS_TUNERTARGET::Int32 = Int32(8362)
 
@@ -9166,7 +12337,7 @@ const XPRS_TUNERVERBOSE::Int32 = Int32(8370)
 
 """
     XPRS_USERSOLHEURISTIC
-Determines how much effort to put into running a local search heuristic to find a feasible integer solution from a partial or infeasible user solution. (integer)
+Determines how much effort to put into running a large neighborhood search heuristic to find a feasible integer solution from a partial or infeasible user solution. (integer)
 
 Default value: `-1`
 
@@ -9216,7 +12387,9 @@ const XPRS_VARSELECTION::Int32 = Int32(8025)
 
 """
     XPRS_VERSION
-The Optimizer version number, e.g., `4601` meaning release 46.01. (integer)
+**Deprecated**The Optimizer version number, e.g., `4601` meaning release 46.01. (integer)
+
+This control is deprecated, please use attribute OPTIMIZERVERSION instead.
 
 Default value: Software version dependent
 
@@ -9247,7 +12420,7 @@ const XPRS_CONTROLS::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, Ty
 	"AUTOPERTURB" => (XPRS_AUTOPERTURB, Int64),
 	"AUTOSCALING" => (XPRS_AUTOSCALING, Int64),
 	"BACKGROUNDMAXTHREADS" => (XPRS_BACKGROUNDMAXTHREADS, Int64),
-	"BACKGROUNDSELECT" => (XPRS_BACKGROUNDSELECT, Float64),
+	"BACKGROUNDSELECT" => (XPRS_BACKGROUNDSELECT, Int64),
 	"BACKTRACK" => (XPRS_BACKTRACK, Int64),
 	"BACKTRACKTIE" => (XPRS_BACKTRACKTIE, Int64),
 	"BARALG" => (XPRS_BARALG, Int64),
@@ -9260,7 +12433,9 @@ const XPRS_CONTROLS::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, Ty
 	"BARGAPTARGET" => (XPRS_BARGAPTARGET, Float64),
 	"BARHGEXTRAPOLATE" => (XPRS_BARHGEXTRAPOLATE, Float64),
 	"BARHGGPU" => (XPRS_BARHGGPU, Int64),
+	"BARHGGPUALG" => (XPRS_BARHGGPUALG, Int64),
 	"BARHGGPUBLOCKSIZE" => (XPRS_BARHGGPUBLOCKSIZE, Int64),
+	"BARHGHALPER" => (XPRS_BARHGHALPER, Float64),
 	"BARHGMAXRESTARTS" => (XPRS_BARHGMAXRESTARTS, Int64),
 	"BARHGMINORITERATIONLIMIT" => (XPRS_BARHGMINORITERATIONLIMIT, Int64),
 	"BARHGOPS" => (XPRS_BARHGOPS, Int64),
@@ -9272,7 +12447,6 @@ const XPRS_CONTROLS::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, Ty
 	"BARKEEPLASTSOL" => (XPRS_BARKEEPLASTSOL, Int64),
 	"BARKERNEL" => (XPRS_BARKERNEL, Float64),
 	"BARLARGEBOUND" => (XPRS_BARLARGEBOUND, Float64),
-	"BARNUMSTABILITY" => (XPRS_BARNUMSTABILITY, Int64),
 	"BAROBJPERTURB" => (XPRS_BAROBJPERTURB, Float64),
 	"BAROBJSCALE" => (XPRS_BAROBJSCALE, Float64),
 	"BARORDER" => (XPRS_BARORDER, Int64),
@@ -9295,7 +12469,6 @@ const XPRS_CONTROLS::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, Ty
 	"BRANCHDISJ" => (XPRS_BRANCHDISJ, Int64),
 	"BRANCHSTRUCTURAL" => (XPRS_BRANCHSTRUCTURAL, Int64),
 	"BREADTHFIRST" => (XPRS_BREADTHFIRST, Int64),
-	"CACHESIZE" => (XPRS_CACHESIZE, Int64),
 	"CALLBACKCHECKTIMEDELAY" => (XPRS_CALLBACKCHECKTIMEDELAY, Int64),
 	"CALLBACKCHECKTIMEWORKDELAY" => (XPRS_CALLBACKCHECKTIMEWORKDELAY, Float64),
 	"CALLBACKFROMMAINTHREAD" => (XPRS_CALLBACKFROMMAINTHREAD, Int64),
@@ -9324,10 +12497,33 @@ const XPRS_CONTROLS::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, Ty
 	"CROSSOVERRELPIVOTTOL" => (XPRS_CROSSOVERRELPIVOTTOL, Float64),
 	"CROSSOVERRELPIVOTTOLSAFE" => (XPRS_CROSSOVERRELPIVOTTOLSAFE, Float64),
 	"CROSSOVERTHREADS" => (XPRS_CROSSOVERTHREADS, Int64),
+	"CUTAGGROWS" => (XPRS_CUTAGGROWS, Int64),
 	"CUTDEPTH" => (XPRS_CUTDEPTH, Int64),
 	"CUTFACTOR" => (XPRS_CUTFACTOR, Float64),
 	"CUTFREQ" => (XPRS_CUTFREQ, Int64),
+	"CUTFROMCUTROWS" => (XPRS_CUTFROMCUTROWS, Int64),
+	"CUTGOMMAXROUNDS" => (XPRS_CUTGOMMAXROUNDS, Int64),
+	"CUTGOMMAXTREEROUNDS" => (XPRS_CUTGOMMAXTREEROUNDS, Int64),
+	"CUTMAXROUNDS" => (XPRS_CUTMAXROUNDS, Int64),
+	"CUTMAXTREEROUNDS" => (XPRS_CUTMAXTREEROUNDS, Int64),
+	"CUTOAMAXROUNDS" => (XPRS_CUTOAMAXROUNDS, Int64),
+	"CUTOAMAXTREEROUNDS" => (XPRS_CUTOAMAXTREEROUNDS, Int64),
 	"CUTSELECT" => (XPRS_CUTSELECT, Int64),
+	"CUTSEPCLIQUESTRATEGY" => (XPRS_CUTSEPCLIQUESTRATEGY, Int64),
+	"CUTSEPCOVERSTRATEGY" => (XPRS_CUTSEPCOVERSTRATEGY, Int64),
+	"CUTSEPFARKASSTRATEGY" => (XPRS_CUTSEPFARKASSTRATEGY, Int64),
+	"CUTSEPFLOWPATHSTRATEGY" => (XPRS_CUTSEPFLOWPATHSTRATEGY, Int64),
+	"CUTSEPGOMORYSTRATEGY" => (XPRS_CUTSEPGOMORYSTRATEGY, Int64),
+	"CUTSEPGUBCOVERSTRATEGY" => (XPRS_CUTSEPGUBCOVERSTRATEGY, Int64),
+	"CUTSEPIMPLBOUNDSTRATEGY" => (XPRS_CUTSEPIMPLBOUNDSTRATEGY, Int64),
+	"CUTSEPMCFSTRATEGY" => (XPRS_CUTSEPMCFSTRATEGY, Int64),
+	"CUTSEPMIRSTRATEGY" => (XPRS_CUTSEPMIRSTRATEGY, Int64),
+	"CUTSEPPATHMIXSTRATEGY" => (XPRS_CUTSEPPATHMIXSTRATEGY, Int64),
+	"CUTSEPRLTSTRATEGY" => (XPRS_CUTSEPRLTSTRATEGY, Int64),
+	"CUTSEPSDPSTRATEGY" => (XPRS_CUTSEPSDPSTRATEGY, Int64),
+	"CUTSEPSTRATEGY" => (XPRS_CUTSEPSTRATEGY, Int64),
+	"CUTSEPSTRONGCGSTRATEGY" => (XPRS_CUTSEPSTRONGCGSTRATEGY, Int64),
+	"CUTSEPZEROHALFSTRATEGY" => (XPRS_CUTSEPZEROHALFSTRATEGY, Int64),
 	"CUTSTRATEGY" => (XPRS_CUTSTRATEGY, Int64),
 	"DEFAULTALG" => (XPRS_DEFAULTALG, Int64),
 	"DENSECOLLIMIT" => (XPRS_DENSECOLLIMIT, Int64),
@@ -9362,7 +12558,11 @@ const XPRS_CONTROLS::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, Ty
 	"GENCONSABSTRANSFORMATION" => (XPRS_GENCONSABSTRANSFORMATION, Int64),
 	"GENCONSDUALREDUCTIONS" => (XPRS_GENCONSDUALREDUCTIONS, Int64),
 	"GLOBALBOUNDINGBOX" => (XPRS_GLOBALBOUNDINGBOX, Float64),
+	"GLOBALCONVCUTMAXROUNDS" => (XPRS_GLOBALCONVCUTMAXROUNDS, Int64),
+	"GLOBALCONVCUTMAXTREEROUNDS" => (XPRS_GLOBALCONVCUTMAXTREEROUNDS, Int64),
+	"GLOBALINITCUTSTRATEGY" => (XPRS_GLOBALINITCUTSTRATEGY, Int64),
 	"GLOBALLSHEURSTRATEGY" => (XPRS_GLOBALLSHEURSTRATEGY, Int64),
+	"GLOBALMISLPHEURSTRATEGY" => (XPRS_GLOBALMISLPHEURSTRATEGY, Int64),
 	"GLOBALNLPCUTS" => (XPRS_GLOBALNLPCUTS, Int64),
 	"GLOBALNUMINITNLPCUTS" => (XPRS_GLOBALNUMINITNLPCUTS, Int64),
 	"GLOBALPRESOLVEOBBT" => (XPRS_GLOBALPRESOLVEOBBT, Int64),
@@ -9374,7 +12574,8 @@ const XPRS_CONTROLS::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, Ty
 	"GPUCUDADEVICE" => (XPRS_GPUCUDADEVICE, Int64),
 	"GPUPLATFORM" => (XPRS_GPUPLATFORM, Int64),
 	"HEURBEFORELP" => (XPRS_HEURBEFORELP, Int64),
-	"HEURDEPTH" => (XPRS_HEURDEPTH, Int64),
+	"HEURBEFORELPGPUEFFORT" => (XPRS_HEURBEFORELPGPUEFFORT, Float64),
+	"HEURBEFORELPGPUMETHOD" => (XPRS_HEURBEFORELPGPUMETHOD, Int64),
 	"HEURDIVEITERLIMIT" => (XPRS_HEURDIVEITERLIMIT, Float64),
 	"HEURDIVERANDOMIZE" => (XPRS_HEURDIVERANDOMIZE, Float64),
 	"HEURDIVESOFTROUNDING" => (XPRS_HEURDIVESOFTROUNDING, Int64),
@@ -9383,16 +12584,21 @@ const XPRS_CONTROLS::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, Ty
 	"HEUREMPHASIS" => (XPRS_HEUREMPHASIS, Int64),
 	"HEURFORCESPECIALOBJ" => (XPRS_HEURFORCESPECIALOBJ, Int64),
 	"HEURFREQ" => (XPRS_HEURFREQ, Int64),
-	"HEURMAXSOL" => (XPRS_HEURMAXSOL, Int64),
-	"HEURNODES" => (XPRS_HEURNODES, Int64),
-	"HEURSEARCHBACKGROUNDSELECT" => (XPRS_HEURSEARCHBACKGROUNDSELECT, Float64),
+	"HEURSEARCHANALYTICSTRATEGY" => (XPRS_HEURSEARCHANALYTICSTRATEGY, Int64),
+	"HEURSEARCHBACKGROUNDSELECT" => (XPRS_HEURSEARCHBACKGROUNDSELECT, Int64),
+	"HEURSEARCHCOMBINESTRATEGY" => (XPRS_HEURSEARCHCOMBINESTRATEGY, Int64),
 	"HEURSEARCHCOPYCONTROLS" => (XPRS_HEURSEARCHCOPYCONTROLS, Int64),
 	"HEURSEARCHEFFORT" => (XPRS_HEURSEARCHEFFORT, Float64),
 	"HEURSEARCHFREQ" => (XPRS_HEURSEARCHFREQ, Int64),
+	"HEURSEARCHLPFIRSTSTRATEGY" => (XPRS_HEURSEARCHLPFIRSTSTRATEGY, Int64),
+	"HEURSEARCHMIPFIRSTSTRATEGY" => (XPRS_HEURSEARCHMIPFIRSTSTRATEGY, Int64),
+	"HEURSEARCHRINSSTRATEGY" => (XPRS_HEURSEARCHRINSSTRATEGY, Int64),
 	"HEURSEARCHROOTCUTFREQ" => (XPRS_HEURSEARCHROOTCUTFREQ, Int64),
 	"HEURSEARCHROOTSELECT" => (XPRS_HEURSEARCHROOTSELECT, Int64),
+	"HEURSEARCHSTRATEGY" => (XPRS_HEURSEARCHSTRATEGY, Int64),
 	"HEURSEARCHTARGETSIZE" => (XPRS_HEURSEARCHTARGETSIZE, Float64),
 	"HEURSEARCHTREESELECT" => (XPRS_HEURSEARCHTREESELECT, Int64),
+	"HEURSEARCHZEROOBJSTRATEGY" => (XPRS_HEURSEARCHZEROOBJSTRATEGY, Int64),
 	"HEURSELECT" => (XPRS_HEURSELECT, Int64),
 	"HEURSHIFTPROP" => (XPRS_HEURSHIFTPROP, Int64),
 	"HEURTHREADS" => (XPRS_HEURTHREADS, Int64),
@@ -9467,6 +12673,7 @@ const XPRS_CONTROLS::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, Ty
 	"KNITRO_PARAM_MSSTARTPTRANGE" => (XPRS_KNITRO_PARAM_MSSTARTPTRANGE, Float64),
 	"KNITRO_PARAM_MSTERMINATE" => (XPRS_KNITRO_PARAM_MSTERMINATE, Int64),
 	"KNITRO_PARAM_MULTISTART" => (XPRS_KNITRO_PARAM_MULTISTART, Int64),
+	"KNITRO_PARAM_NCVX_QCQP_INIT" => (XPRS_KNITRO_PARAM_NCVX_QCQP_INIT, Int64),
 	"KNITRO_PARAM_NEWPOINT" => (XPRS_KNITRO_PARAM_NEWPOINT, Int64),
 	"KNITRO_PARAM_OBJRANGE" => (XPRS_KNITRO_PARAM_OBJRANGE, Float64),
 	"KNITRO_PARAM_OPTTOL" => (XPRS_KNITRO_PARAM_OPTTOL, Float64),
@@ -9480,7 +12687,6 @@ const XPRS_CONTROLS::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, Ty
 	"KNITRO_PARAM_SOC" => (XPRS_KNITRO_PARAM_SOC, Int64),
 	"KNITRO_PARAM_SOLTYPE" => (XPRS_KNITRO_PARAM_SOLTYPE, Int64),
 	"KNITRO_PARAM_XTOL" => (XPRS_KNITRO_PARAM_XTOL, Float64),
-	"L1CACHE" => (XPRS_L1CACHE, Int64),
 	"LNPBEST" => (XPRS_LNPBEST, Int64),
 	"LNPITERLIMIT" => (XPRS_LNPITERLIMIT, Int64),
 	"LOCALBACKTRACK" => (XPRS_LOCALBACKTRACK, Int64),
@@ -9563,7 +12769,6 @@ const XPRS_CONTROLS::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, Ty
 	"MULTISTART_SEED" => (XPRS_MULTISTART_SEED, Int64),
 	"MULTISTART_THREADS" => (XPRS_MULTISTART_THREADS, Int64),
 	"MUTEXCALLBACKS" => (XPRS_MUTEXCALLBACKS, Int64),
-	"NETCUTS" => (XPRS_NETCUTS, Int64),
 	"NETSTALLLIMIT" => (XPRS_NETSTALLLIMIT, Int64),
 	"NLPCALCTHREADS" => (XPRS_NLPCALCTHREADS, Int64),
 	"NLPDEFAULTIV" => (XPRS_NLPDEFAULTIV, Float64),
@@ -9602,7 +12807,11 @@ const XPRS_CONTROLS::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, Ty
 	"NLPVALIDATIONTOL_K" => (XPRS_NLPVALIDATIONTOL_K, Float64),
 	"NLPVALIDATIONTOL_R" => (XPRS_NLPVALIDATIONTOL_R, Float64),
 	"NLPZERO" => (XPRS_NLPZERO, Float64),
+	"NODEAPPLIEDBOUNDS" => (XPRS_NODEAPPLIEDBOUNDS, Int64),
+	"NODEDUALREDUCTIONS" => (XPRS_NODEDUALREDUCTIONS, Int64),
+	"NODEPRESOLVE" => (XPRS_NODEPRESOLVE, Int64),
 	"NODEPROBINGEFFORT" => (XPRS_NODEPROBINGEFFORT, Float64),
+	"NODEREDCOSTTIGHTEN" => (XPRS_NODEREDCOSTTIGHTEN, Int64),
 	"NODESELECTION" => (XPRS_NODESELECTION, Int64),
 	"NUMERICALEMPHASIS" => (XPRS_NUMERICALEMPHASIS, Int64),
 	"OBJSCALEFACTOR" => (XPRS_OBJSCALEFACTOR, Int64),
@@ -9614,11 +12823,18 @@ const XPRS_CONTROLS::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, Ty
 	"OUTPUTTOL" => (XPRS_OUTPUTTOL, Float64),
 	"PENALTY" => (XPRS_PENALTY, Float64),
 	"PIVOTTOL" => (XPRS_PIVOTTOL, Float64),
+	"POOLABSGAP" => (XPRS_POOLABSGAP, Float64),
+	"POOLDUPLICATECHECK" => (XPRS_POOLDUPLICATECHECK, Int64),
+	"POOLENUMSTRATEGY" => (XPRS_POOLENUMSTRATEGY, Int64),
+	"POOLKEEPSOLS" => (XPRS_POOLKEEPSOLS, Int64),
+	"POOLLIMIT" => (XPRS_POOLLIMIT, Int64),
+	"POOLRELGAP" => (XPRS_POOLRELGAP, Float64),
 	"PPFACTOR" => (XPRS_PPFACTOR, Float64),
 	"PREANALYTICCENTER" => (XPRS_PREANALYTICCENTER, Int64),
 	"PREBASISRED" => (XPRS_PREBASISRED, Int64),
 	"PREBNDREDCONE" => (XPRS_PREBNDREDCONE, Int64),
 	"PREBNDREDQUAD" => (XPRS_PREBNDREDQUAD, Int64),
+	"PRECLIQUELIFTING" => (XPRS_PRECLIQUELIFTING, Int64),
 	"PRECLIQUESTRATEGY" => (XPRS_PRECLIQUESTRATEGY, Int64),
 	"PRECOEFELIM" => (XPRS_PRECOEFELIM, Int64),
 	"PRECOMPONENTS" => (XPRS_PRECOMPONENTS, Int64),
@@ -9629,11 +12845,15 @@ const XPRS_CONTROLS::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, Ty
 	"PRECONVERTSEPARABLE" => (XPRS_PRECONVERTSEPARABLE, Int64),
 	"PREDOMCOL" => (XPRS_PREDOMCOL, Int64),
 	"PREDOMROW" => (XPRS_PREDOMROW, Int64),
+	"PREDUALREDUCTIONS" => (XPRS_PREDUALREDUCTIONS, Int64),
 	"PREDUPROW" => (XPRS_PREDUPROW, Int64),
+	"PREELIMINATIONS" => (XPRS_PREELIMINATIONS, Int64),
 	"PREELIMQUAD" => (XPRS_PREELIMQUAD, Int64),
 	"PREFOLDING" => (XPRS_PREFOLDING, Int64),
 	"PREIMPLICATIONS" => (XPRS_PREIMPLICATIONS, Int64),
 	"PRELINDEP" => (XPRS_PRELINDEP, Int64),
+	"PREMIPENTDETECT" => (XPRS_PREMIPENTDETECT, Int64),
+	"PREMIPREDUCTIONS" => (XPRS_PREMIPREDUCTIONS, Int64),
 	"PREOBJCUTDETECT" => (XPRS_PREOBJCUTDETECT, Int64),
 	"PREPERMUTE" => (XPRS_PREPERMUTE, Int64),
 	"PREPERMUTESEED" => (XPRS_PREPERMUTESEED, Int64),
@@ -9665,7 +12885,6 @@ const XPRS_CONTROLS::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, Ty
 	"RELPIVOTTOL" => (XPRS_RELPIVOTTOL, Float64),
 	"REPAIRINDEFINITEQ" => (XPRS_REPAIRINDEFINITEQ, Int64),
 	"REPAIRINDEFINITEQMAX" => (XPRS_REPAIRINDEFINITEQMAX, Float64),
-	"REPAIRINFEASMAXTIME" => (XPRS_REPAIRINFEASMAXTIME, Int64),
 	"REPAIRINFEASTIMELIMIT" => (XPRS_REPAIRINFEASTIMELIMIT, Float64),
 	"RESOURCESTRATEGY" => (XPRS_RESOURCESTRATEGY, Int64),
 	"RLTCUTS" => (XPRS_RLTCUTS, Int64),
@@ -9676,13 +12895,16 @@ const XPRS_CONTROLS::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, Ty
 	"SBITERLIMIT" => (XPRS_SBITERLIMIT, Int64),
 	"SBSELECT" => (XPRS_SBSELECT, Int64),
 	"SCALING" => (XPRS_SCALING, Int64),
+	"SCALINGBIGM" => (XPRS_SCALINGBIGM, Int64),
+	"SCALINGMETHOD" => (XPRS_SCALINGMETHOD, Int64),
+	"SCALINGOPS" => (XPRS_SCALINGOPS, Int64),
+	"SCALINGORDER" => (XPRS_SCALINGORDER, Int64),
 	"SDPCUTSTRATEGY" => (XPRS_SDPCUTSTRATEGY, Int64),
 	"SERIALIZEPREINTSOL" => (XPRS_SERIALIZEPREINTSOL, Int64),
 	"SIFTING" => (XPRS_SIFTING, Int64),
 	"SIFTPASSES" => (XPRS_SIFTPASSES, Int64),
 	"SIFTPRESOLVEOPS" => (XPRS_SIFTPRESOLVEOPS, Int64),
 	"SIFTSWITCH" => (XPRS_SIFTSWITCH, Int64),
-	"SLEEPONTHREADWAIT" => (XPRS_SLEEPONTHREADWAIT, Int64),
 	"SLPALGORITHM" => (XPRS_SLPALGORITHM, Int64),
 	"SLPANALYZE" => (XPRS_SLPANALYZE, Int64),
 	"SLPATOL_A" => (XPRS_SLPATOL_A, Float64),
@@ -9785,6 +13007,7 @@ const XPRS_CONTROLS::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, Ty
 	"SLPMIPOTOL_A" => (XPRS_SLPMIPOTOL_A, Float64),
 	"SLPMIPOTOL_R" => (XPRS_SLPMIPOTOL_R, Float64),
 	"SLPMIPRELAXSTEPBOUNDS" => (XPRS_SLPMIPRELAXSTEPBOUNDS, Int64),
+	"SLPMISLPALGORITHM" => (XPRS_SLPMISLPALGORITHM, Int64),
 	"SLPMTOL_A" => (XPRS_SLPMTOL_A, Float64),
 	"SLPMTOL_R" => (XPRS_SLPMTOL_R, Float64),
 	"SLPMVTOL" => (XPRS_SLPMVTOL, Float64),
@@ -9799,6 +13022,7 @@ const XPRS_CONTROLS::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, Ty
 	"SLPPENALTYROWFORMAT" => (XPRS_SLPPENALTYROWFORMAT, String),
 	"SLPPLUSDELTAFORMAT" => (XPRS_SLPPLUSDELTAFORMAT, String),
 	"SLPPLUSERRORFORMAT" => (XPRS_SLPPLUSERRORFORMAT, String),
+	"SLPRETURNSOLUTION" => (XPRS_SLPRETURNSOLUTION, Int64),
 	"SLPSAMECOUNT" => (XPRS_SLPSAMECOUNT, Int64),
 	"SLPSAMEDAMP" => (XPRS_SLPSAMEDAMP, Int64),
 	"SLPSBLOROWFORMAT" => (XPRS_SLPSBLOROWFORMAT, String),
@@ -9810,6 +13034,7 @@ const XPRS_CONTROLS::Dict{String, Tuple{Int, Type}} = Dict{String, Tuple{Int, Ty
 	"SLPSCALECOUNT" => (XPRS_SLPSCALECOUNT, Int64),
 	"SLPSHRINK" => (XPRS_SLPSHRINK, Float64),
 	"SLPSHRINKBIAS" => (XPRS_SLPSHRINKBIAS, Float64),
+	"SLPSTEPBOUNDING" => (XPRS_SLPSTEPBOUNDING, Int64),
 	"SLPSTOL_A" => (XPRS_SLPSTOL_A, Float64),
 	"SLPSTOL_R" => (XPRS_SLPSTOL_R, Float64),
 	"SLPTOLNAME" => (XPRS_SLPTOLNAME, String),
@@ -9993,7 +13218,7 @@ Base.:(==)(i::Integer, x::XPRSBranchChoice) = Int(x) == i
 Base.:(!=)(x::XPRSBranchChoice, i::Integer) = Int(x) != i
 Base.:(!=)(i::Integer, x::XPRSBranchChoice) = Int(x) != i
 Base.convert(::Type{T}, a::XPRSBranchChoice) where {T<:Int32} = T(a)
-@enum XPRSCholeskyAlgorithm XPRS_ALG_PULL_CHOLESKY=0 XPRS_ALG_PUSH_CHOLESKY=1
+@enum XPRSCholeskyAlgorithm XPRS_ALG_MANUAL_MATRIX_BLOCKING=1 XPRS_ALG_SINGLE_PASS_BLOCKING=2 XPRS_ALG_NONSEPARABLE_QP=4 XPRS_ALG_MANUAL_CORRECTOR_WEIGHT=8 XPRS_ALG_CORRECTOR_WEIGHT_ON=16 XPRS_ALG_MANUAL_REFINEMENT=32 XPRS_ALG_PCGM_REFINEMENT=64 XPRS_ALG_QMR_REFINEMENT=128 XPRS_ALG_AUGMENTED_REFINEMENT=256 XPRS_ALG_MAX_ACCURACY_REFINEMENT=512 XPRS_ALG_AUTOMATIC=-1
 Base.:(==)(x::XPRSCholeskyAlgorithm, i::Integer) = Int(x) == i
 Base.:(==)(i::Integer, x::XPRSCholeskyAlgorithm) = Int(x) == i
 Base.:(!=)(x::XPRSCholeskyAlgorithm, i::Integer) = Int(x) != i
@@ -10011,7 +13236,7 @@ Base.:(==)(i::Integer, x::XPRSDualGradient) = Int(x) == i
 Base.:(!=)(x::XPRSDualGradient, i::Integer) = Int(x) != i
 Base.:(!=)(i::Integer, x::XPRSDualGradient) = Int(x) != i
 Base.convert(::Type{T}, a::XPRSDualGradient) where {T<:Int32} = T(a)
-@enum XPRSDualStrategy XPRS_DUALSTRATEGY_REMOVE_INFEAS_WITH_PRIMAL=0 XPRS_DUALSTRATEGY_REMOVE_INFEAS_WITH_DUAL=1
+@enum XPRSDualStrategy XPRS_DUALSTRATEGY_SWITCH_TO_PRIMAL=1 XPRS_DUALSTRATEGY_STOP_SOLVE_WHEN_UNSTABLE=2 XPRS_DUALSTRATEGY_AGRESSIVE_CUTOFF=4 XPRS_DUALSTRATEGY_USE_DUAL_FOR_UNSHIFT=8 XPRS_DUALSTRATEGY_AGRESSIVE_PIVOTING=16 XPRS_DUALSTRATEGY_FORCE_DUAL_WHEN_UNSTABLE=32 XPRS_DUALSTRATEGY_TRY_STABLE_REINVERT=64 XPRS_DUALSTRATEGY_ITREF_CLEANUP=128 XPRS_DUALSTRATEGY_ITREF_REPRICE=256 XPRS_DUALSTRATEGY_ITREF_QUADPREC=512 XPRS_DUALSTRATEGY_ITREF_GETSOL_REFINE=1024 XPRS_DUALSTRATEGY_ITREF_FAIL=2048 XPRS_DUALSTRATEGY_CUTOFF_DISABLERECOMP=4096 XPRS_DUALSTRATEGY_CUTOFF_DISABLEREPAIR=8192
 Base.:(==)(x::XPRSDualStrategy, i::Integer) = Int(x) == i
 Base.:(==)(i::Integer, x::XPRSDualStrategy) = Int(x) == i
 Base.:(!=)(x::XPRSDualStrategy, i::Integer) = Int(x) != i
@@ -10023,7 +13248,7 @@ Base.:(==)(i::Integer, x::XPRSFeasibilityPump) = Int(x) == i
 Base.:(!=)(x::XPRSFeasibilityPump, i::Integer) = Int(x) != i
 Base.:(!=)(i::Integer, x::XPRSFeasibilityPump) = Int(x) != i
 Base.convert(::Type{T}, a::XPRSFeasibilityPump) where {T<:Int32} = T(a)
-@enum XPRSHeuristicSearchSelect XPRS_HEURSEARCH_LOCAL_SEARCH_LARGE_NEIGHBOURHOOD=0 XPRS_HEURSEARCH_LOCAL_SEARCH_NODE_NEIGHBOURHOOD=1 XPRS_HEURSEARCH_LOCAL_SEARCH_SOLUTION_NEIGHBOURHOOD=2 XPRS_HEURSEARCH_LOCAL_SEARCH_COMBINE=3 XPRS_HEURSEARCH_LOCAL_SEARCH_ZERO_OBJECTIVE=5 XPRS_HEURSEARCH_LOCAL_SEARCH_AUXILIARY_OBJECTIVE=6
+@enum XPRSHeuristicSearchSelect XPRS_HEURSEARCH_RINS=1 XPRS_HEURSEARCH_LPFIRST=2 XPRS_HEURSEARCH_MIPFIRST=4 XPRS_HEURSEARCH_COMBINESOLS=8 XPRS_HEURSEARCH_ZEROOBJ=32 XPRS_HEURSEARCH_ANALYTIC=64 XPRS_HEURSEARCH_ALTERNATEOBJ=128
 Base.:(==)(x::XPRSHeuristicSearchSelect, i::Integer) = Int(x) == i
 Base.:(==)(i::Integer, x::XPRSHeuristicSearchSelect) = Int(x) == i
 Base.:(!=)(x::XPRSHeuristicSearchSelect, i::Integer) = Int(x) != i
@@ -10119,13 +13344,61 @@ Base.:(==)(i::Integer, x::XPRSDualizeOps) = Int(x) == i
 Base.:(!=)(x::XPRSDualizeOps, i::Integer) = Int(x) != i
 Base.:(!=)(i::Integer, x::XPRSDualizeOps) = Int(x) != i
 Base.convert(::Type{T}, a::XPRSDualizeOps) where {T<:Int32} = T(a)
+@enum XPRSCrossoverOps XPRS_CROSSOVEROPS_RETURN_BARSOL_ON_FAILURE=1 XPRS_CROSSOVEROPS_SKIP_SECOND_PART=2 XPRS_CROSSOVEROPS_PUSH_UNSTABLE=4 XPRS_CROSSOVEROPS_CAREFUL=8 XPRS_CROSSOVEROPS_CHECKATFIRSTPASS=16 XPRS_CROSSOVEROPS_CLEANUPSMALL=32 XPRS_CROSSOVEROPS_PREFERINFEASIBLE=64 XPRS_CROSSOVEROPS_MOVESUPERBASICS=128 XPRS_CROSSOVEROPS_FAVOURCONTINUOUS=256 XPRS_CROSSOVEROPS_SKIPPINFCHECKINDUAL=512
+Base.:(==)(x::XPRSCrossoverOps, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSCrossoverOps) = Int(x) == i
+Base.:(!=)(x::XPRSCrossoverOps, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSCrossoverOps) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSCrossoverOps) where {T<:Int32} = T(a)
+@enum XPRSPreSort XPRS_PRESORT_ROWS=1 XPRS_PRESORT_COLUMNS=2 XPRS_PRESORT_ENTITIES=4
+Base.:(==)(x::XPRSPreSort, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSPreSort) = Int(x) == i
+Base.:(!=)(x::XPRSPreSort, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSPreSort) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSPreSort) where {T<:Int32} = T(a)
+@enum XPRSPrePermute XPRS_PREPERMUTE_ROWS=1 XPRS_PREPERMUTE_COLUMNS=2 XPRS_PREPERMUTE_ENTITIES=4
+Base.:(==)(x::XPRSPrePermute, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSPrePermute) = Int(x) == i
+Base.:(!=)(x::XPRSPrePermute, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSPrePermute) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSPrePermute) where {T<:Int32} = T(a)
+@enum XPRSBarRegularize XPRS_BARREGULARIZE_STANDARD=1 XPRS_BARREGULARIZE_REDUCED=2 XPRS_BARREGULARIZE_KEEPDEPENDENTROWS=4 XPRS_BARREGULARIZE_KEEPDEGENERATEROWS=8 XPRS_BARREGULARIZE_RESTRICTTOINFEASIBLE=16 XPRS_BARREGULARIZE_DISABLEITERATIONS=32 XPRS_BARREGULARIZE_FORCEITERATIONS=64 XPRS_BARREGULARIZE_LINEARREFINEMENT=128 XPRS_BARREGULARIZE_AUTOMATIC=-1
+Base.:(==)(x::XPRSBarRegularize, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSBarRegularize) = Int(x) == i
+Base.:(!=)(x::XPRSBarRegularize, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSBarRegularize) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSBarRegularize) where {T<:Int32} = T(a)
+@enum XPRSQSimplexOps XPRS_QSIMPLEXOPS_PRIMALPHASE1TRADITIONAL=1 XPRS_QSIMPLEXOPS_PRIMALPHASE1BIGM=2 XPRS_QSIMPLEXOPS_DUALPHASE1TRADITIONAL=4 XPRS_QSIMPLEXOPS_DUALPHASE1BIGM=8 XPRS_QSIMPLEXOPS_FORCEDUALBOUNDS=16 XPRS_QSIMPLEXOPS_NOWARMSTART=32 XPRS_QSIMPLEXOPS_NODUALCRASH=64 XPRS_QSIMPLEXOPS_EXTENDEDDUALCRASH=128 XPRS_QSIMPLEXOPS_CAUTIOUSPERTURBATION=256 XPRS_QSIMPLEXOPS_TRADITIONALSCALE=512 XPRS_QSIMPLEXOPS_NOBARRIERFALLBACK=1024 XPRS_QSIMPLEXOPS_PHASE1PRIMAL=2048 XPRS_QSIMPLEXOPS_PHASE1DUAL=4096 XPRS_QSIMPLEXOPS_PHASE1BARRIER=8192 XPRS_QSIMPLEXOPS_PARTIALPRICING=16384 XPRS_QSIMPLEXOPS_FULLPRICING=32768 XPRS_QSIMPLEXOPS_CROSSOVERCLEANUP=65536 XPRS_QSIMPLEXOPS_EXTERIORKKTWARMBASIS=131072
+Base.:(==)(x::XPRSQSimplexOps, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSQSimplexOps) = Int(x) == i
+Base.:(!=)(x::XPRSQSimplexOps, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSQSimplexOps) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSQSimplexOps) where {T<:Int32} = T(a)
+@enum XPRSBackgroundSelect XPRS_BACKGROUNDSELECT_FEASJUMP=1 XPRS_BACKGROUNDSELECT_FASTBB=2 XPRS_BACKGROUNDSELECT_FASTBB_HEUR=4 XPRS_BACKGROUNDSELECT_FIXPROPAGATEREPAIR=8 XPRS_BACKGROUNDSELECT_PARCUTLOOP=16 XPRS_BACKGROUNDSELECT_LS_IFFEAS=32 XPRS_BACKGROUNDSELECT_LS_CONTINUE=64 XPRS_BACKGROUNDSELECT_ZEROOBJ=128 XPRS_BACKGROUNDSELECT_LS_INFINITE=256 XPRS_BACKGROUNDSELECT_REPAIRINF=512 XPRS_BACKGROUNDSELECT_LS4MIP=1024 XPRS_BACKGROUNDSELECT_AUTOMATIC=-1
+Base.:(==)(x::XPRSBackgroundSelect, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSBackgroundSelect) = Int(x) == i
+Base.:(!=)(x::XPRSBackgroundSelect, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSBackgroundSelect) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSBackgroundSelect) where {T<:Int32} = T(a)
+@enum XPRSPrimalOps XPRS_PRIMALOPS_AGGRESSIVE_DJSCALE=1 XPRS_PRIMALOPS_CONVENTIONAL_DJSCALE=2 XPRS_PRIMALOPS_CONSERVATIVE_PARTIAL_PRICING_SWITCH=4 XPRS_PRIMALOPS_DYNAMIC_PRICING_SWITCH=8 XPRS_PRIMALOPS_UNSHIFT_UNPERTURB=16 XPRS_PRIMALOPS_NOABORTCYCLING=32 XPRS_PRIMALOPS_KEEPSMALL=64 XPRS_PRIMALOPS_KEEPSMALL_XOVER=128 XPRS_PRIMALOPS_LASTBIT=256
+Base.:(==)(x::XPRSPrimalOps, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSPrimalOps) = Int(x) == i
+Base.:(!=)(x::XPRSPrimalOps, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSPrimalOps) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSPrimalOps) where {T<:Int32} = T(a)
+@enum XPRSHeursearchBackgroundSelect XPRS_HEURSEARCHBACKGROUNDSELECT_RINS=1 XPRS_HEURSEARCHBACKGROUNDSELECT_LPFIRST=2 XPRS_HEURSEARCHBACKGROUNDSELECT_MIPFIRST=4 XPRS_HEURSEARCHBACKGROUNDSELECT_COMBINESOLS=8 XPRS_HEURSEARCHBACKGROUNDSELECT_ZEROOBJ=32 XPRS_HEURSEARCHBACKGROUNDSELECT_ANALYTIC=64 XPRS_HEURSEARCHBACKGROUNDSELECT_ALTERNATEOBJ=128 XPRS_HEURSEARCHBACKGROUNDSELECT_AUTOMATIC=-1
+Base.:(==)(x::XPRSHeursearchBackgroundSelect, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSHeursearchBackgroundSelect) = Int(x) == i
+Base.:(!=)(x::XPRSHeursearchBackgroundSelect, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSHeursearchBackgroundSelect) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSHeursearchBackgroundSelect) where {T<:Int32} = T(a)
 @enum XPRSTreeDiagnostics XPRS_TREEDIAGNOSTICS_MEMORY_USAGE_SUMMARIES=1 XPRS_TREEDIAGNOSTICS_MEMORY_SAVED_REPORTS=2 XPRS_TREEDIAGNOSTICS_MEMORY_SAVING_LOG=4 XPRS_TREEDIAGNOSTICS_ACTIVE_NODES_LIST=256 XPRS_TREEDIAGNOSTICS_MEMORY_SAVING=1024 XPRS_TREEDIAGNOSTICS_MEMORY_SAVED=4096 XPRS_TREEDIAGNOSTICS_MEMORY_RESTORED=8192 XPRS_TREEDIAGNOSTICS_NODES=16384
 Base.:(==)(x::XPRSTreeDiagnostics, i::Integer) = Int(x) == i
 Base.:(==)(i::Integer, x::XPRSTreeDiagnostics) = Int(x) == i
 Base.:(!=)(x::XPRSTreeDiagnostics, i::Integer) = Int(x) != i
 Base.:(!=)(i::Integer, x::XPRSTreeDiagnostics) = Int(x) != i
 Base.convert(::Type{T}, a::XPRSTreeDiagnostics) where {T<:Int32} = T(a)
-@enum XPRSBarPresolveOps XPRS_BARPRESOLVEOPS_STANDARD_PRESOLVE=0 XPRS_BARPRESOLVEOPS_EXTRA_BARRIER_PRESOLVE=1
+@enum XPRSBarPresolveOps XPRS_BARPRESOLVEOPS_STANDARD_PRESOLVE=1 XPRS_BARPRESOLVEOPS_EXTRA_BARRIER_PRESOLVE=2 XPRS_BARPRESOLVEOPS_FULL_MATRIX_ELIMINATION=4
 Base.:(==)(x::XPRSBarPresolveOps, i::Integer) = Int(x) == i
 Base.:(==)(i::Integer, x::XPRSBarPresolveOps) = Int(x) == i
 Base.:(!=)(x::XPRSBarPresolveOps, i::Integer) = Int(x) != i
@@ -10161,12 +13434,6 @@ Base.:(==)(i::Integer, x::XPRSPrimalUnshift) = Int(x) == i
 Base.:(!=)(x::XPRSPrimalUnshift, i::Integer) = Int(x) != i
 Base.:(!=)(i::Integer, x::XPRSPrimalUnshift) = Int(x) != i
 Base.convert(::Type{T}, a::XPRSPrimalUnshift) where {T<:Int32} = T(a)
-@enum XPRSRepairIndefiniteQuadratic XPRS_REPAIRINDEFINITEQ_REPAIR_IF_POSSIBLE=0 XPRS_REPAIRINDEFINITEQ_NO_REPAIR=1
-Base.:(==)(x::XPRSRepairIndefiniteQuadratic, i::Integer) = Int(x) == i
-Base.:(==)(i::Integer, x::XPRSRepairIndefiniteQuadratic) = Int(x) == i
-Base.:(!=)(x::XPRSRepairIndefiniteQuadratic, i::Integer) = Int(x) != i
-Base.:(!=)(i::Integer, x::XPRSRepairIndefiniteQuadratic) = Int(x) != i
-Base.convert(::Type{T}, a::XPRSRepairIndefiniteQuadratic) where {T<:Int32} = T(a)
 @enum XPRSObjSense XPRS_OBJ_MINIMIZE=1 XPRS_OBJ_MAXIMIZE=-1
 Base.:(==)(x::XPRSObjSense, i::Integer) = Int(x) == i
 Base.:(==)(i::Integer, x::XPRSObjSense) = Int(x) == i
@@ -10203,7 +13470,7 @@ Base.:(==)(i::Integer, x::XPRSTunerMethod) = Int(x) == i
 Base.:(!=)(x::XPRSTunerMethod, i::Integer) = Int(x) != i
 Base.:(!=)(i::Integer, x::XPRSTunerMethod) = Int(x) != i
 Base.convert(::Type{T}, a::XPRSTunerMethod) where {T<:Int32} = T(a)
-@enum XPRSTunerTarget XPRS_TUNERTARGET_AUTOMATIC=-1 XPRS_TUNERTARGET_TIMEGAP=0 XPRS_TUNERTARGET_TIMEBOUND=1 XPRS_TUNERTARGET_TIMEOBJVAL=2 XPRS_TUNERTARGET_INTEGRAL=3 XPRS_TUNERTARGET_SLPTIME=4 XPRS_TUNERTARGET_SLPOBJVAL=5 XPRS_TUNERTARGET_SLPVALIDATION=6 XPRS_TUNERTARGET_GAP=7 XPRS_TUNERTARGET_BOUND=8 XPRS_TUNERTARGET_OBJVAL=9 XPRS_TUNERTARGET_PRIMALINTEGRAL=10
+@enum XPRSTunerTarget XPRS_TUNERTARGET_AUTOMATIC=-1 XPRS_TUNERTARGET_TIMEGAP=0 XPRS_TUNERTARGET_TIMEBOUND=1 XPRS_TUNERTARGET_TIMEOBJVAL=2 XPRS_TUNERTARGET_INTEGRAL=3 XPRS_TUNERTARGET_SLPTIME=4 XPRS_TUNERTARGET_SLPOBJVAL=5 XPRS_TUNERTARGET_SLPVALIDATION=6 XPRS_TUNERTARGET_GAP=7 XPRS_TUNERTARGET_BOUND=8 XPRS_TUNERTARGET_OBJVAL=9 XPRS_TUNERTARGET_PRIMALINTEGRAL=10 XPRS_TUNERTARGET_WORK=11
 Base.:(==)(x::XPRSTunerTarget, i::Integer) = Int(x) == i
 Base.:(==)(i::Integer, x::XPRSTunerTarget) = Int(x) == i
 Base.:(!=)(x::XPRSTunerTarget, i::Integer) = Int(x) != i
@@ -10299,7 +13566,7 @@ Base.:(==)(i::Integer, x::XPRSGlobalLSHEURStrategy) = Int(x) == i
 Base.:(!=)(x::XPRSGlobalLSHEURStrategy, i::Integer) = Int(x) != i
 Base.:(!=)(i::Integer, x::XPRSGlobalLSHEURStrategy) = Int(x) != i
 Base.convert(::Type{T}, a::XPRSGlobalLSHEURStrategy) where {T<:Int32} = T(a)
-@enum XPRSBARHGOps XPRS_BARHGOPS_ASYM_AVG=1 XPRS_BARHGOPS_START_L1=2 XPRS_BARHGOPS_START_L2=4 XPRS_BARHGOPS_START_LINF=8 XPRS_BARHGOPS_RESTART_L2=16 XPRS_BARHGOPS_OMEGA_CONTRACT=32 XPRS_BARHGOPS_OMEGA_INF=64 XPRS_BARHGOPS_MAX_OBJSCALE=128 XPRS_BARHGOPS_NO_OBJSCALE=256 XPRS_BARHGOPS_HPDHG=512 XPRS_BARHGOPS_HBASE=1024 XPRS_BARHGOPS_UNWEIGHTED_AVERAGE=2048 XPRS_BARHGOPS_RESTART_NOSCALE=4096 XPRS_BARHGOPS_RESTART_OMEGA=8192
+@enum XPRSBARHGOps XPRS_BARHGOPS_ASYM_AVG=1 XPRS_BARHGOPS_START_L1=2 XPRS_BARHGOPS_START_L2=4 XPRS_BARHGOPS_START_LINF=8 XPRS_BARHGOPS_RESTART_L2=16 XPRS_BARHGOPS_OMEGA_CONTRACT=32 XPRS_BARHGOPS_OMEGA_INF=64 XPRS_BARHGOPS_NOHALPER=128 XPRS_BARHGOPS_OBJSCALE=256 XPRS_BARHGOPS_RHSSCALE=512 XPRS_BARHGOPS_UNWEIGHTED_AVERAGE=1024 XPRS_BARHGOPS_RESTART_SCALE=2048 XPRS_BARHGOPS_RESTART_OMEGA=4096
 Base.:(==)(x::XPRSBARHGOps, i::Integer) = Int(x) == i
 Base.:(==)(i::Integer, x::XPRSBARHGOps) = Int(x) == i
 Base.:(!=)(x::XPRSBARHGOps, i::Integer) = Int(x) != i
@@ -10335,6 +13602,138 @@ Base.:(==)(i::Integer, x::XPRSMIPStopStage) = Int(x) == i
 Base.:(!=)(x::XPRSMIPStopStage, i::Integer) = Int(x) != i
 Base.:(!=)(i::Integer, x::XPRSMIPStopStage) = Int(x) != i
 Base.convert(::Type{T}, a::XPRSMIPStopStage) where {T<:Int32} = T(a)
+@enum XPRSHeurBeforeLPGPUMethod XPRS_HEURBEFORELPGPUMETHOD_AUTOMATIC=-1 XPRS_HEURBEFORELPGPUMETHOD_OFF=0 XPRS_HEURBEFORELPGPUMETHOD_FEASPUMP=1
+Base.:(==)(x::XPRSHeurBeforeLPGPUMethod, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSHeurBeforeLPGPUMethod) = Int(x) == i
+Base.:(!=)(x::XPRSHeurBeforeLPGPUMethod, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSHeurBeforeLPGPUMethod) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSHeurBeforeLPGPUMethod) where {T<:Int32} = T(a)
+@enum XPRSPoolEnumStrategy XPRS_POOLENUMSTRATEGY_STANDARD=0 XPRS_POOLENUMSTRATEGY_EXTENDED=1 XPRS_POOLENUMSTRATEGY_FULL=2
+Base.:(==)(x::XPRSPoolEnumStrategy, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSPoolEnumStrategy) = Int(x) == i
+Base.:(!=)(x::XPRSPoolEnumStrategy, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSPoolEnumStrategy) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSPoolEnumStrategy) where {T<:Int32} = T(a)
+@enum XPRSNodePresolve XPRS_NODEPRESOLVE_AUTOMATIC=-1 XPRS_NODEPRESOLVE_OFF=0 XPRS_NODEPRESOLVE_CONSERVATIVE=1 XPRS_NODEPRESOLVE_MODERATE=2
+Base.:(==)(x::XPRSNodePresolve, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSNodePresolve) = Int(x) == i
+Base.:(!=)(x::XPRSNodePresolve, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSNodePresolve) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSNodePresolve) where {T<:Int32} = T(a)
+@enum XPRSNodeRedcostTighten XPRS_NODEREDCOSTTIGHTEN_AUTOMATIC=-1 XPRS_NODEREDCOSTTIGHTEN_OFF=0 XPRS_NODEREDCOSTTIGHTEN_MODERATE=1 XPRS_NODEREDCOSTTIGHTEN_AGGRESSIVE=2
+Base.:(==)(x::XPRSNodeRedcostTighten, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSNodeRedcostTighten) = Int(x) == i
+Base.:(!=)(x::XPRSNodeRedcostTighten, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSNodeRedcostTighten) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSNodeRedcostTighten) where {T<:Int32} = T(a)
+@enum XPRSNodeAppliedBounds XPRS_NODEAPPLIEDBOUNDS_AUTOMATIC=-1 XPRS_NODEAPPLIEDBOUNDS_OFF=0 XPRS_NODEAPPLIEDBOUNDS_MIPENTITIES=1 XPRS_NODEAPPLIEDBOUNDS_ALL=2
+Base.:(==)(x::XPRSNodeAppliedBounds, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSNodeAppliedBounds) = Int(x) == i
+Base.:(!=)(x::XPRSNodeAppliedBounds, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSNodeAppliedBounds) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSNodeAppliedBounds) where {T<:Int32} = T(a)
+@enum XPRSDualReductions XPRS_DUALREDUCTIONS_AUTOMATIC=-1 XPRS_DUALREDUCTIONS_OFF=0 XPRS_DUALREDUCTIONS_ALL=1 XPRS_DUALREDUCTIONS_NONMIPENTITIES=2
+Base.:(==)(x::XPRSDualReductions, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSDualReductions) = Int(x) == i
+Base.:(!=)(x::XPRSDualReductions, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSDualReductions) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSDualReductions) where {T<:Int32} = T(a)
+@enum XPRSCutSepStrategy XPRS_CUTSEPSTRATEGY_AUTOENFORCED=-2 XPRS_CUTSEPSTRATEGY_AUTOMATIC=-1 XPRS_CUTSEPSTRATEGY_OFF=0 XPRS_CUTSEPSTRATEGY_CONSERVATIVE=1 XPRS_CUTSEPSTRATEGY_MODERATE=2 XPRS_CUTSEPSTRATEGY_AGGRESSIVE=3
+Base.:(==)(x::XPRSCutSepStrategy, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSCutSepStrategy) = Int(x) == i
+Base.:(!=)(x::XPRSCutSepStrategy, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSCutSepStrategy) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSCutSepStrategy) where {T<:Int32} = T(a)
+@enum XPRSCutAggRows XPRS_CUTAGGROWS_AUTOMATIC=-1 XPRS_CUTAGGROWS_OFF=0 XPRS_CUTAGGROWS_CONSERVATIVE=1 XPRS_CUTAGGROWS_MODERATE=2 XPRS_CUTAGGROWS_AGGRESSIVE=3 XPRS_CUTAGGROWS_VERYAGGRESSIVE=4
+Base.:(==)(x::XPRSCutAggRows, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSCutAggRows) = Int(x) == i
+Base.:(!=)(x::XPRSCutAggRows, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSCutAggRows) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSCutAggRows) where {T<:Int32} = T(a)
+@enum XPRSCutFromCutRows XPRS_CUTFROMCUTROWS_AUTOMATIC=-1 XPRS_CUTFROMCUTROWS_OFF=0 XPRS_CUTFROMCUTROWS_CONSERVATIVE=1 XPRS_CUTFROMCUTROWS_MODERATE=2 XPRS_CUTFROMCUTROWS_AGGRESSIVE=3
+Base.:(==)(x::XPRSCutFromCutRows, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSCutFromCutRows) = Int(x) == i
+Base.:(!=)(x::XPRSCutFromCutRows, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSCutFromCutRows) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSCutFromCutRows) where {T<:Int32} = T(a)
+@enum XPRSScalingMethod XPRS_SCALINGMETHOD_AUTOMATIC=-1 XPRS_SCALINGMETHOD_OFF=0 XPRS_SCALINGMETHOD_MAXIMUM=1 XPRS_SCALINGMETHOD_GEOMETRICMEAN=2 XPRS_SCALINGMETHOD_CURTISREID=3 XPRS_SCALINGMETHOD_MAXIMUMCURTISREID=4
+Base.:(==)(x::XPRSScalingMethod, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSScalingMethod) = Int(x) == i
+Base.:(!=)(x::XPRSScalingMethod, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSScalingMethod) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSScalingMethod) where {T<:Int32} = T(a)
+@enum XPRSScalingOrder XPRS_SCALINGORDER_AUTOMATIC=-1 XPRS_SCALINGORDER_BEFOREPRESOLVE=1 XPRS_SCALINGORDER_AFTERPRESOLVE=2 XPRS_SCALINGORDER_BEFOREANDAFTERPRESOLVE=3
+Base.:(==)(x::XPRSScalingOrder, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSScalingOrder) = Int(x) == i
+Base.:(!=)(x::XPRSScalingOrder, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSScalingOrder) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSScalingOrder) where {T<:Int32} = T(a)
+@enum XPRSScalingBigM XPRS_SCALINGBIGM_AUTOMATIC=-1 XPRS_SCALINGBIGM_OFF=0 XPRS_SCALINGBIGM_ON=1
+Base.:(==)(x::XPRSScalingBigM, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSScalingBigM) = Int(x) == i
+Base.:(!=)(x::XPRSScalingBigM, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSScalingBigM) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSScalingBigM) where {T<:Int32} = T(a)
+@enum XPRSScalingSimplexObj XPRS_SCALINGSIMPLEXOBJ_AUTOMATIC=-1 XPRS_SCALINGSIMPLEXOBJ_OFF=0 XPRS_SCALINGSIMPLEXOBJ_ON=1
+Base.:(==)(x::XPRSScalingSimplexObj, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSScalingSimplexObj) = Int(x) == i
+Base.:(!=)(x::XPRSScalingSimplexObj, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSScalingSimplexObj) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSScalingSimplexObj) where {T<:Int32} = T(a)
+@enum XPRSScalingOps XPRS_SCALINGOPS_ROW_SCALING=1 XPRS_SCALINGOPS_COLUMN_SCALING=2 XPRS_SCALINGOPS_ROW_SCALING_AGAIN=4 XPRS_SCALINGOPS_IGNORE_QUADRATIC_ROW_PART=256 XPRS_SCALINGOPS_NO_SCALING_ROWS_UP=1024 XPRS_SCALINGOPS_NO_SCALING_COLUMNS_DOWN=2048 XPRS_SCALINGOPS_DISABLE_GLOBAL_OBJECTIVE_SCALING=4096 XPRS_SCALINGOPS_RHS_SCALING=8192 XPRS_SCALINGOPS_NO_AGGRESSIVE_Q_SCALING=16384 XPRS_SCALINGOPS_SLACK_SCALING=32768 XPRS_SCALINGOPS_RUIZ=65536 XPRS_SCALINGOPS_DOGLEG=131072
+Base.:(==)(x::XPRSScalingOps, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSScalingOps) = Int(x) == i
+Base.:(!=)(x::XPRSScalingOps, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSScalingOps) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSScalingOps) where {T<:Int32} = T(a)
+@enum XPRSGlobalMislpHeurOps XPRS_GLOBALMISLPHEUROPS_USEINITIALVALUE=1 XPRS_GLOBALMISLPHEUROPS_LOCALNEIGHBORHOOD=2 XPRS_GLOBALMISLPHEUROPS_LOCALNEIGHBORHOODRELAXONES=4 XPRS_GLOBALMISLPHEUROPS_SLPMIPSLP=8 XPRS_GLOBALMISLPHEUROPS_SLPMIPSLPRELAXED=16 XPRS_GLOBALMISLPHEUROPS_SLPINMIP=32 XPRS_GLOBALMISLPHEUROPS_MIPINSLP=64 XPRS_GLOBALMISLPHEUROPS_RUNWITHSOL=128 XPRS_GLOBALMISLPHEUROPS_CALLBEFORECUTTING=256 XPRS_GLOBALMISLPHEUROPS_CALLAFTERCUTTING=512
+Base.:(==)(x::XPRSGlobalMislpHeurOps, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSGlobalMislpHeurOps) = Int(x) == i
+Base.:(!=)(x::XPRSGlobalMislpHeurOps, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSGlobalMislpHeurOps) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSGlobalMislpHeurOps) where {T<:Int32} = T(a)
+@enum XPRSGlobalMislpHeurStrategy XPRS_GLOBALMISLPHEURSTRATEGY_AUTOMATIC=-1 XPRS_GLOBALMISLPHEURSTRATEGY_OFF=0 XPRS_GLOBALMISLPHEURSTRATEGY_CONSERVATIVE=1 XPRS_GLOBALMISLPHEURSTRATEGY_MODERATE=2 XPRS_GLOBALMISLPHEURSTRATEGY_AGGRESSIVE=3
+Base.:(==)(x::XPRSGlobalMislpHeurStrategy, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSGlobalMislpHeurStrategy) = Int(x) == i
+Base.:(!=)(x::XPRSGlobalMislpHeurStrategy, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSGlobalMislpHeurStrategy) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSGlobalMislpHeurStrategy) where {T<:Int32} = T(a)
+@enum XPRSHeurSearchStrategy XPRS_HEURSEARCHSTRATEGY_AUTOENFORCED=-2 XPRS_HEURSEARCHSTRATEGY_AUTOMATIC=-1 XPRS_HEURSEARCHSTRATEGY_OFF=0 XPRS_HEURSEARCHSTRATEGY_CONSERVATIVE=1 XPRS_HEURSEARCHSTRATEGY_MODERATE=2 XPRS_HEURSEARCHSTRATEGY_AGGRESSIVE=3
+Base.:(==)(x::XPRSHeurSearchStrategy, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSHeurSearchStrategy) = Int(x) == i
+Base.:(!=)(x::XPRSHeurSearchStrategy, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSHeurSearchStrategy) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSHeurSearchStrategy) where {T<:Int32} = T(a)
+@enum XPRSPreCliqueLifting XPRS_PRECLIQUELIFTING_AUTOMATIC=-1 XPRS_PRECLIQUELIFTING_OFF=0 XPRS_PRECLIQUELIFTING_ON=1
+Base.:(==)(x::XPRSPreCliqueLifting, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSPreCliqueLifting) = Int(x) == i
+Base.:(!=)(x::XPRSPreCliqueLifting, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSPreCliqueLifting) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSPreCliqueLifting) where {T<:Int32} = T(a)
+@enum XPRSPreMIPReductions XPRS_PREMIPREDUCTIONS_AUTOMATIC=-1 XPRS_PREMIPREDUCTIONS_OFF=0 XPRS_PREMIPREDUCTIONS_SIMPLE=1 XPRS_PREMIPREDUCTIONS_ADVANCED=2
+Base.:(==)(x::XPRSPreMIPReductions, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSPreMIPReductions) = Int(x) == i
+Base.:(!=)(x::XPRSPreMIPReductions, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSPreMIPReductions) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSPreMIPReductions) where {T<:Int32} = T(a)
+@enum XPRSPreMIPEntDetect XPRS_PREMIPENTDETECT_AUTOMATIC=-1 XPRS_PREMIPENTDETECT_OFF=0 XPRS_PREMIPENTDETECT_ON=1
+Base.:(==)(x::XPRSPreMIPEntDetect, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSPreMIPEntDetect) = Int(x) == i
+Base.:(!=)(x::XPRSPreMIPEntDetect, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSPreMIPEntDetect) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSPreMIPEntDetect) where {T<:Int32} = T(a)
+@enum XPRSPreEliminations XPRS_PREELIMINATIONS_AUTOMATIC=-1 XPRS_PREELIMINATIONS_OFF=0 XPRS_PREELIMINATIONS_NONMIPENTITIES=1 XPRS_PREELIMINATIONS_ALL=2
+Base.:(==)(x::XPRSPreEliminations, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSPreEliminations) = Int(x) == i
+Base.:(!=)(x::XPRSPreEliminations, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSPreEliminations) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSPreEliminations) where {T<:Int32} = T(a)
+@enum XPRSGlobalInitCutStrategy XPRS_GLOBALINITCUTSTRATEGY_AUTOMATIC=-1 XPRS_GLOBALINITCUTSTRATEGY_OFF=0 XPRS_GLOBALINITCUTSTRATEGY_CONSERVATIVE=1 XPRS_GLOBALINITCUTSTRATEGY_MODERATE=2 XPRS_GLOBALINITCUTSTRATEGY_AGGRESSIVE=3
+Base.:(==)(x::XPRSGlobalInitCutStrategy, i::Integer) = Int(x) == i
+Base.:(==)(i::Integer, x::XPRSGlobalInitCutStrategy) = Int(x) == i
+Base.:(!=)(x::XPRSGlobalInitCutStrategy, i::Integer) = Int(x) != i
+Base.:(!=)(i::Integer, x::XPRSGlobalInitCutStrategy) = Int(x) != i
+Base.convert(::Type{T}, a::XPRSGlobalInitCutStrategy) where {T<:Int32} = T(a)
 """
 Wraps callable C library function XPRSendlicensing:
 """
@@ -11732,9 +15131,9 @@ end
 """
     XPRSfixmipentities(prob, options)::XPRSprob
 
-Fixes all the MIP entities to the values of the last found MIP solution.
+Fixes all the MIP entities to the values of the current MIP solution.
 
-This is useful for finding the reduced costs for the continuous variables after the integer variables have been fixed to their optimal values.
+This is useful for finding the reduced costs for the continuous variables after the integer variables have been fixed to their optimal values. For an infeasible MIP solution, this function prepares the problem to compute an Irreducible Infeasible Set (IIS) that explains the infeasibility of the integer assignment.
 
 # Arguments
 - `prob::XPRSprob`: The current problem.
@@ -11748,6 +15147,50 @@ function XPRSfixmipentities(prob::XPRSprob, options)::XPRSprob
   optionsxx = Int32(options)
   faddr = getFunctionAddress("XPRSfixmipentities")
   retcode = ccall(faddr, Cint, (Ptr{Cvoid},Cint), prob.handle, optionsxx)
+  consumeCallbackException(prob)
+  if retcode != 0
+    throw(XPRSexception(XPRSgetlasterror(prob), nothing))
+  end
+  return prob
+end
+
+"""
+    XPRSfixmipentitiessolution(prob, len, solval, colind, options)::XPRSprob
+
+Fixes all the MIP entities to the values of the specified MIP solution values.
+
+This is useful for finding the reduced costs for the continuous variables after the integer variables have been fixed to their optimal values. For an infeasible MIP solution, this function prepares the problem to compute an Irreducible Infeasible Set (IIS) that explains the infeasibility of the integer assignment.
+
+# Arguments
+- `prob::XPRSprob`: The current problem.
+- `len::Integer`: Number of columns for which a value is provided.
+- `solval::AbstractVector{Number}`: Double array of length `length` containing solution values.
+- `colind::AbstractVector{Integer}`: Optional integer array of length `length` containing column indices from `0` to INPUTCOLS`-1`, for the solution values provided in `solval`.
+- `options::Integer`: Options how to fix the MIP entities. 0If all MIP entities should be rounded to the nearest discrete value in the solution before being fixed. 1If piecewise linear and general constraints as well as partial integers should be kept in the problem with only the non-convex decisions (i.e. which part of a non-convex piecewise linear function, which variable attains a maximum or the integer part of the partial integer) fixed.
+# Return value
+- `prob::XPRSprob`: The current problem.
+
+See also the documentation of the correponding function [XPRSfixmipentitiessolution](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSfixmipentitiessolution.html) in the C API.
+"""
+function XPRSfixmipentitiessolution(prob::XPRSprob, len, solval, colind, options)::XPRSprob
+  lenxx = Int32(len)
+  if isnothing(solval) || length(solval) == 0
+    c_solval = nothing
+  elseif isa(solval, AbstractVector{Float64})
+    c_solval = solval
+  else
+    c_solval = convert(Vector{Float64}, solval)
+  end
+  if isnothing(colind) || length(colind) == 0
+    c_colind = nothing
+  elseif isa(colind, AbstractVector{Int32})
+    c_colind = colind
+  else
+    c_colind = convert(Vector{Int32}, colind)
+  end
+  optionsxx = Int32(options)
+  faddr = getFunctionAddress("XPRSfixmipentitiessolution")
+  retcode = ccall(faddr, Cint, (Ptr{Cvoid},Cint,Ptr{Cdouble},Ptr{Cint},Cint), prob.handle, lenxx, isnothing(c_solval) ? C_NULL : c_solval, isnothing(c_colind) ? C_NULL : c_colind, optionsxx)
   consumeCallbackException(prob)
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
@@ -12383,35 +15826,6 @@ function XPRSaddnames(prob::XPRSprob, type, names::AbstractVector{T0}, first, la
 end
 
 """
-Wraps callable C library function XPRSaddsetnames:
-"""
-function XPRSaddsetnames(prob::XPRSprob, names::AbstractVector{T0}, first, last)::XPRSprob where {T0<:AbstractString}
-  totlen = Csize_t(0)
-  for i in eachindex(names)
-    totlen += sizeof(names[i]) + 1
-  end
-  names_flat = Vector{Cchar}(undef, totlen)
-  position = Csize_t(1)
-  for i in eachindex(names)
-    for k in 1:sizeof(names[i])
-      names_flat[position] = codeunit(names[i], k)
-      position += 1
-    end
-    names_flat[position] = 0x0
-    position += 1
-  end
-  firstxx = Int32(first)
-  lastxx = Int32(last)
-  faddr = getFunctionAddress("XPRSaddsetnames")
-  retcode = ccall(faddr, Cint, (Ptr{Cvoid},Ptr{Cchar},Cint,Cint), prob.handle, names_flat, firstxx, lastxx)
-  consumeCallbackException(prob)
-  if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob), nothing))
-  end
-  return prob
-end
-
-"""
     XPRSscale(prob, rowscale, colscale)::XPRSprob
 
 Re-scales the current matrix.
@@ -12498,19 +15912,6 @@ function XPRSwritedirs(prob::XPRSprob, filename::Union{Nothing,AbstractString}):
   end
   faddr = getFunctionAddress("XPRSwritedirs")
   retcode = ccall(faddr, Cint, (Ptr{Cvoid},Cstring), prob.handle, filename_pass)
-  consumeCallbackException(prob)
-  if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob), nothing))
-  end
-  return prob
-end
-
-"""
-Wraps callable C library function XPRSunloadprob:
-"""
-function XPRSunloadprob(prob::XPRSprob)::XPRSprob
-  faddr = getFunctionAddress("XPRSunloadprob")
-  retcode = ccall(faddr, Cint, (Ptr{Cvoid},), prob.handle)
   consumeCallbackException(prob)
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
@@ -13410,66 +16811,6 @@ function XPRSdelindicators(prob::XPRSprob, first, last)::XPRSprob
 end
 
 """
-    XPRSminim(prob, flags)::XPRSprob
-
-**Deprecated**XPRSlpoptimize or XPRSmipoptimize should be used instead.
-
-Begins a search for the optimal LP solution.
-
-# Arguments
-- `prob::XPRSprob`: The current problem.
-- `flags::Union{Nothing,AbstractString}`: Flags to pass to `XPRSmaxim` (`MAXIM`) or `XPRSminim` (`MINIM`).
-# Return value
-- `prob::XPRSprob`: The current problem.
-
-See also the documentation of the correponding function [XPRSminim](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSminim.html) in the C API.
-"""
-function XPRSminim(prob::XPRSprob, flags::Union{Nothing,AbstractString})::XPRSprob
-  if isnothing(flags)
-    flags_pass = C_NULL
-  else
-    flags_pass = flags
-  end
-  faddr = getFunctionAddress("XPRSminim")
-  retcode = ccall(faddr, Cint, (Ptr{Cvoid},Cstring), prob.handle, flags_pass)
-  consumeCallbackException(prob)
-  if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob), nothing))
-  end
-  return prob
-end
-
-"""
-    XPRSmaxim(prob, flags)::XPRSprob
-
-**Deprecated**XPRSlpoptimize or XPRSmipoptimize should be used instead.
-
-Begins a search for the optimal LP solution.
-
-# Arguments
-- `prob::XPRSprob`: The current problem.
-- `flags::Union{Nothing,AbstractString}`: Flags to pass to `XPRSmaxim` (`MAXIM`) or `XPRSminim` (`MINIM`).
-# Return value
-- `prob::XPRSprob`: The current problem.
-
-See also the documentation of the correponding function [XPRSmaxim](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSmaxim.html) in the C API.
-"""
-function XPRSmaxim(prob::XPRSprob, flags::Union{Nothing,AbstractString})::XPRSprob
-  if isnothing(flags)
-    flags_pass = C_NULL
-  else
-    flags_pass = flags
-  end
-  faddr = getFunctionAddress("XPRSmaxim")
-  retcode = ccall(faddr, Cint, (Ptr{Cvoid},Cstring), prob.handle, flags_pass)
-  consumeCallbackException(prob)
-  if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob), nothing))
-  end
-  return prob
-end
-
-"""
     XPRSlpoptimize(prob, flags)::XPRSprob
 
 This function begins a search for the optimal continuous (LP) solution.
@@ -13572,7 +16913,7 @@ Reads an ASCII solution file `.slx` created by the XPRSwriteslxsol function.
 # Arguments
 - `prob::XPRSprob`: The current problem.
 - `filename::Union{Nothing,AbstractString}`: A string of up to MAXPROBNAMELENGTH characters containing the file name to which the solution is to be read.
-- `flags::Union{Nothing,AbstractString}`: Flags to pass to `XPRSreadslxsol` (`READSLXSOL`): non-breaking-whitespace conversion; aread multiple MIP solutions from the `.slx` file and add them to the MIP problem; lread the solution as an LP solution in case of a MIP problem; mread the solution as a solution for the MIP problem; pinterpret the solution as partial: use XPRSaddmipsol for solutions with undefined column values, potentially triggering a local search to complete the solution.
+- `flags::Union{Nothing,AbstractString}`: Flags to pass to `XPRSreadslxsol` (`READSLXSOL`): non-breaking-whitespace conversion; aread multiple MIP solutions from the `.slx` file and add them to the MIP problem; lread the solution as an LP solution in case of a MIP problem; mread the solution as a solution for the MIP problem; pinterpret the solution as partial: use XPRSaddmipsol for solutions with undefined column values, potentially triggering a large neighborhood search heuristic to complete the solution.
 # Return value
 - `prob::XPRSprob`: The current problem.
 
@@ -13591,31 +16932,6 @@ function XPRSreadslxsol(prob::XPRSprob, filename::Union{Nothing,AbstractString},
   end
   faddr = getFunctionAddress("XPRSreadslxsol")
   retcode = ccall(faddr, Cint, (Ptr{Cvoid},Cstring,Cstring), prob.handle, filename_pass, flags_pass)
-  consumeCallbackException(prob)
-  if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob), nothing))
-  end
-  return prob
-end
-
-"""
-    XPRSalter(prob, filename)::XPRSprob
-
-To change matrix coefficients, use XPRSchgmcoef.
-
-To change column bounds, use XPRSchgbounds. To change constraint right-hand side values, use XPRSchgrhs. To change constraint types, use XPRSchgrowtype. To change objective coefficients, use XPRSchgobj.
-
-
-See also the documentation of the correponding function [XPRSalter](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSalter.html) in the C API.
-"""
-function XPRSalter(prob::XPRSprob, filename::Union{Nothing,AbstractString})::XPRSprob
-  if isnothing(filename)
-    filename_pass = C_NULL
-  else
-    filename_pass = filename
-  end
-  faddr = getFunctionAddress("XPRSalter")
-  retcode = ccall(faddr, Cint, (Ptr{Cvoid},Cstring), prob.handle, filename_pass)
   consumeCallbackException(prob)
   if retcode != 0
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
@@ -14067,33 +17383,6 @@ function XPRStunerreadmethod(prob::XPRSprob, methodfile::Union{Nothing,AbstractS
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   return prob
-end
-
-"""
-Wraps callable C library function XPRSgetbarnumstability:
-"""
-function XPRSgetbarnumstability(prob::XPRSprob, colstab::Union{XPRSallocatable,Nothing,AbstractVector{Int32}}, rowstab::Union{XPRSallocatable,Nothing,AbstractVector{Int32}})::Tuple{Union{Nothing,AbstractVector{Int32}},Union{Nothing,AbstractVector{Int32}}}
-  if isa(colstab, XPRSallocatable)
-    colstab = Vector{Int32}(undef, XPRSgetintattrib(prob, XPRS_ORIGINALCOLS))
-  elseif !isnothing(colstab)
-    if length(colstab) < XPRSgetintattrib(prob, XPRS_ORIGINALCOLS)
-      throw(XPRSexception("Argument colstab is too short, needs " * (XPRSgetintattrib(prob, XPRS_ORIGINALCOLS)) * " elements but has only " * string(length(colstab)), nothing))
-    end
-  end
-  if isa(rowstab, XPRSallocatable)
-    rowstab = Vector{Int32}(undef, XPRSgetintattrib(prob, XPRS_ORIGINALROWS))
-  elseif !isnothing(rowstab)
-    if length(rowstab) < XPRSgetintattrib(prob, XPRS_ORIGINALROWS)
-      throw(XPRSexception("Argument rowstab is too short, needs " * (XPRSgetintattrib(prob, XPRS_ORIGINALROWS)) * " elements but has only " * string(length(rowstab)), nothing))
-    end
-  end
-  faddr = getFunctionAddress("XPRSgetbarnumstability")
-  retcode = ccall(faddr, Cint, (Ptr{Cvoid},Ptr{Cint},Ptr{Cint}), prob.handle, isnothing(colstab) ? C_NULL : colstab, isnothing(rowstab) ? C_NULL : rowstab)
-  consumeCallbackException(prob)
-  if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob), nothing))
-  end
-  return colstab, rowstab
 end
 
 """
@@ -15691,28 +18980,6 @@ function XPRSloadlpsol(prob::XPRSprob, x, slack, duals, djs)::Int32
 end
 
 """
-    XPRSbasiscondition(prob)::Tuple{Float64,Float64}
-
-Use XPRSbasisstability instead.
-
-
-See also the documentation of the correponding function [XPRSbasiscondition](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSbasiscondition.html) in the C API.
-"""
-function XPRSbasiscondition(prob::XPRSprob)::Tuple{Float64,Float64}
-  p_cond_dummy = Ref{Float64}(0)
-  p_scaledcond_dummy = Ref{Float64}(0)
-  faddr = getFunctionAddress("XPRSbasiscondition")
-  retcode = ccall(faddr, Cint, (Ptr{Cvoid},Ref{Cdouble},Ref{Cdouble}), prob.handle, p_cond_dummy, p_scaledcond_dummy)
-  consumeCallbackException(prob)
-  if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob), nothing))
-  end
-  p_cond = p_cond_dummy[]
-  p_scaledcond = p_scaledcond_dummy[]
-  return p_cond, p_scaledcond
-end
-
-"""
     XPRSrepairweightedinfeas(prob, lepref, gepref, lbpref, ubpref, phase2, delta, flags)::Int32
 
 By relaxing a set of selected constraints and bounds of an infeasible problem, it attempts to identify a 'solution' that violates the selected set of constraints and bounds minimally, while satisfying all other constraints and bounds.
@@ -17213,6 +20480,115 @@ function XPRSdelobj(prob::XPRSprob, objidx)::XPRSprob
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   return prob
+end
+
+"""
+    XPRSgetpoolsolution(prob, num, x, first, last)::Tuple{Int32,AbstractVector{Float64}}
+
+Returns the primal values of a solution collected in the solution pool after optimization with XPRSoptimize, XPRSmipoptimize, XPRSlpoptimize or XPRSnlpoptimize.
+
+# Arguments
+- `prob::XPRSprob`: The current problem.
+- `num::Integer`: The index of the solution in the pool.
+- `x::Union{XPRSallocatable,AbstractVector{Float64}}`: Double array of length `last-first+1` where the value of the primal variables will be returned.
+  You may pass `XPRS_ALLOC` for this argument to have the function allocate an array of appropriate size for you.
+- `first::Integer`: First column in the solution.
+- `last::Integer`: Last column in the solution.
+# Return values
+- `status::Int32`: Returned as `XPRS_SOLAVAILABLE_NOTFOUND` (`0`) if no solution with index `num` is found, otherwise returned as `XPRS_SOLAVAILABLE_FEASIBLE` (`2`).
+- `x::AbstractVector{Float64}`: Double array of length `last-first+1` where the value of the primal variables will be returned.
+
+See also the documentation of the correponding function [XPRSgetpoolsolution](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSgetpoolsolution.html) in the C API.
+"""
+function XPRSgetpoolsolution(prob::XPRSprob, num, x::Union{XPRSallocatable,AbstractVector{Float64}}, first, last)::Tuple{Int32,AbstractVector{Float64}}
+  numxx = Int32(num)
+  status_dummy = Ref{Int32}(0)
+  firstxx = Int32(first)
+  lastxx = Int32(last)
+  if isa(x, XPRSallocatable)
+    x = Vector{Float64}(undef, last - first + 1)
+  elseif !isnothing(x)
+    if length(x) < last - first + 1
+      throw(XPRSexception("Argument x is too short, needs " * (last - first + 1) * " elements but has only " * string(length(x)), nothing))
+    end
+  end
+  faddr = getFunctionAddress("XPRSgetpoolsolution")
+  retcode = ccall(faddr, Cint, (Ptr{Cvoid},Cint,Ref{Cint},Ptr{Cdouble},Cint,Cint), prob.handle, numxx, status_dummy, isnothing(x) ? C_NULL : x, firstxx, lastxx)
+  consumeCallbackException(prob)
+  if retcode != 0
+    throw(XPRSexception(XPRSgetlasterror(prob), nothing))
+  end
+  status = status_dummy[]
+  return status, x
+end
+
+"""
+    XPRSgetpoolslacks(prob, num, slacks, first, last)::Tuple{Int32,AbstractVector{Float64}}
+
+Returns the slack values for a solution collected in the solution pool after after optimization with XPRSoptimize, XPRSmipoptimize, XPRSlpoptimize or XPRSnlpoptimize.
+
+# Arguments
+- `prob::XPRSprob`: The current problem.
+- `num::Integer`: The index of the solution in the pool.
+- `slacks::Union{XPRSallocatable,AbstractVector{Float64}}`: Double array of length `last-first+1` where the value of the slack variables will be returned.
+  You may pass `XPRS_ALLOC` for this argument to have the function allocate an array of appropriate size for you.
+- `first::Integer`: First row in the slacks.
+- `last::Integer`: Last row in the slacks.
+# Return values
+- `status::Int32`: Returned as `XPRS_SOLAVAILABLE_NOTFOUND` (`0`) if no solution with index `num` is found, otherwise returned as `XPRS_SOLAVAILABLE_FEASIBLE` (`2`).
+- `slacks::AbstractVector{Float64}`: Double array of length `last-first+1` where the value of the slack variables will be returned.
+
+See also the documentation of the correponding function [XPRSgetpoolslacks](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSgetpoolslacks.html) in the C API.
+"""
+function XPRSgetpoolslacks(prob::XPRSprob, num, slacks::Union{XPRSallocatable,AbstractVector{Float64}}, first, last)::Tuple{Int32,AbstractVector{Float64}}
+  numxx = Int32(num)
+  status_dummy = Ref{Int32}(0)
+  firstxx = Int32(first)
+  lastxx = Int32(last)
+  if isa(slacks, XPRSallocatable)
+    slacks = Vector{Float64}(undef, last - first + 1)
+  elseif !isnothing(slacks)
+    if length(slacks) < last - first + 1
+      throw(XPRSexception("Argument slacks is too short, needs " * (last - first + 1) * " elements but has only " * string(length(slacks)), nothing))
+    end
+  end
+  faddr = getFunctionAddress("XPRSgetpoolslacks")
+  retcode = ccall(faddr, Cint, (Ptr{Cvoid},Cint,Ref{Cint},Ptr{Cdouble},Cint,Cint), prob.handle, numxx, status_dummy, isnothing(slacks) ? C_NULL : slacks, firstxx, lastxx)
+  consumeCallbackException(prob)
+  if retcode != 0
+    throw(XPRSexception(XPRSgetlasterror(prob), nothing))
+  end
+  status = status_dummy[]
+  return status, slacks
+end
+
+"""
+    XPRSgetpoolsolobjval(prob, num)::Tuple{Int32,Float64}
+
+Returns the objective function value of a solution collected in the solution pool after optimization with XPRSoptimize, XPRSmipoptimize, XPRSlpoptimize or XPRSnlpoptimize.
+
+# Arguments
+- `prob::XPRSprob`: The current problem.
+- `num::Integer`: The index of the solution in the pool.
+# Return values
+- `status::Int32`: Returned as `XPRS_SOLAVAILABLE_NOTFOUND` (`0`) if no solution with index `num` is found, otherwise returned as `XPRS_SOLAVAILABLE_FEASIBLE` (`2`).
+- `objval::Float64`: Pointer to a double in which the objective value is returned.
+
+See also the documentation of the correponding function [XPRSgetpoolsolobjval](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSgetpoolsolobjval.html) in the C API.
+"""
+function XPRSgetpoolsolobjval(prob::XPRSprob, num)::Tuple{Int32,Float64}
+  numxx = Int32(num)
+  status_dummy = Ref{Int32}(0)
+  objval_dummy = Ref{Float64}(0)
+  faddr = getFunctionAddress("XPRSgetpoolsolobjval")
+  retcode = ccall(faddr, Cint, (Ptr{Cvoid},Cint,Ref{Cint},Ref{Cdouble}), prob.handle, numxx, status_dummy, objval_dummy)
+  consumeCallbackException(prob)
+  if retcode != 0
+    throw(XPRSexception(XPRSgetlasterror(prob), nothing))
+  end
+  status = status_dummy[]
+  objval = objval_dummy[]
+  return status, objval
 end
 
 """
@@ -19150,47 +22526,6 @@ function XPRSwritebinsol(prob::XPRSprob, filename::Union{Nothing,AbstractString}
 end
 
 """
-Wraps callable C library function XPRSgetsol:
-"""
-function XPRSgetsol(prob::XPRSprob, x::Union{XPRSallocatable,Nothing,AbstractVector{Float64}}, slack::Union{XPRSallocatable,Nothing,AbstractVector{Float64}}, duals::Union{XPRSallocatable,Nothing,AbstractVector{Float64}}, djs::Union{XPRSallocatable,Nothing,AbstractVector{Float64}})::Tuple{Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}}}
-  if isa(djs, XPRSallocatable)
-    djs = Vector{Float64}(undef, XPRSgetintattrib(prob, XPRS_ORIGINALCOLS))
-  elseif !isnothing(djs)
-    if length(djs) < XPRSgetintattrib(prob, XPRS_ORIGINALCOLS)
-      throw(XPRSexception("Argument djs is too short, needs " * (XPRSgetintattrib(prob, XPRS_ORIGINALCOLS)) * " elements but has only " * string(length(djs)), nothing))
-    end
-  end
-  if isa(duals, XPRSallocatable)
-    duals = Vector{Float64}(undef, XPRSgetintattrib(prob, XPRS_ORIGINALROWS))
-  elseif !isnothing(duals)
-    if length(duals) < XPRSgetintattrib(prob, XPRS_ORIGINALROWS)
-      throw(XPRSexception("Argument duals is too short, needs " * (XPRSgetintattrib(prob, XPRS_ORIGINALROWS)) * " elements but has only " * string(length(duals)), nothing))
-    end
-  end
-  if isa(slack, XPRSallocatable)
-    slack = Vector{Float64}(undef, XPRSgetintattrib(prob, XPRS_ORIGINALROWS))
-  elseif !isnothing(slack)
-    if length(slack) < XPRSgetintattrib(prob, XPRS_ORIGINALROWS)
-      throw(XPRSexception("Argument slack is too short, needs " * (XPRSgetintattrib(prob, XPRS_ORIGINALROWS)) * " elements but has only " * string(length(slack)), nothing))
-    end
-  end
-  if isa(x, XPRSallocatable)
-    x = Vector{Float64}(undef, XPRSgetintattrib(prob, XPRS_ORIGINALCOLS))
-  elseif !isnothing(x)
-    if length(x) < XPRSgetintattrib(prob, XPRS_ORIGINALCOLS)
-      throw(XPRSexception("Argument x is too short, needs " * (XPRSgetintattrib(prob, XPRS_ORIGINALCOLS)) * " elements but has only " * string(length(x)), nothing))
-    end
-  end
-  faddr = getFunctionAddress("XPRSgetsol")
-  retcode = ccall(faddr, Cint, (Ptr{Cvoid},Ptr{Cdouble},Ptr{Cdouble},Ptr{Cdouble},Ptr{Cdouble}), prob.handle, isnothing(x) ? C_NULL : x, isnothing(slack) ? C_NULL : slack, isnothing(duals) ? C_NULL : duals, isnothing(djs) ? C_NULL : djs)
-  consumeCallbackException(prob)
-  if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob), nothing))
-  end
-  return x, slack, duals, djs
-end
-
-"""
     XPRSwriteprtsol(prob, filename, flags)::XPRSprob
 
 Writes the current solution to a fixed format ASCII file, problem_name `.prt`.
@@ -19330,6 +22665,8 @@ end
 
 """
     XPRSloadmipsol(prob, x)::Int32
+
+**Deprecated**Please use XPRSaddmipsol instead.
 
 Loads a starting MIP solution for the problem into the Optimizer.
 
@@ -21528,29 +24865,6 @@ function XPRSgetlpsol(prob::XPRSprob, x::Union{XPRSallocatable,Nothing,AbstractV
 end
 
 """
-Wraps callable C library function XPRSgetlpsolval:
-"""
-function XPRSgetlpsolval(prob::XPRSprob, col, row)::Tuple{Float64,Float64,Float64,Float64}
-  colxx = Int32(col)
-  rowxx = Int32(row)
-  p_x_dummy = Ref{Float64}(0)
-  p_slack_dummy = Ref{Float64}(0)
-  p_dual_dummy = Ref{Float64}(0)
-  p_dj_dummy = Ref{Float64}(0)
-  faddr = getFunctionAddress("XPRSgetlpsolval")
-  retcode = ccall(faddr, Cint, (Ptr{Cvoid},Cint,Cint,Ref{Cdouble},Ref{Cdouble},Ref{Cdouble},Ref{Cdouble}), prob.handle, colxx, rowxx, p_x_dummy, p_slack_dummy, p_dual_dummy, p_dj_dummy)
-  consumeCallbackException(prob)
-  if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob), nothing))
-  end
-  p_x = p_x_dummy[]
-  p_slack = p_slack_dummy[]
-  p_dual = p_dual_dummy[]
-  p_dj = p_dj_dummy[]
-  return p_x, p_slack, p_dual, p_dj
-end
-
-"""
     XPRSgetmipsol(prob, x, slack)::Tuple{Union{Nothing,AbstractVector{Float64}},Union{Nothing,AbstractVector{Float64}}}
 
 **Deprecated**Use XPRSgetsolution and XPRSgetslacks instead.
@@ -21593,25 +24907,6 @@ function XPRSgetmipsol(prob::XPRSprob, x::Union{XPRSallocatable,Nothing,Abstract
     throw(XPRSexception(XPRSgetlasterror(prob), nothing))
   end
   return x, slack
-end
-
-"""
-Wraps callable C library function XPRSgetmipsolval:
-"""
-function XPRSgetmipsolval(prob::XPRSprob, col, row)::Tuple{Float64,Float64}
-  colxx = Int32(col)
-  rowxx = Int32(row)
-  p_x_dummy = Ref{Float64}(0)
-  p_slack_dummy = Ref{Float64}(0)
-  faddr = getFunctionAddress("XPRSgetmipsolval")
-  retcode = ccall(faddr, Cint, (Ptr{Cvoid},Cint,Cint,Ref{Cdouble},Ref{Cdouble}), prob.handle, colxx, rowxx, p_x_dummy, p_slack_dummy)
-  consumeCallbackException(prob)
-  if retcode != 0
-    throw(XPRSexception(XPRSgetlasterror(prob), nothing))
-  end
-  p_x = p_x_dummy[]
-  p_slack = p_slack_dummy[]
-  return p_x, p_slack
 end
 
 """
@@ -22376,7 +25671,7 @@ end
 Adds a multistart job to the multistart pool
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `description::Union{Nothing,AbstractString}`: Text description of the job.
 - `ninitial::Integer`: Number of initial values to set.
 - `colind::AbstractVector{Integer}`: Indices of the variables for which to set an initial value.
@@ -22389,7 +25684,7 @@ Adds a multistart job to the multistart pool
 - `dblcontrolval::AbstractVector{Number}`: The values of the double controls to be set.
 - `data::Any`: Job-specific user context object to be passed to the multistart callbacks.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSmsaddjob](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSmsaddjob.html) in the C API.
 """
@@ -22467,13 +25762,13 @@ end
 Loads a preset of jobs into the multistart job pool.
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `description::Union{Nothing,AbstractString}`: Text description of the preset.
 - `preset::Integer`: Which preset to load.
 - `maxjobs::Integer`: Maximum number of jobs to be added to the multistart pool.
 - `data::Any`: Job-specific user context object to be passed to the multistart callbacks.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSmsaddpreset](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSmsaddpreset.html) in the C API.
 """
@@ -22505,12 +25800,12 @@ end
 """
     XPRSmsaddcustompreset(prob, description, preset, maxjobs, ninitial, colind, initial, nintcontrols, intcontrolid, intcontrolval, ndblcontrols, dblcontrolid, dblcontrolval, data)::XPRSprob
 
-A combined version of XSLPmsaddjob and XSLPmsaddpreset.
+A combined version of XPRSmsaddjob and XPRSmsaddpreset.
 
-The preset described is loaded, topped up with the specific settings supplied
+The preset described is loaded, topped up with the specific settings supplied.
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `description::Union{Nothing,AbstractString}`: Text description of the job.
 - `preset::Integer`: Which preset to load.
 - `maxjobs::Integer`: Maximum number of jobs to be added to the multistart pool.
@@ -22525,7 +25820,7 @@ The preset described is loaded, topped up with the specific settings supplied
 - `dblcontrolval::AbstractVector{Number}`: The values of the double controls to be set.
 - `data::Any`: Job-specific user context object to be passed to the multistart callbacks.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSmsaddcustompreset](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSmsaddcustompreset.html) in the C API.
 """
@@ -22605,9 +25900,9 @@ end
 Set the function error flag for the problem
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSnlpsetfunctionerror](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpsetfunctionerror.html) in the C API.
 """
@@ -22627,9 +25922,9 @@ end
 Print a summary of any evaluation errors that may have occurred during solving a problem
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSnlpprintevalinfo](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpprintevalinfo.html) in the C API.
 """
@@ -22649,9 +25944,9 @@ end
 Validate the feasibility of constraints in a converged solution
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSnlpvalidate](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpvalidate.html) in the C API.
 """
@@ -22671,10 +25966,10 @@ end
 Maximize or minimize an SLP problem
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
-- `flags::Union{Nothing,AbstractString}`: Flags to pass to `XSLPnlpoptimize`.
+- `prob::XPRSprob`: The current problem.
+- `flags::Union{Nothing,AbstractString}`: Flags to pass to `XPRSnlpoptimize`.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSnlpoptimize](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpoptimize.html) in the C API.
 """
@@ -22702,23 +25997,23 @@ Obtain the current SLP solution values
 
 # Arguments
 - `prob::XPRSprob`: The current SLP problem.
-- `x::Union{XPRSallocatable,Nothing,AbstractVector{Float64}}`: Double array of length `XSLP_ORIGINALCOLS` to hold the values of the primal variables.
+- `x::Union{XPRSallocatable,Nothing,AbstractVector{Float64}}`: Double array of length NLPORIGINALCOLS to hold the values of the primal variables.
   You may pass `XPRS_ALLOC` for this argument to have the function allocate an array of appropriate size for you.
   You may pass `nothing` for this argument to not query that information.
-- `slack::Union{XPRSallocatable,Nothing,AbstractVector{Float64}}`: Double array of length `XSLP_ORIGINALROWS` to hold the values of the slack variables.
+- `slack::Union{XPRSallocatable,Nothing,AbstractVector{Float64}}`: Double array of length NLPORIGINALROWS to hold the values of the slack variables.
   You may pass `XPRS_ALLOC` for this argument to have the function allocate an array of appropriate size for you.
   You may pass `nothing` for this argument to not query that information.
-- `duals::Union{XPRSallocatable,Nothing,AbstractVector{Float64}}`: Double array of length `XSLP_ORIGINALROWS` to hold the values of the dual variables.
+- `duals::Union{XPRSallocatable,Nothing,AbstractVector{Float64}}`: Double array of length NLPORIGINALROWS to hold the values of the dual variables.
   You may pass `XPRS_ALLOC` for this argument to have the function allocate an array of appropriate size for you.
   You may pass `nothing` for this argument to not query that information.
-- `djs::Union{XPRSallocatable,Nothing,AbstractVector{Float64}}`: Double array of length `XSLP_ORIGINALCOLS` to hold the reduced costs of the primal variables.
+- `djs::Union{XPRSallocatable,Nothing,AbstractVector{Float64}}`: Double array of length NLPORIGINALCOLS to hold the reduced costs of the primal variables.
   You may pass `XPRS_ALLOC` for this argument to have the function allocate an array of appropriate size for you.
   You may pass `nothing` for this argument to not query that information.
 # Return values
-- `x::Union{Nothing,AbstractVector{Float64}}`: Double array of length `XSLP_ORIGINALCOLS` to hold the values of the primal variables.
-- `slack::Union{Nothing,AbstractVector{Float64}}`: Double array of length `XSLP_ORIGINALROWS` to hold the values of the slack variables.
-- `duals::Union{Nothing,AbstractVector{Float64}}`: Double array of length `XSLP_ORIGINALROWS` to hold the values of the dual variables.
-- `djs::Union{Nothing,AbstractVector{Float64}}`: Double array of length `XSLP_ORIGINALCOLS` to hold the reduced costs of the primal variables.
+- `x::Union{Nothing,AbstractVector{Float64}}`: Double array of length NLPORIGINALCOLS to hold the values of the primal variables.
+- `slack::Union{Nothing,AbstractVector{Float64}}`: Double array of length NLPORIGINALROWS to hold the values of the slack variables.
+- `duals::Union{Nothing,AbstractVector{Float64}}`: Double array of length NLPORIGINALROWS to hold the values of the dual variables.
+- `djs::Union{Nothing,AbstractVector{Float64}}`: Double array of length NLPORIGINALCOLS to hold the reduced costs of the primal variables.
 
 See also the documentation of the correponding function [XPRSgetnlpsol](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSgetnlpsol.html) in the C API.
 """
@@ -22766,9 +26061,9 @@ end
 Transfer the current solution to initial values
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSnlpsetcurrentiv](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpsetcurrentiv.html) in the C API.
 """
@@ -22788,10 +26083,10 @@ end
 Prints an extensive analysis on a given constraint of the SLP problem
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `row::Integer`: The index of the row to be analyzed
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSnlpvalidaterow](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpvalidaterow.html) in the C API.
 """
@@ -22809,16 +26104,16 @@ end
 """
     XPRSnlpvalidatekkt(prob, mode, respectbasis, updatemult, violtarget)::XPRSprob
 
-Validates the first order optimality conditions also known as the Karush-Kuhn-Tucker (KKT) conditions versus the currect solution
+Validates the first order optimality conditions also known as the Karush-Kuhn-Tucker (KKT) conditions versus the current solution
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `mode::Integer`: The calculation mode can be: 0recalculate the reduced costs at the current solution using the current dual solution.
-- `respectbasis::Integer`: The following ways are defined to assess if a constraint is active: 0evaluate the recalculated slack activity versus XSLP_ECFTOL_R.
-- `updatemult::Integer`: The calculated values can be: 0only used to calculate the XSLP_VALIDATIONINDEX_K measure.
+- `respectbasis::Integer`: The following ways are defined to assess if a constraint is active: 0evaluate the recalculated slack activity versus SLPECFTOL_R.
+- `updatemult::Integer`: The calculated values can be: 0only used to calculate the NLPVALIDATIONINDEX_K measure.
 - `violtarget::Float64`: When calculating the best KKT multipliers, it is possible to enforce an even distribution of reduced costs violations by enforcing a bound on them.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSnlpvalidatekkt](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpvalidatekkt.html) in the C API.
 """
@@ -22841,9 +26136,9 @@ end
 Removes all scheduled jobs from the multistart job pool
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSmsclear](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSmsclear.html) in the C API.
 """
@@ -22865,7 +26160,7 @@ end
 Evaluate a formula using the current values of the variables
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `parsed::Integer`: integer indicating whether the formula of the item is in internal unparsed format (`parsed`=0) or parsed (reverse Polish) format (`parsed`=1).
 - `type::AbstractVector{Integer}`: Integer array of token types for the formula.
 - `values::AbstractVector{Number}`: Double array of values corresponding to `type`.
@@ -22907,8 +26202,8 @@ end
 Validate the feasibility of constraints for a given solution
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
-- `solution::AbstractVector{Number}`: A vector of length `XPRS_COLS` containing the solution vector to be checked.
+- `prob::XPRSprob`: The current problem.
+- `solution::AbstractVector{Number}`: A vector of length COLS containing the solution vector to be checked.
 # Return values
 - `suminf::Float64`: Pointer to double in which the sum of infeasibility will be returned.
 - `sumscaledinf::Float64`: Pointer to double in which the sum of scaled (relative) infeasibility will be returned.
@@ -22951,12 +26246,12 @@ function(value::Cdouble)::Cdouble
                 
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `funcname::Union{Nothing,AbstractString}`: The name of the function as it appears in text formula expressions.
-- `options::Integer`: options as a bitmap to the user function XSLP_INSTANCEFUNCTIONalways instantiate the function.
+- `options::Integer`: options as a bitmap to the user function NLPINSTANCEFUNCTIONalways instantiate the function.
 - `func::Function`: Pointer of the user function to call.
 # Return value
-- `type::Int32`: The token id of the user function added, to be used in the Value array when defining formulas and using with `XSLP_FUN`.
+- `type::Int32`: The token id of the user function added, to be used in the Value array when defining formulas and using with `XPRS_TOK_FUN`.
 
 See also the documentation of the correponding function [XPRSnlpadduserfunction](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpadduserfunction.html) in the C API.
 """
@@ -23001,12 +26296,12 @@ function(value::Cdouble, delta::Cdouble)::Tuple{error::Cint,evaluation::Cdouble,
                 
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `funcname::Union{Nothing,AbstractString}`: The name of the function as it appears in text formula expressions.
-- `options::Integer`: options as a bitmap to the user function XSLP_INSTANCEFUNCTIONalways instantiate the function.
+- `options::Integer`: options as a bitmap to the user function NLPINSTANCEFUNCTIONalways instantiate the function.
 - `func::Function`: Pointer of the user function to call.
 # Return value
-- `type::Int32`: The token id of the user function added, to be used in the Value array when defining formulas and using with `XSLP_FUN`.
+- `type::Int32`: The token id of the user function added, to be used in the Value array when defining formulas and using with `XPRS_TOK_FUN`.
 
 See also the documentation of the correponding function [XPRSnlpadduserfunction](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpadduserfunction.html) in the C API.
 """
@@ -23051,14 +26346,14 @@ function(values::AbstractVector{Cdouble},out::AbstractVector{Cdouble})::Cint
                 
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `funcname::Union{Nothing,AbstractString}`: The name of the function as it appears in text formula expressions.
 - `nin::Integer`: Number of arguments the user function takes.
 - `nout::Integer`: Number of return arguments for the function.
-- `options::Integer`: options as a bitmap to the user function XSLP_INSTANCEFUNCTIONalways instantiate the function.
+- `options::Integer`: options as a bitmap to the user function NLPINSTANCEFUNCTIONalways instantiate the function.
 - `func::Function`: Pointer of the user function to call.
 # Return value
-- `type::Int32`: The token id of the user function added, to be used in the Value array when defining formulas and using with `XSLP_FUN`.
+- `type::Int32`: The token id of the user function added, to be used in the Value array when defining formulas and using with `XPRS_TOK_FUN`.
 
 See also the documentation of the correponding function [XPRSnlpadduserfunction](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpadduserfunction.html) in the C API.
 """
@@ -23103,14 +26398,14 @@ function(values::AbstractVector{Cdouble}, deltas::AbstractVector{Cdouble}, out::
                 
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `funcname::Union{Nothing,AbstractString}`: The name of the function as it appears in text formula expressions.
 - `nin::Integer`: Number of arguments the user function takes.
 - `nout::Integer`: Number of return arguments for the function.
-- `options::Integer`: options as a bitmap to the user function XSLP_INSTANCEFUNCTIONalways instantiate the function.
+- `options::Integer`: options as a bitmap to the user function NLPINSTANCEFUNCTIONalways instantiate the function.
 - `func::Function`: Pointer of the user function to call.
 # Return value
-- `type::Int32`: The token id of the user function added, to be used in the Value array when defining formulas and using with `XSLP_FUN`.
+- `type::Int32`: The token id of the user function added, to be used in the Value array when defining formulas and using with `XPRS_TOK_FUN`.
 
 See also the documentation of the correponding function [XPRSnlpadduserfunction](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpadduserfunction.html) in the C API.
 """
@@ -23155,13 +26450,13 @@ function(values::AbstractVector{Cdouble})::Cdouble
                 
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `funcname::Union{Nothing,AbstractString}`: The name of the function as it appears in text formula expressions.
 - `nin::Integer`: Number of arguments the user function takes.
-- `options::Integer`: options as a bitmap to the user function XSLP_INSTANCEFUNCTIONalways instantiate the function.
+- `options::Integer`: options as a bitmap to the user function NLPINSTANCEFUNCTIONalways instantiate the function.
 - `func::Function`: Pointer of the user function to call.
 # Return value
-- `type::Int32`: The token id of the user function added, to be used in the Value array when defining formulas and using with `XSLP_FUN`.
+- `type::Int32`: The token id of the user function added, to be used in the Value array when defining formulas and using with `XPRS_TOK_FUN`.
 
 See also the documentation of the correponding function [XPRSnlpadduserfunction](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpadduserfunction.html) in the C API.
 """
@@ -23206,13 +26501,13 @@ function(values::AbstractVector{Cdouble}, deltas::AbstractVector{Cdouble}, parti
                 
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `funcname::Union{Nothing,AbstractString}`: The name of the function as it appears in text formula expressions.
 - `nin::Integer`: Number of arguments the user function takes.
-- `options::Integer`: options as a bitmap to the user function XSLP_INSTANCEFUNCTIONalways instantiate the function.
+- `options::Integer`: options as a bitmap to the user function NLPINSTANCEFUNCTIONalways instantiate the function.
 - `func::Function`: Pointer of the user function to call.
 # Return value
-- `type::Int32`: The token id of the user function added, to be used in the Value array when defining formulas and using with `XSLP_FUN`.
+- `type::Int32`: The token id of the user function added, to be used in the Value array when defining formulas and using with `XPRS_TOK_FUN`.
 
 See also the documentation of the correponding function [XPRSnlpadduserfunction](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpadduserfunction.html) in the C API.
 """
@@ -23251,10 +26546,10 @@ end
 Delete a user function from the current problem
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
-- `type::Integer`: The identifier of the user function as returned by `XSLPadduserfunction`.
+- `prob::XPRSprob`: The current problem.
+- `type::Integer`: The identifier of the user function as returned by XPRSnlpadduserfunction.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSnlpdeluserfunction](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpdeluserfunction.html) in the C API.
 """
@@ -23275,15 +26570,15 @@ end
 Add non-linear formulas to the SLP problem.
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `ncoefs::Integer`: Number of non-linear coefficients to be added.
-- `rowind::AbstractVector{Integer}`: Integer array holding index of row for the coefficient.
+- `rowind::AbstractVector{Integer}`: Integer array holding row indices for the coefficients.
 - `formulastart::AbstractVector{Integer}`: Integer array of length `ncoefs+1` holding the start position in the arrays `type` and `value` of the formula for the coefficients.
 - `parsed::Integer`: Integer indicating whether the token arrays are formatted as internal unparsed (`parsed`=0) or internal parsed reverse Polish (`parsed`=1).
 - `type::AbstractVector{Integer}`: Array of token types providing the formula for each coefficient.
 - `value::AbstractVector{Number}`: Array of values corresponding to the types in `type`.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSnlpaddformulas](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpaddformulas.html) in the C API.
 """
@@ -23335,11 +26630,11 @@ end
 Add or replace a single matrix formula using a character string for the formula.
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `row::Integer`: The index of the matrix row for the coefficient.
 - `formula::Union{Nothing,AbstractString}`: Character string holding the formula with the tokens separated by spaces.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSnlpchgformulastring](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpchgformulastring.html) in the C API.
 """
@@ -23395,13 +26690,13 @@ end
 Add or replace a single matrix formula using a parsed or unparsed formula
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `row::Integer`: The index of the matrix row for the coefficient.
-- `parsed::Integer`: Integer indicating the whether the token arrays are formatted as internal unparsed (`parsed`=0) or internal parsed reverse Polish (`parsed`=1).
+- `parsed::Integer`: Integer indicating whether the token arrays are formatted as internal unparsed (`parsed`=0) or internal parsed reverse Polish (`parsed`=1).
 - `type::AbstractVector{Integer}`: Array of token types providing the description and formula for each item.
 - `value::AbstractVector{Number}`: Array of values corresponding to the types in `type`.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSnlpchgformula](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpchgformula.html) in the C API.
 """
@@ -23437,7 +26732,7 @@ end
 Retrieve a single matrix formula as a formula split into tokens.
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `row::Integer`: Integer holding the row index for the formula.
 - `parsed::Integer`: Integer indicating whether the formula of the row is to be returned in internal unparsed format (`parsed`=0) or parsed (reverse Polish) format (`parsed`=1).
 - `maxtypes::Integer`: Maximum number of tokens to return, i.e., the length of the type and value arrays.
@@ -23448,7 +26743,7 @@ Retrieve a single matrix formula as a formula split into tokens.
   You may pass `XPRS_ALLOC` for this argument to have the function allocate an array of appropriate size for you.
   You may pass `nothing` for this argument to not query that information.
 # Return values
-- `ntypes::Int32`: Will be set to the length of the formula, including the `XSLP_EOF` token.
+- `ntypes::Int32`: Will be set to the length of the formula, including the `XPRS_TOK_EOF` token.
 - `type::Union{Nothing,AbstractVector{Int32}}`: Integer array to hold the token types for the formula.
 - `value::Union{Nothing,AbstractVector{Float64}}`: Double array of values corresponding to `type`.
 
@@ -23489,12 +26784,12 @@ end
 Retrieve the list of positions of the nonlinear formulas in the problem
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
-- `rowind::Union{XPRSallocatable,AbstractVector{Int32}}`: Integer array used for returning the row positions of the nonlinear formulas.
+- `prob::XPRSprob`: The current problem.
+- `rowind::Union{XPRSallocatable,AbstractVector{Int32}}`: Integer array used for returning the row indices of the nonlinear formulas.
   You may pass `XPRS_ALLOC` for this argument to have the function allocate an array of appropriate size for you.
 # Return values
 - `nformulas::Int32`: Integer used to return the total number of nonlinear formulas in the problem.
-- `rowind::AbstractVector{Int32}`: Integer array used for returning the row positions of the nonlinear formulas.
+- `rowind::AbstractVector{Int32}`: Integer array used for returning the row indices of the nonlinear formulas.
 
 See also the documentation of the correponding function [XPRSnlpgetformularows](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpgetformularows.html) in the C API.
 """
@@ -23543,15 +26838,15 @@ end
 Load non-linear formulas into the SLP problem
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `nnlpcoefs::Integer`: Number of non-linear coefficients to be loaded.
-- `rowind::AbstractVector{Integer}`: Integer array holding index of row for the coefficient.
+- `rowind::AbstractVector{Integer}`: Integer array holding row indices for the coefficients.
 - `formulastart::AbstractVector{Integer}`: Integer array of length `nnlpcoefs+1` holding the start position in the arrays `type` and `value` of the formula for the coefficients.
 - `parsed::Integer`: Integer indicating whether the token arrays are formatted as internal unparsed (`parsed`=0) or internal parsed reverse Polish (`parsed`=1).
 - `type::AbstractVector{Integer}`: Array of token types providing the formula for each coefficient.
 - `value::AbstractVector{Number}`: Array of values corresponding to the types in `type`.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSnlploadformulas](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlploadformulas.html) in the C API.
 """
@@ -23601,11 +26896,11 @@ end
 Delete nonlinear formulas from the current problem
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `nformulas::Integer`: Number of SLP nonlinear formulas to delete.
 - `rowind::AbstractVector{Integer}`: Row indices of the SLP nonlinear formulas to delete.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSnlpdelformulas](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpdelformulas.html) in the C API.
 """
@@ -23635,7 +26930,7 @@ end
 Retrieve a single matrix formula in a character string.
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `row::Integer`: Integer holding the row index for the formula.
 - `maxbytes::Integer`: Maximum length of returned formula.
 # Return value
@@ -23694,12 +26989,12 @@ end
 Set the initial value of columns
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `nvars::Integer`: Number of variables for which the initial value is to be set.
-- `colind::AbstractVector{Integer}`: Array of length `nvars` with index of the column for which the initial value is provided.
+- `colind::AbstractVector{Integer}`: Array of length `nvars` with the indices of the columns for which the initial values are provided.
 - `initial::AbstractVector{Number}`: Array of length `nvars` with the initial value.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSnlpsetinitval](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlpsetinitval.html) in the C API.
 """
@@ -23745,10 +27040,10 @@ end
 
 Retrieve a single matrix coefficient as a formula split into tokens.
 
-For a simpler version of this function see XSLPgetformula.
+For a simpler version of this function see XPRSnlpgetformula.
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `row::Integer`: Integer holding the row index for the coefficient.
 - `col::Integer`: Integer holding the column index for the coefficient.
 - `parsed::Integer`: Integer indicating whether the formula of the item is to be returned in internal unparsed format (`parsed`=0) or parsed (reverse Polish) format (`parsed`=1).
@@ -23804,20 +27099,20 @@ end
 
 Retrieve the list of positions of the nonlinear coefficients in the problem.
 
-For a simpler version of this function see XSLPgetformularows.
+For a simpler version of this function see XPRSnlpgetformularows.
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
-- `rowind::Union{XPRSallocatable,Nothing,AbstractVector{Int32}}`: Integer array used for returning the row positions of the coefficients.
+- `prob::XPRSprob`: The current problem.
+- `rowind::Union{XPRSallocatable,Nothing,AbstractVector{Int32}}`: Integer array used for returning the row indices of the coefficients.
   You may pass `XPRS_ALLOC` for this argument to have the function allocate an array of appropriate size for you.
   You may pass `nothing` for this argument to not query that information.
-- `colind::Union{XPRSallocatable,Nothing,AbstractVector{Int32}}`: Integer array used for returning the column positions of the coefficients.
+- `colind::Union{XPRSallocatable,Nothing,AbstractVector{Int32}}`: Integer array used for returning the column indices of the coefficients.
   You may pass `XPRS_ALLOC` for this argument to have the function allocate an array of appropriate size for you.
   You may pass `nothing` for this argument to not query that information.
 # Return values
 - `ncoefs::Int32`: Integer used to return the total number of nonlinear coefficients in the problem.
-- `rowind::Union{Nothing,AbstractVector{Int32}}`: Integer array used for returning the row positions of the coefficients.
-- `colind::Union{Nothing,AbstractVector{Int32}}`: Integer array used for returning the column positions of the coefficients.
+- `rowind::Union{Nothing,AbstractVector{Int32}}`: Integer array used for returning the row indices of the coefficients.
+- `colind::Union{Nothing,AbstractVector{Int32}}`: Integer array used for returning the column indices of the coefficients.
 
 See also the documentation of the correponding function [XPRSslpgetcoefs](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpgetcoefs.html) in the C API.
 """
@@ -23872,20 +27167,20 @@ end
 
 Load non-linear coefficients into the SLP problem.
 
-For a simpler version of this function see XSLPloadformulas.
+For a simpler version of this function see XPRSnlploadformulas.
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `ncoefs::Integer`: Number of non-linear coefficients to be loaded.
-- `rowind::AbstractVector{Integer}`: Integer array holding index of row for the coefficient.
-- `colind::AbstractVector{Integer}`: Integer array holding index of column for the coefficient.
+- `rowind::AbstractVector{Integer}`: Integer array holding row indices for the coefficients.
+- `colind::AbstractVector{Integer}`: Integer array holding column indices for the coefficients.
 - `factor::AbstractVector{Number}`: Double array holding factor by which formula is scaled.
 - `formulastart::AbstractVector{Integer}`: Integer array of length `ncoefs+1` holding the start position in the arrays `type` and `coef` of the formula for the coefficients.
 - `parsed::Integer`: Integer indicating whether the token arrays are formatted as internal unparsed (`parsed`=0) or internal parsed reverse Polish (`parsed`=1).
 - `type::AbstractVector{Integer}`: Array of token types providing the formula for each coefficient.
 - `coef::AbstractVector{Number}`: Array of values corresponding to the types in `type`.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSslploadcoefs](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslploadcoefs.html) in the C API.
 """
@@ -23948,15 +27243,15 @@ end
 
 Delete coefficients from the current problem.
 
-For a simpler version of this function see XSLPdelformulas.
+For a simpler version of this function see XPRSnlpdelformulas.
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `ncoefs::Integer`: Number of SLP coefficients to delete.
 - `rowind::AbstractVector{Integer}`: Row indices of the SLP coefficients to delete.
 - `colind::AbstractVector{Integer}`: Column indices of the SLP coefficients to delete.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSslpdelcoefs](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpdelcoefs.html) in the C API.
 """
@@ -23993,7 +27288,7 @@ end
 Retrieve a single matrix coefficient as a formula in a character string. For a simpler version of this function see XPRSnlpgetformulastr.
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `row::Integer`: Integer holding the row index for the coefficient.
 - `col::Integer`: Integer holding the column index for the coefficient.
 - `maxbytes::Integer`: Maximum length of returned formula.
@@ -24064,12 +27359,12 @@ end
 Set the determining row of a variable
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `nvars::Integer`: The number of variables for which determining rows are set.
-- `colind::AbstractVector{Integer}`: Array of length `nvars` with the index of the column for which the determining row is set.
-- `rowind::AbstractVector{Integer}`: Array of length `nvars` with the index of the determining row.
+- `colind::AbstractVector{Integer}`: Array of length `nvars` with the indices of the columns for which the determining rows are set.
+- `rowind::AbstractVector{Integer}`: Array of length `nvars` with the indices of the determining rows.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSslpsetdetrow](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpsetdetrow.html) in the C API.
 """
@@ -24103,20 +27398,20 @@ end
 
 Add non-linear coefficients to the SLP problem.
 
-For a simpler version of this function see XSLPaddformulas.
+For a simpler version of this function see XPRSnlpaddformulas.
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `ncoefs::Integer`: Number of non-linear coefficients to be added.
-- `rowind::AbstractVector{Integer}`: Integer array holding index of row for the coefficient.
-- `colind::AbstractVector{Integer}`: Integer array holding index of column for the coefficient.
+- `rowind::AbstractVector{Integer}`: Integer array holding row indices for the coefficients.
+- `colind::AbstractVector{Integer}`: Integer array holding column indices for the coefficients.
 - `factor::AbstractVector{Number}`: Double array holding factor by which the formula is scaled.
 - `formulastart::AbstractVector{Integer}`: Integer array of length `ncoefs+1` holding the start position in the arrays `type` and `value` of the formula for the coefficients.
 - `parsed::Integer`: Integer indicating whether the token arrays are formatted as internal unparsed (`parsed`=0) or internal parsed reverse Polish (`parsed`=1).
 - `type::AbstractVector{Integer}`: Array of token types providing the formula for each coefficient.
 - `value::AbstractVector{Number}`: Array of values corresponding to the types in `type`.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSslpaddcoefs](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpaddcoefs.html) in the C API.
 """
@@ -24182,13 +27477,13 @@ end
 Add or change a single matrix coefficient using a character string for the formula. For a simpler version of this function see XPRSnlpchgformulastr.
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `row::Integer`: The index of the matrix row for the coefficient.
 - `col::Integer`: The index of the matrix column for the coefficient.
 - `factor::Union{Nothing,Float64}`: Address of a double precision variable holding the constant multiplier for the formula.
 - `formula::Union{Nothing,AbstractString}`: Character string holding the formula with the tokens separated by spaces.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSslpchgccoef](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpchgccoef.html) in the C API.
 """
@@ -24259,18 +27554,18 @@ end
 
 Add or change a single matrix coefficient using a parsed or unparsed formula.
 
-For a simpler version of this function see XSLPchgformula.
+For a simpler version of this function see XPRSnlpchgformula.
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `row::Integer`: The index of the matrix row for the coefficient.
 - `col::Integer`: The index of the matrix column for the coefficient.
 - `factor::Union{Nothing,Float64}`: Address of a double precision variable holding the constant multiplier for the formula.
-- `parsed::Integer`: Integer indicating the whether the token arrays are formatted as internal unparsed (`parsed`=0) or internal parsed reverse Polish (`parsed`=1).
+- `parsed::Integer`: Integer indicating whether the token arrays are formatted as internal unparsed (`parsed`=0) or internal parsed reverse Polish (`parsed`=1).
 - `type::AbstractVector{Integer}`: Array of token types providing the description and formula for each item.
 - `value::AbstractVector{Number}`: Array of values corresponding to the types in `type`.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSslpchgcoef](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpchgcoef.html) in the C API.
 """
@@ -24312,9 +27607,9 @@ end
 Get current column information.
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem
+- `prob::XPRSprob`: The current problem
 - `type::Integer`: Type of information (see below)
-- `col::Integer`: Index of the column whose information is to be handled
+- `col::Integer`: Index of the column, in the current (presolved) problem, whose information is to be handled
 # Return value
 - `info::Int32`: Pointer to a variable to receive the information
 
@@ -24340,9 +27635,9 @@ end
 Get current column information.
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem
+- `prob::XPRSprob`: The current problem
 - `type::Integer`: Type of information (see below)
-- `col::Integer`: Index of the column whose information is to be handled
+- `col::Integer`: Index of the column, in the current (presolved) problem, whose information is to be handled
 # Return value
 - `info::Float64`: Pointer to a variable to receive the information
 
@@ -24368,7 +27663,7 @@ end
 Get current row information.
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem
+- `prob::XPRSprob`: The current problem
 - `type::Integer`: Type of information (see below)
 - `row::Integer`: Index of the row whose information is to be handled
 # Return value
@@ -24396,7 +27691,7 @@ end
 Get current row information.
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem
+- `prob::XPRSprob`: The current problem
 - `type::Integer`: Type of information (see below)
 - `row::Integer`: Index of the row whose information is to be handled
 # Return value
@@ -24424,9 +27719,9 @@ end
 Re-calculate consistent values for SLP variables based on the current values of the remaining variables.
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSslpcascade](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpcascade.html) in the C API.
 """
@@ -24446,9 +27741,9 @@ end
 Establish a re-calculation sequence for SLP variables with determining rows.
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSslpcascadeorder](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpcascadeorder.html) in the C API.
 """
@@ -24465,14 +27760,16 @@ end
 """
     XPRSslpchgrowstatus(prob, row, status)::XPRSprob
 
+**Deprecated**Use XPRSslpsetrowenforced instead.
+
 Change the status setting of a constraint
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `row::Integer`: The index of the matrix row to be changed.
 - `status::Union{Nothing,Int32}`: Address of an integer holding a bitmap with the new status settings.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSslpchgrowstatus](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpchgrowstatus.html) in the C API.
 """
@@ -24498,11 +27795,11 @@ end
 Set or change the initial penalty error weight for a row
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `row::Integer`: The index of the row whose weight is to be set or changed.
 - `weight::Union{Nothing,Float64}`: Address of a double precision variable holding the new value of the weight.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSslpchgrowwt](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpchgrowwt.html) in the C API.
 """
@@ -24528,13 +27825,13 @@ end
 Changes the type of the delta assigned to a nonlinear variable
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `nvars::Integer`: The number of SLP variables to change the delta type for.
 - `varind::AbstractVector{Integer}`: Indices of the variables to change the deltas for.
-- `deltatypes::AbstractVector{Integer}`: Type of the delta variable: 0 (XSLP_DELTA_CONT)Differentiable variable, default.
+- `deltatypes::AbstractVector{Integer}`: Type of the delta variable: 0 (XPRS_SLPDELTA_CONT)Differentiable variable, default.
 - `values::AbstractVector{Number}`: Grid or minimum step sizes for the variables.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSslpchgdeltatype](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpchgdeltatype.html) in the C API.
 """
@@ -24576,11 +27873,11 @@ end
 Set a variable specific cascade iteration limit
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `col::Integer`: The index of the column corresponding to the SLP variable for which the cascading limit is to be imposed.
 - `limit::Integer`: The new cascading iteration limit.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSslpchgcascadenlimit](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpchgcascadenlimit.html) in the C API.
 """
@@ -24602,9 +27899,9 @@ end
 Create the full augmented SLP matrix and data structures, ready for optimization
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSslpconstruct](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpconstruct.html) in the C API.
 """
@@ -24624,7 +27921,7 @@ end
 Retrieve the status setting of a constraint
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `row::Integer`: The index of the matrix row whose data is to be obtained.
 # Return value
 - `status::Int32`: Address of an integer to receive the status settings.
@@ -24645,12 +27942,38 @@ function XPRSslpgetrowstatus(prob::XPRSprob, row)::Int32
 end
 
 """
+    XPRSslpsetrowenforced(prob, row, ifEnforce)::XPRSprob
+
+Set or clear whether a row is enforced, that is, whether it must not have a penalty error vector
+
+# Arguments
+- `prob::XPRSprob`: The current problem.
+- `row::Integer`: The index of the matrix row to be changed.
+- `ifEnforce::Integer`: Nonzero to enforce the row (no penalty error vector is allowed and any violation must be resolved directly, as for SLPDATA type `EC`); zero to allow the row a penalty error vector as usual.
+# Return value
+- `prob::XPRSprob`: The current problem.
+
+See also the documentation of the correponding function [XPRSslpsetrowenforced](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpsetrowenforced.html) in the C API.
+"""
+function XPRSslpsetrowenforced(prob::XPRSprob, row, ifEnforce)::XPRSprob
+  rowxx = Int32(row)
+  ifEnforcexx = Int32(ifEnforce)
+  faddr = getFunctionAddress("XPRSslpsetrowenforced")
+  retcode = ccall(faddr, Cint, (Ptr{Cvoid},Cint,Cint), prob.handle, rowxx, ifEnforcexx)
+  consumeCallbackException(prob)
+  if retcode != 0
+    throw(XPRSexception(XPRSgetlasterror(prob), nothing))
+  end
+  return prob
+end
+
+"""
     XPRSslpgetrowwt(prob, row)::Float64
 
 Get the initial penalty error weight for a row
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `row::Integer`: The index of the row whose weight is to be retrieved.
 # Return value
 - `weight::Float64`: Address of a double precision variable to receive the value of the weight.
@@ -24676,7 +27999,7 @@ end
 Evaluate a coefficient using the current values of the variables
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `row::Integer`: Integer index of the row.
 - `col::Integer`: Integer index of the column.
 # Return value
@@ -24704,9 +28027,9 @@ end
 Reset the SLP problem to match a just augmented system
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSslpreinitialize](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpreinitialize.html) in the C API.
 """
@@ -24726,9 +28049,9 @@ end
 Removes the augmentation and returns the problem to its pre-linearization state
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSslpunconstruct](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpunconstruct.html) in the C API.
 """
@@ -24748,9 +28071,9 @@ end
 Updates the current linearization
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSslpupdatelinearization](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpupdatelinearization.html) in the C API.
 """
@@ -24767,10 +28090,10 @@ end
 """
     XPRSslpfixpenalties(prob)::Int32
 
-Fixe the values of the error vectors
+Fix the values of the error vectors
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 # Return value
 - `status::Int32`: Return status after fixing the penalty variables: 0 is successful, nonzero otherwise.
 
@@ -24794,9 +28117,9 @@ end
 Restores the problem to its pre-solve state
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSnlppostsolve](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSnlppostsolve.html) in the C API.
 """
@@ -24816,7 +28139,7 @@ end
 Calculate the slack values for the provided solution in the non-linear problem
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `solution::AbstractVector{Number}`: The solution for which the slacks are requested.
 - `slack::Union{XPRSallocatable,AbstractVector{Float64}}`: Array of length `ROWS` to hold the slacks.
   You may pass `XPRS_ALLOC` for this argument to have the function allocate an array of appropriate size for you.
@@ -24855,12 +28178,12 @@ end
 Set the initial step bounds of columns
 
 # Arguments
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 - `ncols::Integer`: Number of columns for which the initial step bound is to be set.
-- `colind::AbstractVector{Integer}`: Array of length `ncols` with index of the column for which the initial step bound is provided.
+- `colind::AbstractVector{Integer}`: Array of length `ncols` with the indices of the columns for which the initial step bounds are provided.
 - `initial::AbstractVector{Number}`: Array of length `ncols` with the initial step bounds.
 # Return value
-- `prob::XPRSprob`: The current SLP problem.
+- `prob::XPRSprob`: The current problem.
 
 See also the documentation of the correponding function [XPRSslpsetinitstepbounds](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpsetinitstepbounds.html) in the C API.
 """
@@ -24898,6 +28221,110 @@ as 0-based indices.
 """
 function XPRSslpsetinitstepbounds(prob::XPRSprob, vec::SparseArrays.AbstractSparseArray{Float64,Int32,1})::Nothing
   XPRSslpsetinitstepbounds(prob, vec.n, vec.nzind, vec.nzval)
+end
+
+
+"""
+    XPRSslpchgcolvals(prob, ncols, colind, values)::XPRSprob
+
+Change the current solution values for a set of columns, given in the input space.
+
+# Arguments
+- `prob::XPRSprob`: The current problem.
+- `ncols::Integer`: The number of columns being changed.
+- `colind::AbstractVector{Integer}`: Array of length `ncols` holding the indices, in the input space, of the columns to be changed.
+- `values::AbstractVector{Number}`: Array of length `ncols` holding the new solution values, corresponding to the columns identified by `colind` (or, if `colind` is `nothing`, to each column of the input space).
+# Return value
+- `prob::XPRSprob`: The current problem.
+
+See also the documentation of the correponding function [XPRSslpchgcolvals](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpchgcolvals.html) in the C API.
+"""
+function XPRSslpchgcolvals(prob::XPRSprob, ncols, colind, values)::XPRSprob
+  ncolsxx = Int32(ncols)
+  if isnothing(colind) || length(colind) == 0
+    c_colind = nothing
+  elseif isa(colind, AbstractVector{Int32})
+    c_colind = colind
+  else
+    c_colind = convert(Vector{Int32}, colind)
+  end
+  if isnothing(values) || length(values) == 0
+    c_values = nothing
+  elseif isa(values, AbstractVector{Float64})
+    c_values = values
+  else
+    c_values = convert(Vector{Float64}, values)
+  end
+  faddr = getFunctionAddress("XPRSslpchgcolvals")
+  retcode = ccall(faddr, Cint, (Ptr{Cvoid},Cint,Ptr{Cint},Ptr{Cdouble}), prob.handle, ncolsxx, isnothing(c_colind) ? C_NULL : c_colind, isnothing(c_values) ? C_NULL : c_values)
+  consumeCallbackException(prob)
+  if retcode != 0
+    throw(XPRSexception(XPRSgetlasterror(prob), nothing))
+  end
+  return prob
+end
+
+"""
+    XPRSslpchgcolvals(prob, vec)
+
+Implementation of `XPRSslpchgcolvals` that combines arguments `ncols`, `colind`, `values`
+into a single argument `vec`. Note that the indices in `vec` must be specified
+as 0-based indices.
+"""
+function XPRSslpchgcolvals(prob::XPRSprob, vec::SparseArrays.AbstractSparseArray{Float64,Int32,1})::Nothing
+  XPRSslpchgcolvals(prob, vec.n, vec.nzind, vec.nzval)
+end
+
+
+"""
+    XPRSslpchgpresolvecolvals(prob, ncols, colind, values)::XPRSprob
+
+Change the current (presolved) solution values for a set of columns.
+
+# Arguments
+- `prob::XPRSprob`: The current problem.
+- `ncols::Integer`: The number of columns being changed.
+- `colind::AbstractVector{Integer}`: Array of length `ncols` holding the indices, in the current (presolved) problem, of the columns to be changed.
+- `values::AbstractVector{Number}`: Array of length `ncols` holding the new solution values, corresponding to the columns identified by `colind` (or, if `colind` is `nothing`, to each column of the current (presolved) problem).
+# Return value
+- `prob::XPRSprob`: The current problem.
+
+See also the documentation of the correponding function [XPRSslpchgpresolvecolvals](https://www.fico.com/fico-xpress-optimization/docs/latest/solver/optimizer/HTML/XPRSslpchgpresolvecolvals.html) in the C API.
+"""
+function XPRSslpchgpresolvecolvals(prob::XPRSprob, ncols, colind, values)::XPRSprob
+  ncolsxx = Int32(ncols)
+  if isnothing(colind) || length(colind) == 0
+    c_colind = nothing
+  elseif isa(colind, AbstractVector{Int32})
+    c_colind = colind
+  else
+    c_colind = convert(Vector{Int32}, colind)
+  end
+  if isnothing(values) || length(values) == 0
+    c_values = nothing
+  elseif isa(values, AbstractVector{Float64})
+    c_values = values
+  else
+    c_values = convert(Vector{Float64}, values)
+  end
+  faddr = getFunctionAddress("XPRSslpchgpresolvecolvals")
+  retcode = ccall(faddr, Cint, (Ptr{Cvoid},Cint,Ptr{Cint},Ptr{Cdouble}), prob.handle, ncolsxx, isnothing(c_colind) ? C_NULL : c_colind, isnothing(c_values) ? C_NULL : c_values)
+  consumeCallbackException(prob)
+  if retcode != 0
+    throw(XPRSexception(XPRSgetlasterror(prob), nothing))
+  end
+  return prob
+end
+
+"""
+    XPRSslpchgpresolvecolvals(prob, vec)
+
+Implementation of `XPRSslpchgpresolvecolvals` that combines arguments `ncols`, `colind`, `values`
+into a single argument `vec`. Note that the indices in `vec` must be specified
+as 0-based indices.
+"""
+function XPRSslpchgpresolvecolvals(prob::XPRSprob, vec::SparseArrays.AbstractSparseArray{Float64,Int32,1})::Nothing
+  XPRSslpchgpresolvecolvals(prob, vec.n, vec.nzind, vec.nzval)
 end
 
 
@@ -25328,7 +28755,9 @@ end
 """
     XPRS_bo_getlasterror(bo, maxbytes)::Tuple{Int32,String,Int32}
 
-Returns the last error encountered during a call to the given branch object.
+**Deprecated**The function is scheduled for removal.
+
+Use XPRSgetlasterror instead. Returns the last error encountered during a call to the given branch object.
 
 # Arguments
 - `bo::XPRSbranchobject`: The branch object.
@@ -26511,7 +29940,7 @@ end
 # Arguments
 - `cbprob`: The problem passed to the callback function, `usersolnotify`.
 - `solname`: The string name assigned to the solution when it was loaded into the Optimizer using XPRSaddmipsol.
-- `status`: One of the following status values: 1Solution is feasible. (`XPRS_USERSOLSTATUS_ACCEPTED_FEASIBLE`) 2Solution is feasible after reoptimizing with fixed MIP entities. (`XPRS_USERSOLSTATUS_ACCEPTED_OPTIMIZED`) 3A local search heuristic was applied and a feasible solution discovered. (`XPRS_USERSOLSTATUS_SEARCHED_SOL`) 4A local search heuristic was applied but a feasible solution was not found. (`XPRS_USERSOLSTATUS_SEARCHED_NOSOL`) 5Solution is infeasible and a local search could not be applied. (`XPRS_USERSOLSTATUS_REJECTED_INFEAS_NOSEARCH`) 6Solution is partial and a local search could not be applied. (`XPRS_USERSOLSTATUS_REJECTED_PARTIAL_NOSEARCH`) 7Failed to reoptimize the problem with MIP entities fixed to the provided solution. Likely because a time or iteration limit was reached. (`XPRS_USERSOLSTATUS_REJECTED_FAILED_OPTIMIZE`) 8Solution is dropped. This can happen if the MIP problem is changed or solved to completion before the solution could be processed. (`XPRS_USERSOLSTATUS_DROPPED`) 9The solution is worse than the current MIP cutoff value. (`XPRS_USERSOLSTATUS_REJECTED_CUTOFF`)
+- `status`: One of the following status values: 1Solution is feasible. (`XPRS_USERSOLSTATUS_ACCEPTED_FEASIBLE`) 2Solution is feasible after reoptimizing with fixed MIP entities. (`XPRS_USERSOLSTATUS_ACCEPTED_OPTIMIZED`) 3A large neighborhood search heuristic was applied and a feasible solution discovered. (`XPRS_USERSOLSTATUS_SEARCHED_SOL`) 4A large neighborhood search heuristic was applied but a feasible solution was not found. (`XPRS_USERSOLSTATUS_SEARCHED_NOSOL`) 5Solution is infeasible and a large neighborhood search heuristic could not be applied. (`XPRS_USERSOLSTATUS_REJECTED_INFEAS_NOSEARCH`) 6Solution is partial and a large neighborhood search heuristic could not be applied. (`XPRS_USERSOLSTATUS_REJECTED_PARTIAL_NOSEARCH`) 7Failed to reoptimize the problem with MIP entities fixed to the provided solution. Likely because a time or iteration limit was reached. (`XPRS_USERSOLSTATUS_REJECTED_FAILED_OPTIMIZE`) 8Solution is dropped. This can happen if the MIP problem is changed or solved to completion before the solution could be processed. (`XPRS_USERSOLSTATUS_DROPPED`) 9The solution is worse than the current MIP cutoff value. (`XPRS_USERSOLSTATUS_REJECTED_CUTOFF`)
 
 `cb` will be invoked with this signature:
 ```
@@ -27100,7 +30529,7 @@ end
 
 # Arguments
 - `cbprob`: The problem passed to the callback function.
-- `col`: The number of the column which has been cascaded.
+- `col`: The index of the column which has been cascaded.
 
 `cb` will be invoked with this signature:
 ```
@@ -27160,7 +30589,7 @@ end
 
 # Arguments
 - `cbprob`: The problem passed to the callback function.
-- `col`: The number of the column which has been cascaded.
+- `col`: The index of the column which has been cascaded.
 
 `cb` will be invoked with this signature:
 ```
@@ -27456,7 +30885,7 @@ end
 
 # Arguments
 - `cbprob`: The problem passed to the callback function.
-- `col`: The number of the column which has been tested for convergence.
+- `col`: The index of the column which has been tested for convergence.
 
 `cb` will be invoked with this signature:
 ```
@@ -27519,7 +30948,7 @@ end
 
 # Arguments
 - `cbprob`: The problem passed to the callback function.
-- `col`: The index of the column for which the determining columns is checked.
+- `col`: The index of the column for which the determining column is checked.
 - `detcol`: The index of the determining column for the column that is being updated.
 - `detval`: The value of the determining column in the current SLP iteration.
 - `value`: Used to return the new value for column `col`, should it need to be updated, in which case the callback must return a positive result to indicate that this value should be used.
@@ -27781,8 +31210,8 @@ end
 
 # Arguments
 - `cbprob`: The problem passed to the callback function.
-- `col`: The column position of the coefficient.
-- `row`: The row position of the coefficient.
+- `col`: The column index of the coefficient.
+- `row`: The row index of the coefficient.
 
 `cb` will be invoked with this signature:
 ```

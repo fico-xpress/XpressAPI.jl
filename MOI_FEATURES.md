@@ -170,7 +170,7 @@ Where `S` can be `MOI.LessThan`, `MOI.GreaterThan`, or `MOI.EqualTo`.
 | `MOI.SimplexIterations` | `Int` | Simplex iterations |
 | `MOI.BarrierIterations` | `Int` | Barrier iterations |
 | `MOI.NodeCount` | `Int` | Nodes explored in branch-and-bound |
-| `MOI.ResultCount` | `Int` | Number of solutions (always 1 for Xpress) |
+| `MOI.ResultCount` | `Int` | Number of available solutions (`POOLSIZE` for a solved MIP, 1 for LP) |
 | `MOI.RawStatusString` | `String` | Human-readable solver status |
 | `MOI.SolverVersion` | `String` | Runtime Xpress library version as `major.minor.build` |
 | `MOI.ObjectiveFunctionType` | `Type` | Type of the objective function currently set |
@@ -547,7 +547,7 @@ The following MOI features are **not yet supported** in XpressAPI:
 **Workaround**: Use MOI bridges to reformulate conic constraints as quadratic constraints.
 
 #### Advanced Features
-- ❌ Multiple solutions / Solution pool access (Xpress has solution pools but not exposed via MOI)
+- ✅ Multiple solutions / Solution pool access via the result-index API (`ResultCount`, and the result index on `VariablePrimal` / `ConstraintPrimal` / `ObjectiveValue` / `PrimalStatus`)
 - ❌ Sensitivity analysis via MOI (use Xpress API directly)
 - ❌ Parameter tuning hints
 
